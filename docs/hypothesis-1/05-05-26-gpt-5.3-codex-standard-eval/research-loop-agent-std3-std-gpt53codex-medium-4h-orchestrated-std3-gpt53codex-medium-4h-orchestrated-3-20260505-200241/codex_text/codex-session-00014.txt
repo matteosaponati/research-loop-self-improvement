@@ -1,0 +1,80 @@
+I’m starting the research loop now by checking whether prior results already exist so I can either resume immediately or do full setup, then I’ll run/record experiments in the required git workflow.
+
+I found an active branch with a populated `memory/results.tsv`, so I’m resuming from the existing loop state and now reading `editable/` plus current git state to choose the next experiment.
+
+I confirmed this is a resumed run and identified the current best (`1.024804`). Next I’m inspecting the scheduler/optimizer sections in `train.py` to pick a high-impact change likely to improve 5-minute validation.
+
+I found the branch head is ahead of the logged table (`HEAD=6445c81` isn’t in `memory/results.tsv`), so I’ll run the next experiment from this current code state and keep strict per-experiment reset behavior from here onward. I’m applying one targeted config change (`weight_decay` increase) and committing it.
+
+The change is committed. I’m running the 5-minute training run now with output redirected to `run.log`, then I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+Training is in progress under a live session; I’m polling until it exits, then I’ll parse metrics and decide keep/discard against the best logged result.
+
+Run is still active and within expected wall time. I’m continuing to wait for completion before reading `metrics.json`.
+
+I’m still waiting on the run; once the process exits, I’ll immediately capture metrics and append the TSV row.
+
+Run is still executing; I’m continuing to poll and will kill it only if it crosses the 10-minute failure limit.
+
+I’m at mid-run wait, no crash signals yet. Continuing until process termination and then evaluating `val_bpb`.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the result row, and applying keep/discard with a git reset if it didn’t beat the current best.
+
+The post-run parsing step failed because plain `python` isn’t on PATH in this environment; I’m re-running the metrics collection with `uv run python`, then I’ll record the row and reset if discard.
+
+I recorded the previous run as `discard` and reset to the pre-experiment commit. Next experiment: keep weight decay stronger late in training by changing the decay schedule to end at 50% of initial instead of 0%, then run and compare.
+
+I’ve committed the schedule tweak and I’m launching the timed run now; after completion I’ll parse `metrics.json`, append TSV, and keep/reset based on `val_bpb`.
+
+Run is active and progressing normally. I’m continuing to wait for exit and then I’ll record the result immediately.
+
+Still within expected runtime window; I’m polling until completion.
+
+No failure indicators so far; continuing to wait.
+
+I’m in the final wait window for this run; once it exits I’ll parse metrics and apply keep/discard.
+
+The run completed successfully. I’m extracting `metrics.json`, writing the TSV row, and resetting if this didn’t beat the best recorded value.
+
+Both recent ideas were worse. I’m repositioning to the best known commit (`b5b989a`) and testing a local interpolation (`warmdown_ratio 0.60 -> 0.62`) to probe near the current optimum.
+
+I’ve committed the new schedule point and started the run now. After it finishes I’ll log metrics and keep/reset strictly by `val_bpb`.
+
+Run is active and within budget. I’m continuing to wait for completion before collecting the metrics file.
+
+Still running normally. I’ll keep polling and apply keep/discard immediately at exit.
+
+I’m in the mid-to-late phase of this run; no timeout risk yet. Continuing to wait for process completion.
+
+Still active; I’ll keep polling and enforce the 10-minute cutoff if needed.
+
+The run just finished successfully. I’m recording the metrics and applying keep/discard now.
+
+Completed 3 new experiments and updated `memory/results.tsv` for each, following commit→run→record→reset rules.
+
+Latest results added:
+- `4d6fe0b` `val_bpb=1.026983` `discard` (`weight_decay 0.2->0.25`)
+- `ffa8819` `val_bpb=1.029528` `discard` (weight decay schedule floor at 50%)
+- `798ec47` `val_bpb=1.026679` `discard` (`warmdown_ratio 0.60->0.62`)
+
+Current best remains:
+- `b5b989a` with `val_bpb=1.024804` (`keep`)
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD=b5b989a` (reset back to best keep after discards)
+tokens used
+39,545
+Completed 3 new experiments and updated `memory/results.tsv` for each, following commit→run→record→reset rules.
+
+Latest results added:
+- `4d6fe0b` `val_bpb=1.026983` `discard` (`weight_decay 0.2->0.25`)
+- `ffa8819` `val_bpb=1.029528` `discard` (weight decay schedule floor at 50%)
+- `798ec47` `val_bpb=1.026679` `discard` (`warmdown_ratio 0.60->0.62`)
+
+Current best remains:
+- `b5b989a` with `val_bpb=1.024804` (`keep`)
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD=b5b989a` (reset back to best keep after discards)

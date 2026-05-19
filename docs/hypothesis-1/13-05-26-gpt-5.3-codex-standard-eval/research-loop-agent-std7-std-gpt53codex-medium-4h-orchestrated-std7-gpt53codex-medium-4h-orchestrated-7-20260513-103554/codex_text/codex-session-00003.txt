@@ -1,0 +1,64 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume immediately or do the one-time branch/baseline setup.
+
+I found an initialized loop on branch `research-loops/may13` with prior experiments, so I’m resuming from the current best (`1.025695`) and moving directly to a new code experiment in `editable/`. I’ll now read `editable/train.py`, `editable/config.toml`, and `editable/config_loader.py` plus results to choose the next change.
+
+I’ve identified the next low-risk test: increase `muon_beta2` to smooth second-moment estimates for matrix updates without changing throughput-critical settings. I’m editing `editable/config.toml`, showing the diff, then committing and running a 5-minute trial.
+
+Commit `d9e9045` is ready; I’m launching the timed training run now and will read only `metrics.json` when it finishes.
+
+The run is in progress under a 10-minute guard; I’m waiting for completion before collecting metrics.
+
+Training is still running; once it exits I’ll parse `metrics.json`, append to `memory/results.tsv`, and then keep or reset based on `val_bpb`.
+
+I’m still waiting on the same run process; no crash handling needed yet since it remains active within the timeout window.
+
+The run is unusually long but still under the hard 10-minute cap from the timeout wrapper, so I’m continuing to wait for a clean exit signal.
+
+I’m polling the same process until either normal completion or timeout kill, then I’ll classify the run accordingly from `metrics.json`.
+
+I hit a tooling hiccup (`python` is unavailable directly here), and the conditional reset fired early, so I’m now reading `metrics.json` with `uv run python` and appending the missing experiment row explicitly before continuing.
+
+I’ve recorded that run as `discard` (`1.026271`) and reset to the current best commit. Next I’m testing a lighter regularization pass by lowering `weight_decay` from `0.2` to `0.15`.
+
+I committed `5dae6cf` and I’m running the next 5-minute training trial now.
+
+The run is active; I’m waiting for completion and will again use only `metrics.json` for result collection.
+
+I’m continuing to poll the same process; once it exits I’ll append the TSV row and keep or discard the commit based on `val_bpb`.
+
+The process is still running within the timeout budget; no crash signal yet.
+
+Waiting on completion; I’ll classify it as failure only if timeout hits or `metrics.json` is invalid/missing.
+
+The run completed successfully; I’m now extracting metrics, logging to `memory/results.tsv`, and applying keep/discard with a git reset if needed.
+
+Two consecutive optimizer tweaks were worse than baseline, so I’m trying a small step-size adjustment next: increase `matrix_lr` from `0.04` to `0.042` while keeping everything else at baseline.
+
+The `matrix_lr` experiment is running now; I’m waiting for process exit before reading `metrics.json` and deciding keep/discard.
+
+Still running within budget; I’m continuing to poll until it finishes or times out.
+
+Current loop status:
+
+- Resumed existing branch/state (`research-loops/may13`) from prior memory log.
+- Ran and logged two new experiments:
+  - `d9e9045` (`muon_beta2 = 0.98`) → `val_bpb 1.026271` → `discard`
+  - `5dae6cf` (`weight_decay = 0.15`) → `val_bpb 1.026093` → `discard`
+- Best remains baseline `6ef85a6` with `val_bpb 1.025695`.
+- Started another experiment:
+  - `4f048e0` (`matrix_lr = 0.042`) is currently running under timeout guard; metrics not collected yet.
+
+`memory/results.tsv` has been updated with all completed runs.
+tokens used
+30,743
+Current loop status:
+
+- Resumed existing branch/state (`research-loops/may13`) from prior memory log.
+- Ran and logged two new experiments:
+  - `d9e9045` (`muon_beta2 = 0.98`) → `val_bpb 1.026271` → `discard`
+  - `5dae6cf` (`weight_decay = 0.15`) → `val_bpb 1.026093` → `discard`
+- Best remains baseline `6ef85a6` with `val_bpb 1.025695`.
+- Started another experiment:
+  - `4f048e0` (`matrix_lr = 0.042`) is currently running under timeout guard; metrics not collected yet.
+
+`memory/results.tsv` has been updated with all completed runs.

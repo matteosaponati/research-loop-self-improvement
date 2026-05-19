@@ -1,0 +1,208 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already exists with prior runs, so I can either resume or initialize exactly per your rules.
+
+There are no prior logged experiments, so I’ll initialize a fresh branch/tag run, verify local data/tokenizer artifacts, then execute and log the baseline.
+
+I confirmed data/tokenizer are present. Next I’m creating `research-loops/may13`, initializing `memory/results.tsv`, then running the 5-minute baseline and capturing `metrics.json`.
+
+Baseline run is in progress in the background; I’ll wait for completion, then read only `metrics.json` and append the baseline row to `memory/results.tsv`.
+
+Training is still running past the first wait window; I’m continuing to wait up to the 10-minute ceiling and will kill/discard only if it crosses that limit.
+
+Baseline finished successfully. I’m extracting metrics, logging the baseline result, then I’ll inspect `editable/` and launch the first tuning experiment.
+
+I’ve recorded the baseline (`val_bpb=1.025757`). Now I’m reading `editable/train.py`, config files, and results history to choose the next high-impact change.
+
+I found a clean first lever in `editable/config.toml`: add a short LR warmup and slightly longer warmdown to smooth early optimization under the fixed 5-minute budget. I’m applying that as a single controlled experiment.
+
+I’m generating the unified diff now, then committing and launching the run with full output redirected to `run.log`.
+
+Experiment `af57946` is running. I’ll wait for completion, then read `metrics.json`, append the TSV row, and keep or reset based on `val_bpb` versus `1.025757`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..eb97317230f026750c887757fd8ca944666950e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.02
++warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The run is still active after 5 minutes elapsed in this wait window, so I’m continuing to wait and will enforce the 10-minute fail cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..eb97317230f026750c887757fd8ca944666950e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.02
++warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Run completed. I’m collecting `metrics.json`, updating `memory/results.tsv`, and applying keep/discard by comparing against the current best recorded `val_bpb`.
+
+This experiment is worse (`1.026336`), so I’m discarding it by resetting to the previous commit while preserving the logged row in `memory/results.tsv`.
+
+I noticed a logging formatting bug: the discard row has a literal `\n` in the description text. I’m fixing `memory/results.tsv` formatting now so subsequent parsing stays clean.
+
+I’m continuing the loop with a second experiment: reducing `matrix_lr` slightly to stabilize Muon updates (`0.04 -> 0.035`) while keeping the rest unchanged.
+
+I’m capturing the diff, committing this trial, and running the next 5-minute experiment.
+
+Experiment `153252d` is running now; after it ends I’ll read `metrics.json`, log the result, and keep/reset based on whether it beats `1.025757`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6025da75557b72ed5fd3c7b44fcb5d9838eecacb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run is still active, so I’m continuing to wait and will treat it as failed only if it exceeds the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6025da75557b72ed5fd3c7b44fcb5d9838eecacb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m extracting the metrics for `153252d`, appending to `memory/results.tsv`, and deciding keep/discard immediately after comparison.
+
+Completed setup and ran 3 experiments (baseline + 2 tuning runs) following your loop rules.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..eb97317 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.02
++warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..6025da7 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Current status:
+- Active branch: `research-loops/may13`
+- Current HEAD (kept best): `153252d`
+- Best `val_bpb` so far: `1.025020` (improved vs baseline `1.025757`)
+
+Results log updated at [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/memory/results.tsv):
+- `6ef85a6	1.025757	41.1	keep	baseline`
+- `af57946	1.026336	41.1	discard	2% warmup, 60% warmdown LR schedule`
+- `153252d	1.025020	41.1	keep	lower matrix_lr to 0.035`
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6025da75557b72ed5fd3c7b44fcb5d9838eecacb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+45,319
+Completed setup and ran 3 experiments (baseline + 2 tuning runs) following your loop rules.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..eb97317 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.02
++warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..6025da7 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Current status:
+- Active branch: `research-loops/may13`
+- Current HEAD (kept best): `153252d`
+- Best `val_bpb` so far: `1.025020` (improved vs baseline `1.025757`)
+
+Results log updated at [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/memory/results.tsv):
+- `6ef85a6	1.025757	41.1	keep	baseline`
+- `af57946	1.026336	41.1	discard	2% warmup, 60% warmdown LR schedule`
+- `153252d	1.025020	41.1	keep	lower matrix_lr to 0.035`

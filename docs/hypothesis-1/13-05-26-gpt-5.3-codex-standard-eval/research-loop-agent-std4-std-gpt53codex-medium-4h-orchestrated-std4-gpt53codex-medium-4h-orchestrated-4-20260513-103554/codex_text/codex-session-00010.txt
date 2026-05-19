@@ -1,0 +1,208 @@
+I’m starting the research loop by checking git state, prior memory, and whether this run is already initialized so I can either resume or perform fresh setup exactly as specified.
+
+Initialization is already present (`memory/results.tsv` has prior runs), so I’m resuming from the current branch and moving straight to selecting the next experiment by reading `editable/` and prior results.
+
+I’ve identified the current best (`1.022726`) and now I’m checking whether HEAD is already at that keep commit or sitting on a discarded change before I edit, so we only branch experiments from the best state.
+
+Next experiment: keep the best optimizer settings and change only LR schedule shape to decay later (`warmdown_ratio` from `0.5` to `0.35`) so more of the 5-minute budget stays at peak LR before final cooldown. I’m applying that single-file edit and committing it.
+
+The commit is in place (`8e2ad8f`), and I’m now running the 5-minute training job with output redirected to `run.log`; after completion I’ll read `metrics.json` only and decide keep vs discard.
+
+Training is running in-session; I’m waiting for completion and will only collect the final numbers from `metrics.json` unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..3b85022c20954c8037304b1a5f337617866725a7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Run is still in progress; I’m continuing to wait on the same process and will parse metrics as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..3b85022c20954c8037304b1a5f337617866725a7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still executing within the expected budget window. I’m waiting again and will immediately evaluate keep/discard when it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..3b85022c20954c8037304b1a5f337617866725a7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..3b85022c20954c8037304b1a5f337617866725a7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The run completed successfully. I’m now reading `metrics.json`, appending this trial to `memory/results.tsv`, and then comparing against the best so I can keep or reset the commit.
+
+This trial is worse than the current best, so I’m recording it as `discard` in `memory/results.tsv` and resetting the branch back to the previous best commit.
+
+I’m proceeding with the next iteration from the restored best commit. New hypothesis: slightly reduce `matrix_lr` (`0.025` → `0.024`) while keeping `weight_decay=0.32`, since the new decay setting may shift the best Muon LR.
+
+Second run is starting now with commit `9a59c05`; after it finishes I’ll read `metrics.json`, log to TSV, and keep or discard based on `val_bpb`.
+
+Training is in progress; I’m waiting on completion and staying within the `metrics.json`-only readout path.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..402c9323af35626236d8c79e4d3b3a92c045cc7b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.025
++matrix_lr = 0.024
+ weight_decay = 0.32
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run is still active and looks normal from process state. I’ll continue waiting and then collect metrics immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..402c9323af35626236d8c79e4d3b3a92c045cc7b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.025
++matrix_lr = 0.024
+ weight_decay = 0.32
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running within expected duration; I’m waiting once more for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..402c9323af35626236d8c79e4d3b3a92c045cc7b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.025
++matrix_lr = 0.024
+ weight_decay = 0.32
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+This one is taking longer overall due startup/compile overhead but still under the 10-minute failure threshold. I’m waiting for process exit now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..402c9323af35626236d8c79e4d3b3a92c045cc7b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.025
++matrix_lr = 0.024
+ weight_decay = 0.32
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run finished successfully. I’m extracting `metrics.json`, recording the row in `memory/results.tsv`, then applying keep/reset based on best-so-far comparison.
+
+Resumed correctly from existing memory and ran 2 new experiments end-to-end on `research-loops/may13`.
+
+Results logged to `memory/results.tsv`:
+- `8e2ad8f` `val_bpb=1.023581` `41.1 GB` `discard` `shorten lr warmdown to 35%`
+- `9a59c05` `val_bpb=1.023593` `41.1 GB` `discard` `lower matrix_lr to 0.024 at wd 0.32`
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.024
+```
+
+Both were worse than current best (`1.022726`), so both commits were discarded via reset.  
+Current HEAD is back at best commit `acae4ab` with clean experiment state for the next iteration.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6b9774a4c3c928f469921fd5909a7abc1cc2b162..402c9323af35626236d8c79e4d3b3a92c045cc7b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.025
++matrix_lr = 0.024
+ weight_decay = 0.32
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+24,682
+Resumed correctly from existing memory and ran 2 new experiments end-to-end on `research-loops/may13`.
+
+Results logged to `memory/results.tsv`:
+- `8e2ad8f` `val_bpb=1.023581` `41.1 GB` `discard` `shorten lr warmdown to 35%`
+- `9a59c05` `val_bpb=1.023593` `41.1 GB` `discard` `lower matrix_lr to 0.024 at wd 0.32`
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.35
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.024
+```
+
+Both were worse than current best (`1.022726`), so both commits were discarded via reset.  
+Current HEAD is back at best commit `acae4ab` with clean experiment state for the next iteration.

@@ -1,0 +1,54 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume or initialize exactly as specified. I’ll verify git state, branch, and `memory/results.tsv` first.
+
+I found an active run history and a current best `val_bpb` of `1.023880`, so I’m resuming from this branch without reinitializing. Next I’ll read all in-scope `editable/` files to choose the next concrete experiment.
+
+I’ve loaded the full training and config code and I’m now selecting the next high-probability tweak based on the prior sweep history in `results.tsv`. I’ll make one focused change, commit it, run, and decide keep/discard from `metrics.json`.
+
+I’m applying a single-parameter optimizer test next: reduce `embedding_lr` from `0.6` to `0.55` while keeping the rest fixed, since previous embedding-LR tests were confounded with other changes. After the edit I’ll commit, run, and evaluate against the current best.
+
+The run is in progress under timeout control (`600s` hard cap). I’m waiting for completion, then I’ll read only `metrics.json`, append the TSV row, and reset if it did not beat `1.023880`.
+
+I’m still waiting on training to finish; no log inspection needed unless it crashes. I’ll continue polling and process `metrics.json` immediately when the process exits.
+
+Training is still active; I’m continuing to wait rather than touching `run.log`, then I’ll parse `metrics.json` and apply keep/discard logic.
+
+I’m near expected completion window now; once the process exits I’ll collect metrics and update `memory/results.tsv` without opening the run log.
+
+The run completed with `val_bpb` worse than current best (`1.026253` vs `1.023880`). I’m now logging it as `discard` and resetting to the prior best commit state.
+
+I’ve reverted the experimental code commit and returned the branch head to the best commit. I’m doing a quick sanity check that the new TSV row is present and the workspace is ready for the next experiment.
+
+I’m continuing the loop with another experiment now. Next test is `muon_ns_steps = 6` (from 5) to check whether a stronger Muon orthogonalization step count helps validation within the same 5-minute budget.
+
+This second run is still training normally under the same timeout guard. I’ll keep waiting and then do the same metrics-only evaluation and branch decision.
+
+I’m in the final stretch of this run’s expected window. As soon as it exits, I’ll append the TSV entry and keep or discard automatically based on `val_bpb`.
+
+The `muon_ns_steps=6` trial also regressed (`1.026101`), so I’m marking it `discard` and resetting branch head back to the current best commit again.
+
+Completed two autonomous experiments and updated the loop state.
+
+Current best remains commit `4aaadb4` with `val_bpb = 1.023880`.
+
+New experiment results appended to `memory/results.tsv`:
+- `a57cf44	1.026253	41.1	discard	embedding_lr 0.55`
+- `1b70c0c	1.026101	41.1	discard	muon_ns_steps 6`
+
+Actions taken:
+- For each trial: edited `editable/config.toml`, committed, ran `uv run --extra research python editable/train.py > run.log 2>&1` with a 600s cap, read `metrics.json`, logged result, and reset non-improving commit.
+- Branch head was restored to best commit after each discard.
+- Workspace currently at `4aaadb4`; `metrics.json` is untracked (expected transient artifact).
+tokens used
+31,836
+Completed two autonomous experiments and updated the loop state.
+
+Current best remains commit `4aaadb4` with `val_bpb = 1.023880`.
+
+New experiment results appended to `memory/results.tsv`:
+- `a57cf44	1.026253	41.1	discard	embedding_lr 0.55`
+- `1b70c0c	1.026101	41.1	discard	muon_ns_steps 6`
+
+Actions taken:
+- For each trial: edited `editable/config.toml`, committed, ran `uv run --extra research python editable/train.py > run.log 2>&1` with a 600s cap, read `metrics.json`, logged result, and reset non-improving commit.
+- Branch head was restored to best commit after each discard.
+- Workspace currently at `4aaadb4`; `metrics.json` is untracked (expected transient artifact).

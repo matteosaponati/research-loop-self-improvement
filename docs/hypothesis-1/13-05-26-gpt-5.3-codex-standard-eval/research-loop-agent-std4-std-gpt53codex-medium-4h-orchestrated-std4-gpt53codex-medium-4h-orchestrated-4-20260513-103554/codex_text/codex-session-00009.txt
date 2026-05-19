@@ -1,0 +1,78 @@
+I’m starting the research loop by checking git status/branch state and whether `memory/results.tsv` already has prior rows so I can either resume or run fresh setup exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` has prior experiments), so I’m resuming directly from current branch and now reading `editable/` plus the results table to pick the next experiment.
+
+I have the experiment history: best so far is `1.022726` at `weight_decay=0.32`, and the current working tree is already at a newer untested commit (`0.34`). I’m now checking `train.py` around optimizer/scheduler wiring to choose the highest-leverage next tweak.
+
+I’m treating the current `weight_decay=0.34` commit as the next queued experiment and running it now; after completion I’ll read only `metrics.json`, append `memory/results.tsv`, and then keep/reset based on improvement.
+
+The run is in progress under a background session; I’m polling for completion and will stop only if it crosses the 10-minute failure limit.
+
+Training is still running normally; I’m continuing to wait for completion before reading `metrics.json`.
+
+Still in-flight and within budget. I’m continuing to poll until the process exits, then I’ll extract metrics and decide keep/discard.
+
+No crash signal yet; because output is redirected, this silent polling is expected. I’m waiting for process exit and then applying the keep/revert rule from the metrics.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the new row to `memory/results.tsv`, and resetting this commit if it did not beat the current best `val_bpb`.
+
+I hit a small environment detail (`python` is not on PATH), so I switched to `uv run python`; one metrics read is still running and I’m polling it now.
+
+`val_bpb` is worse (`1.074286`), so I’m recording this as `discard` and resetting the branch back to the previous best lineage before launching the next experiment.
+
+I’m proceeding with the next experiment from the restored best commit: a fine-grained sweep at `weight_decay=0.325` (between the current best `0.32` and nearby tested values). I’ll patch `editable/config.toml`, show the unified diff, commit, and run.
+
+The new commit is in place (`1c8928f`). Running the 5-minute training job now, then I’ll score from `metrics.json` and keep/revert automatically.
+
+Second run is progressing; I’m polling until completion and will apply the same keep/discard gate against the current best `1.022726`.
+
+Still running within expected wall time; continuing to wait for clean exit before parsing metrics.
+
+Run is near completion window now; I’m doing final polling for exit and then immediate metrics logging/reset decision.
+
+The run completed successfully. I’m extracting `metrics.json`, recording the row, and keeping or reverting commit `1c8928f` based on whether it beats `1.022726`.
+
+I reverted to the best commit and I’m continuing the loop with a new direction: keep `weight_decay=0.32` but disable decay over time (`weight_decay_decay=false`) to test constant regularization strength.
+
+Third experiment is running now (`4bf9de2`). I’m polling to completion, then I’ll log metrics and keep/reset as usual.
+
+Run remains healthy and silent (expected with redirected log). Continuing until exit, then I’ll evaluate against the current best.
+
+I’m still waiting on this training run; once it exits I’ll immediately append `memory/results.tsv` and either keep `4bf9de2` or hard-reset it.
+
+The run just finished. I’m collecting `metrics.json`, updating the TSV, and applying keep/discard now.
+
+Completed 3 experiments and applied keep/discard+reset automatically.
+
+Current branch/head:
+- `research-loops/may13`
+- `acae4ab` (best kept commit)
+
+Best so far:
+- `val_bpb = 1.022726` at `acae4ab`
+- `peak_vram = 41.1 GB`
+
+New results appended to `memory/results.tsv`:
+- `97e1d31	1.074286	41.1	discard	increase weight_decay to 0.34`
+- `1c8928f	1.023003	41.1	discard	set weight_decay to 0.325`
+- `4bf9de2	1.026568	41.1	discard	use constant weight decay (disable decay schedule)`
+
+All worse than best, so each was discarded and branch reset after logging.
+tokens used
+53,753
+Completed 3 experiments and applied keep/discard+reset automatically.
+
+Current branch/head:
+- `research-loops/may13`
+- `acae4ab` (best kept commit)
+
+Best so far:
+- `val_bpb = 1.022726` at `acae4ab`
+- `peak_vram = 41.1 GB`
+
+New results appended to `memory/results.tsv`:
+- `97e1d31	1.074286	41.1	discard	increase weight_decay to 0.34`
+- `1c8928f	1.023003	41.1	discard	set weight_decay to 0.325`
+- `4bf9de2	1.026568	41.1	discard	use constant weight decay (disable decay schedule)`
+
+All worse than best, so each was discarded and branch reset after logging.

@@ -1,0 +1,104 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` has prior results), so I’m resuming from the current branch and moving straight to proposing the next experiment after reading `editable/` and prior results.
+
+I have prior experiment history and current hyperparameters loaded; next I’m scanning the rest of `editable/train.py` to pick a targeted high-signal change for the next 5-minute run.
+
+I’m choosing the next experiment from the trend: `matrix_lr` and higher `weight_decay` both helped, so I’ll test a small additional `weight_decay` increase while keeping everything else fixed to probe if the improvement continues.
+
+I’m now applying a single-parameter edit in `editable/config.toml` (`weight_decay` up to `0.26`), then I’ll commit, run, read `metrics.json`, log to `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+The experiment commit is ready (`641d319`). I’m launching the 5-minute training run now and will collect only `metrics.json` for evaluation unless the run crashes.
+
+Training is running in the background session; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+The run completed successfully; I’m reading `metrics.json`, appending the result row, and then deciding keep vs discard by comparing against the best recorded `val_bpb`.
+
+`python` isn’t on PATH in this environment, so I’m re-running the metric extraction with `uv run python` and continuing the keep/discard decision.
+
+I have the new run metric (`val_bpb=1.022906`), which is an improvement; I’m waiting for the best-history query to finish, then I’ll log and keep the commit.
+
+I logged this improved run as `keep` and will immediately launch the next experiment from this new best checkpoint, testing a small `matrix_lr` increase to `0.0248`.
+
+The second experiment commit is in place (`c8c6f39`); I’m running training now and will keep or revert strictly based on `metrics.json` vs current best `1.022906`.
+
+Run is still in progress within expected timing window; I’m polling until it exits, then I’ll read metrics and apply keep/discard with a reset if needed.
+
+This run regressed (`1.023021`), so I’m logging it as `discard` and resetting back to the previous best commit before continuing the search.
+
+I’ve reverted to the best commit (`641d319`) and I’m proceeding with another experiment immediately: testing `weight_decay = 0.28` to see if the beneficial trend continues.
+
+I committed `e4b0440` and started the next 5-minute run; after completion I’ll log results and keep or discard automatically.
+
+The run is still active and within bounds; I’m waiting for process exit, then I’ll finalize metrics logging and branch state.
+
+This experiment improved again (`1.022738`), so I’m recording it as `keep` and leaving the branch advanced at this new best commit.
+
+Current loop status after 3 new experiments:
+
+Best `val_bpb` is now `1.022738` at commit `e4b0440` (kept).  
+Branch is advanced and currently at `e4b0440`.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.24
++weight_decay = 0.26
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.0246
++matrix_lr = 0.0248
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.26
++weight_decay = 0.28
+```
+
+Results appended to `memory/results.tsv`:
+- `641d319	1.022906	41.1	keep	increase weight_decay to 0.26`
+- `641d319	1.023021	41.1	discard	increase matrix_lr to 0.0248` (then reset to `641d319`)
+- `e4b0440	1.022738	41.1	keep	increase weight_decay to 0.28`
+
+I followed the keep/discard reset policy and used only `metrics.json` for normal result collection.
+tokens used
+36,709
+Current loop status after 3 new experiments:
+
+Best `val_bpb` is now `1.022738` at commit `e4b0440` (kept).  
+Branch is advanced and currently at `e4b0440`.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.24
++weight_decay = 0.26
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.0246
++matrix_lr = 0.0248
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.26
++weight_decay = 0.28
+```
+
+Results appended to `memory/results.tsv`:
+- `641d319	1.022906	41.1	keep	increase weight_decay to 0.26`
+- `641d319	1.023021	41.1	discard	increase matrix_lr to 0.0248` (then reset to `641d319`)
+- `e4b0440	1.022738	41.1	keep	increase weight_decay to 0.28`
+
+I followed the keep/discard reset policy and used only `metrics.json` for normal result collection.

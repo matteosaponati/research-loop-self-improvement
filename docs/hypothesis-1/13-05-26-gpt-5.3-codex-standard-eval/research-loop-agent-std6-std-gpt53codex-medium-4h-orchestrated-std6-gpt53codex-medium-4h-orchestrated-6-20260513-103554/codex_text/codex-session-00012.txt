@@ -1,0 +1,185 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has runs, then I’ll either resume or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized loop with prior experiments, so I’m resuming directly from step (2). Next I’m checking current commit/state, then I’ll read `editable/` files and propose the next tweak.
+
+I’m on commit `8aa10bc` (current best so far), so I’ll run the next experiment from here. I’m quickly scanning scheduler/optimizer usage in `train.py` to choose a high-leverage single-parameter change.
+
+I’m running a single controlled experiment: disable weight-decay decay (`weight_decay_decay = false`) while keeping all other tuned settings unchanged, to test whether constant regularization improves end-of-budget validation. I’ll commit this diff, run training, read `metrics.json`, and then keep or reset based on `val_bpb`.
+
+I’ve applied the config change; next I’m committing it and launching the 5-minute run.
+
+The experiment run is in progress in the background; I’m waiting for completion and will only read `metrics.json` for result collection unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..82bce32d51e3cf919d5ba47d7eb8707c49bf0547
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Training is still running within the expected window. I’ll continue waiting and then parse `metrics.json`, update `memory/results.tsv`, and decide keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..82bce32d51e3cf919d5ba47d7eb8707c49bf0547
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+I’m still waiting on the run to finish; next step is immediate metrics extraction and branch decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..82bce32d51e3cf919d5ba47d7eb8707c49bf0547
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+The run finished; I hit a local environment issue (`python` not on PATH), so I’m extracting `metrics.json` via `uv run python` and proceeding with logging/keep-discard logic.
+
+`weight_decay_decay = false` regressed (`1.024651`), so I logged it as `discard` and reset to best commit `8aa10bc`. I’m launching the next experiment by slightly increasing `unembedding_lr` from `0.004` to `0.005` to test faster head adaptation.
+
+The second experiment is running now; I’m waiting for completion, then I’ll read `metrics.json`, log to `memory/results.tsv`, and keep/reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..3ff572c824d678904cc3f7512517a409a39e1036
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Run is still active and within budget. I’ll continue waiting and process results as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..3ff572c824d678904cc3f7512517a409a39e1036
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress; next update will include parsed metrics and the branch decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..3ff572c824d678904cc3f7512517a409a39e1036
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run finished; I’m extracting `metrics.json` now and then applying keep/discard with logging.
+
+This improved materially (`1.022059`), so I kept commit `fa5fb2c` as the new best. I’m immediately testing the next step in the same direction: `unembedding_lr` from `0.005` to `0.006`.
+
+Third experiment is running (`unembedding_lr=0.006`). I’m waiting for completion, then I’ll parse `metrics.json`, log results, and keep/reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..bab70f2075a89114b65a584d40706c5c18e0c5b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Run is still active and within expected duration; I’ll continue waiting for the final metrics file.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..bab70f2075a89114b65a584d40706c5c18e0c5b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still waiting on completion; next step remains metrics extraction and keep/discard decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..bab70f2075a89114b65a584d40706c5c18e0c5b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Result improved again, so I’m keeping this commit and recording it as the new best before launching the next iteration.
+
+Progress update from the loop (resumed existing run history on branch `research-loops/may13`):
+
+- Discarded: `361040f` (`weight_decay_decay=false`) -> `val_bpb=1.024651`, `41.1 GB`
+- Kept: `fa5fb2c` (`unembedding_lr=0.005`) -> `val_bpb=1.022059`, `41.1 GB`
+- Kept: `02e9126` (`unembedding_lr=0.006`) -> `val_bpb=1.021703`, `41.1 GB` (new best)
+
+I logged all three results to `memory/results.tsv` and the branch currently points to the best commit `02e9126`.
+diff --git a/editable/config.toml b/editable/config.toml
+index df8389660311ffc1a48a4599deca8f5a452dbcd4..bab70f2075a89114b65a584d40706c5c18e0c5b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+tokens used
+44,675
+Progress update from the loop (resumed existing run history on branch `research-loops/may13`):
+
+- Discarded: `361040f` (`weight_decay_decay=false`) -> `val_bpb=1.024651`, `41.1 GB`
+- Kept: `fa5fb2c` (`unembedding_lr=0.005`) -> `val_bpb=1.022059`, `41.1 GB`
+- Kept: `02e9126` (`unembedding_lr=0.006`) -> `val_bpb=1.021703`, `41.1 GB` (new best)
+
+I logged all three results to `memory/results.tsv` and the branch currently points to the best commit `02e9126`.

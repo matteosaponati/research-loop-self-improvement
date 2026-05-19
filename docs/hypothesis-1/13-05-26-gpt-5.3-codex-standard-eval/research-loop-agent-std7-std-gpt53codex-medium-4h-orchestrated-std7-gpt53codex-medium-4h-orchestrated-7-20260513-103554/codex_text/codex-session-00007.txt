@@ -1,0 +1,132 @@
+I’m starting the research loop by checking git state and whether prior results already exist, so I can either resume or initialize branch/memory exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` already has results), so I’m resuming from the current branch and moving directly to proposing the next experiment after reading `editable/` context and past outcomes.
+
+I’m now reading the training and config files end-to-end to choose a non-redundant optimizer/architecture tweak that is plausible within the 5-minute budget.
+
+I identified an unlogged checkpoint commit on top of the recorded history, and I’ll proceed with a fresh committed experiment from here. I’m editing optimizer schedule parameters to make Muon momentum ramp faster and stay higher earlier, which should improve early 5-minute efficiency.
+
+The config change is committed as `b379f71`; I’m launching the 5-minute training run now and will collect only `metrics.json` afterward for scoring.
+
+The run is still in progress; I’m waiting for completion and then I’ll parse `metrics.json`, append `memory/results.tsv`, and decide keep vs reset based on `val_bpb`.
+
+I’m still waiting on the training process; once it exits I’ll immediately record metrics and apply the keep/discard git decision.
+
+Execution is still active within the timeout window; I’m continuing to monitor until the process exits cleanly or times out.
+
+I’m still waiting on the long-running training command; next step after exit is metrics extraction and result logging only from `metrics.json`.
+
+The run is taking longer than expected but is still under the 10-minute failure limit; I’m continuing to wait and will enforce discard if timeout/crash occurs.
+
+The run exited successfully. I hit a local `python` binary issue while reading metrics, so I’m using `uv run` for result extraction and then logging/keep-discard decision.
+
+Metrics are collected: `val_bpb=1.026525` vs current best `1.025695`, so this experiment is a discard. I’m appending it to `memory/results.tsv` and resetting to the previous commit.
+
+I’m continuing immediately with the next trial. I’ll test a slightly lower `matrix_lr` from the current branch tip to reduce update noise while keeping the same schedule.
+
+I’ve prepared the diff for the new experiment and I’m committing it now before launching the run.
+
+Launching experiment `a7bf376` now; after completion I’ll read `metrics.json`, append `memory/results.tsv`, and keep or reset based on best `val_bpb`.
+
+The second run is in progress; I’m monitoring it and will only use `metrics.json` for normal result collection when it exits.
+
+I’m still waiting for the training process to finish within the timeout window; next action is metrics parse and keep/discard bookkeeping.
+
+Run is still active and under the 10-minute cap. I’m continuing to monitor until exit, then I’ll complete metrics logging and branch decisioning.
+
+Training is still running; if it hits the timeout I’ll mark it as failure, otherwise I’ll process the metrics normally.
+
+This run improved the best score (`1.025633 < 1.025695`), so I’m keeping commit `a7bf376` and recording it as the new best in `memory/results.tsv`.
+
+Completed two experiments and advanced the branch once.
+
+Unified diffs applied:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..25c7afe 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_warmup_steps = 120
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..df9e0d6 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+What I ran and recorded:
+- `b379f71` (`muon` momentum ramp faster): `val_bpb=1.026525`, `41.1 GB`, `discard` (reset performed).
+- `a7bf376` (`matrix_lr=0.038`): `val_bpb=1.025633`, `41.1 GB`, `keep` (new best).
+
+Current best:
+- Commit: `a7bf376`
+- `val_bpb`: `1.025633`
+
+`memory/results.tsv` has been updated accordingly.
+tokens used
+29,155
+Completed two experiments and advanced the branch once.
+
+Unified diffs applied:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..25c7afe 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_warmup_steps = 120
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..df9e0d6 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+What I ran and recorded:
+- `b379f71` (`muon` momentum ramp faster): `val_bpb=1.026525`, `41.1 GB`, `discard` (reset performed).
+- `a7bf376` (`matrix_lr=0.038`): `val_bpb=1.025633`, `41.1 GB`, `keep` (new best).
+
+Current best:
+- Commit: `a7bf376`
+- `val_bpb`: `1.025633`
+
+`memory/results.tsv` has been updated accordingly.

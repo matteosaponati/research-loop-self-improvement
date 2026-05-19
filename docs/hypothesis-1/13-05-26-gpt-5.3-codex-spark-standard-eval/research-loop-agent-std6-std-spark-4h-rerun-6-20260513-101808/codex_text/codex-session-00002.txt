@@ -1,0 +1,156 @@
+Starting with setup checks and baseline initialization as specified: verify repo/results state, branch handling, data/tokenizer availability, then launch the baseline run and log `metrics.json` to `memory/results.tsv`.
+
+Setup is already initialized with 11 logged experiments on branch `research-loops/may13`. I’ll continue from the current branch, inspect the latest results and editable config/code, run the next experiment, and follow keep/discard branching rules.
+
+I’m choosing a schedule-based experiment first: keep the strong `depth=8`/`aspect_ratio=96` + `weight_decay=0.15` setup and test a less aggressive LR cooldown (`final_lr_frac=0.10`) to spend more of the 5-minute budget at nonzero LR. I’ll patch `editable/config.toml`, commit, run once, and then keep or revert based on `metrics.json`.
+
+Quick fix on the patch: I introduced a stray commented line in `editable/config.toml` and will correct it to a clean single change (`final_lr_frac = 0.1`) before committing.
+
+The config has a duplicate `final_lr_frac` entry (one old, one new). I’m fixing that to a single intended value before commit to avoid TOML parse issues.
+
+Running experiment `6faccab` now with the committed LR-floor schedule. I’ll collect `metrics.json` immediately after completion and append the result row to `memory/results.tsv`.
+
+The run completed successfully (no timeout). I’ll parse `metrics.json` to log the result and decide keep/discard automatically.
+
+This variant regressed (`val_bpb 0.981018 > 0.979936`). I’m logging it as `discard` and rolling the branch back to the previous commit.
+
+Next test will target optimizer scale: lower `matrix_lr` from `0.04` to `0.03` while retaining the best-performing architecture/schedules, to see if we get cleaner updates with similar parameter norms.
+
+Running committed experiment `a91abd9` now.
+
+This experiment improved to `0.979043`, so it is a keeper and stays checked out. I’ll append `keep` to `memory/results.tsv` and continue with another experiment from this commit.
+
+With `matrix_lr=0.03` improved, next probe is a finer reduction to `0.025` to test whether the Muon step is still too aggressive in this 5-minute regime.
+
+Running third experiment now; I’ll evaluate `metrics.json` and keep/discard per val_bpb rule.
+
+Current best improved to `0.978098` at `matrix_lr=0.025`. I’ll try one more step down to `matrix_lr=0.02` to see if the trend continues.
+
+Running `matrix_lr=0.02` experiment.
+
+`matrix_lr=0.02` regressed (`0.978468`), so I’ll log it as `discard` and reset back to `e0ef6b3`.
+
+From the best run, I’m now changing a different dimension: lowering `muon_ns_steps` from `5` to `4` to reduce optimizer overhead and test whether updates stay stable but better tuned for this batch size.
+
+Evaluating this optimizer-step variant now.
+
+`muon_ns_steps` worsened. I’ll make a small momentum-tuning pass next: raise `muon_initial_momentum` from `0.95` to `0.97` while holding the current best matrix LR.
+
+`muon_initial_momentum=0.97` did not beat the best (`0.978373`). Logging as `discard` and reverting to commit `e0ef6b3`.
+
+I’m testing one more likely-sensitive knob: lower `embedding_lr` from `0.6` to `0.5` with the current best configuration, since embedding head updates can dominate convergence in short runs.
+
+Running the embedding LR experiment; then I’ll decide keep/discard immediately from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 89c959ed6067ac92933031cb356bb97a0502be6d..436efc3a8ef5df7451269e83b541e34a7eccab49
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 89c959ed6067ac92933031cb356bb97a0502be6d..436efc3a8ef5df7451269e83b541e34a7eccab49
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+`embedding_lr=0.5` improved slightly (`0.978038`), so this is a keeper. I’ll log it and continue with the best commit.
+
+Current best is `0.978038` at commit `ea39574` (`matrix_lr=0.025`, `embedding_lr=0.5`). I’ll now test a slightly lower `unembedding_lr` to `0.003`.
+
+`unembedding_lr=0.003` regressed (`0.978604`). Logging `discard` and reverting to the previous keeper.
+
+One final search step: disable `weight_decay_decay` (`true`→`false`) while keeping the current best rates to test whether constant regularization helps in the fixed-time regime.
+
+Constant weight decay (`weight_decay_decay=false`) was worse. I’m logging this as `discard` and reverting to the current best commit.
+
+I’m stopping experiments now and will summarize the run log in `memory/results.tsv`, including the current best commit and validation score. I’ll verify branch status to ensure we’re left on the keeper commit.
+
+One more optimization pass: slight under-regularization step `weight_decay` to `0.14` while keeping `matrix_lr=0.025`, `embedding_lr=0.5`, and `unembedding_lr=0.004`.
+
+`weight_decay=0.14` is slightly worse than best (`0.978083`). I’ll log and revert.
+
+Setup resumed correctly from existing loop state (no new branch created), and I continued on `research-loops/may13` from the current best.
+
+Current best result is now:
+
+- Commit: `ea39574`
+- `val_bpb`: `0.978038`
+- `memory_gb`: `59.6`
+- Status: `keep`
+- Description: reduce embedding_lr to 0.5
+
+I ran and logged the following experiments (in order), keeping only improved runs and reverting after regressions:
+
+- `6faccab` → 0.981018 discard
+- `a91abd9` → 0.979043 keep
+- `e0ef6b3` → 0.978098 keep (best at that point)
+- `8466c02` → 0.978468 discard
+- `8ed6321` → 0.979084 discard
+- `fb2e825` → 0.978373 discard
+- `ea39574` → 0.978038 keep (current best)
+- `8931700` → 0.978604 discard
+- `fa0420b` → 0.979701 discard
+- `775f60e` → 0.978083 discard
+
+All logs and results are appended to [memory/results.tsv](file:///home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/memory/results.tsv).
+
+No crashes occurred; every run produced `metrics.json` successfully.
+diff --git a/editable/config.toml b/editable/config.toml
+index 89c959ed6067ac92933031cb356bb97a0502be6d..436efc3a8ef5df7451269e83b541e34a7eccab49
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+69,828
+Setup resumed correctly from existing loop state (no new branch created), and I continued on `research-loops/may13` from the current best.
+
+Current best result is now:
+
+- Commit: `ea39574`
+- `val_bpb`: `0.978038`
+- `memory_gb`: `59.6`
+- Status: `keep`
+- Description: reduce embedding_lr to 0.5
+
+I ran and logged the following experiments (in order), keeping only improved runs and reverting after regressions:
+
+- `6faccab` → 0.981018 discard
+- `a91abd9` → 0.979043 keep
+- `e0ef6b3` → 0.978098 keep (best at that point)
+- `8466c02` → 0.978468 discard
+- `8ed6321` → 0.979084 discard
+- `fb2e825` → 0.978373 discard
+- `ea39574` → 0.978038 keep (current best)
+- `8931700` → 0.978604 discard
+- `fa0420b` → 0.979701 discard
+- `775f60e` → 0.978083 discard
+
+All logs and results are appended to [memory/results.tsv](file:///home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/memory/results.tsv).
+
+No crashes occurred; every run produced `metrics.json` successfully.

@@ -1,0 +1,74 @@
+I’m starting the research loop by checking whether this workspace is already initialized (`memory/results.tsv` with prior rows), then I’ll either resume or do the required branch/baseline setup before launching the next experiment.
+
+This run is already initialized with 26 logged experiments, so I’m resuming directly from current branch/head and reading `editable/` to pick the next targeted change.
+
+I found the current code and config; next I’m checking the tail of `train.py` and computing the current best keep-result from `results.tsv` so I can decide a single high-signal tweak.
+
+I’ve identified the best recorded run (`1.023497`, commit `d8f3825`). I’m now checking whether current `HEAD` matches that state so we don’t build experiments on top of an unlogged or degraded config.
+
+I confirmed `HEAD` is a committed state on `research-loops/may13`; I’ll run one isolated config experiment next: lower `muon_beta2` (0.95 → 0.90), commit it, run training, and accept/revert based on `val_bpb` versus the best keep (`1.023497`).
+
+Applying only that one-line optimizer change now and committing it as a single experiment commit before the 5-minute run.
+
+Commit `3ce04a9` is ready; I’m running the experiment with full log redirection and will collect results strictly from `metrics.json`.
+
+The training job is still running within expected runtime; I’m waiting for completion, then I’ll parse `metrics.json` and decide keep vs reset immediately.
+
+Run is still in progress with no timeout trigger; I’m continuing to wait and will process metrics as soon as the process exits.
+
+Waiting on the same run; once it exits I’ll capture `val_bpb`, append `results.tsv`, and revert automatically if it does not beat `1.023497`.
+
+The run completed successfully. I’m now reading `metrics.json`, recording the result row, and then applying keep/discard by resetting if it didn’t improve.
+
+I logged the experiment and rolled the branch back to the prior commit (`fd046d5`) since the result was worse than the best keep. Next I’ll launch another experiment from this restored state.
+web search: 
+web search: 
+
+Starting the next experiment from restored `fd046d5`: I’ll test a small interpolation on momentum schedule (`muon_momentum_end` 0.94 → 0.945), then run and evaluate exactly the same way.
+
+Applying and committing this one-line schedule tweak now, then launching the 5-minute run.
+
+Second run is still executing normally; I’ll keep waiting and finalize with metrics logging plus keep/discard reset immediately on exit.
+
+Still running and within the timeout guard; I’m waiting for completion, then I’ll append the result row and keep or roll back based on `1.023497`.
+
+Both new trials were worse and discarded. I’m moving the branch back to the best known keep commit (`d8f3825`) so subsequent experiments start from the strongest baseline state instead of the later degraded head.
+
+From best commit `d8f3825`, I’m testing a narrower LR floor (`final_lr_frac` 0.05 → 0.04), which is between the current best and the previously worse 0.03 setting.
+
+I’m committing this config-only change and launching the run now.
+
+Third run is in progress from the best-known checkpoint; I’m waiting for completion and will log/keep/discard right after it exits.
+
+The current training process is still active and within guardrails; I’ll keep it running to completion before updating `results.tsv` and branch state.
+web search: 
+web search: 
+
+Completed 3 new experiments and logged all results to `memory/results.tsv`, then reverted each non-improving commit and restored branch to best-known state.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = d8f3825` (best keep so far)
+
+New experiments run:
+- `3ce04a9` `lower muon_beta2 to 0.90` → `val_bpb 1.024375` → `discard`
+- `07942f8` `set muon_momentum_end to 0.945` → `val_bpb 1.024081` → `discard`
+- `84f823b` `set final_lr_frac to 0.04` → `val_bpb 1.024334` → `discard`
+
+Best result remains:
+- `d8f3825` with `val_bpb 1.023497`, `memory_gb 41.1`, status `keep`
+tokens used
+109,949
+Completed 3 new experiments and logged all results to `memory/results.tsv`, then reverted each non-improving commit and restored branch to best-known state.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = d8f3825` (best keep so far)
+
+New experiments run:
+- `3ce04a9` `lower muon_beta2 to 0.90` → `val_bpb 1.024375` → `discard`
+- `07942f8` `set muon_momentum_end to 0.945` → `val_bpb 1.024081` → `discard`
+- `84f823b` `set final_lr_frac to 0.04` → `val_bpb 1.024334` → `discard`
+
+Best result remains:
+- `d8f3825` with `val_bpb 1.023497`, `memory_gb 41.1`, status `keep`

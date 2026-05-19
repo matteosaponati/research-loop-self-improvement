@@ -1,0 +1,122 @@
+I’m starting the research loop now: first I’ll check git state, detect whether `memory/results.tsv` already has runs, and then either resume or initialize exactly per your setup rules.
+
+I found an active run history (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving directly to designing the next experiment from current code and past results.
+
+I’ve identified the current best (`1.022921` at `5bb02aa`) and will test a combined change that wasn’t tried yet: keep the best schedule (`warmdown_ratio=0.6`) and reduce `weight_decay` from `0.20` to `0.18`. I’m editing `editable/config.toml`, committing, then running a full 5-minute experiment.
+
+The experiment commit is ready (`69f228f`). I’m launching training now with output redirected to `run.log`, then I’ll read only `metrics.json` and decide keep/discard against `1.022921`.
+
+Training is running under the timeout guard; I’m waiting for completion and will parse `metrics.json` immediately after it exits.
+
+Run is still in progress; I’m continuing to wait rather than inspecting logs, per your rules.
+
+I’m still waiting on the training process; once it exits I’ll extract metrics and update `memory/results.tsv`.
+
+The job is taking longer than expected but still within the 10-minute safety cap; I’m continuing to monitor until it returns.
+
+Training completed successfully. I’m now reading `metrics.json`, appending the result row, and then either keeping this commit or resetting it based on val_bpb improvement.
+
+The new run scored `val_bpb=1.0247926` (worse), so it will be recorded as `discard` and reset after I fetch the current best from history.
+
+I’ve reverted to the best commit and logged the discard. I’m launching a second experiment now: lower `muon_momentum_end` from `0.95` to `0.93` to test whether a less inertial late phase helps within the 5-minute budget.
+
+Commit `40b8c4a` is ready; I’m running training and will evaluate via `metrics.json` only, then keep or discard.
+
+Second run is in progress under timeout control; I’m waiting for completion.
+
+I’m still waiting on the training process; no log inspection unless a crash occurs.
+
+Run is still active and within the allowed runtime envelope; continuing to wait for exit and metrics writeout.
+
+I’m still monitoring the active process and will parse `metrics.json` as soon as it exits.
+
+Second experiment improved over the previous best, so I’m keeping this commit and recording it as the new frontier in `memory/results.tsv`.
+
+Completed two experiments and updated the loop state correctly.
+
+Current best is now improved:
+- `commit`: `40b8c4a`
+- `val_bpb`: `1.022516` (improved from `1.022921`)
+- `peak_vram_mb`: `42060.447` (`41.1` GB)
+
+Experiments run this turn:
+1. `69f228f` (`weight_decay 0.20 -> 0.18`): `val_bpb 1.024793` → `discard` and reset.
+2. `40b8c4a` (`muon_momentum_end 0.95 -> 0.93`): `val_bpb 1.022516` → `keep`.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 4c4a4ee..96a0b29 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.0075
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.18
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 4c4a4ee..f796b75 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+```
+
+`memory/results.tsv` has been appended with both rows, and git is currently on the kept best commit `40b8c4a`.
+tokens used
+53,801
+Completed two experiments and updated the loop state correctly.
+
+Current best is now improved:
+- `commit`: `40b8c4a`
+- `val_bpb`: `1.022516` (improved from `1.022921`)
+- `peak_vram_mb`: `42060.447` (`41.1` GB)
+
+Experiments run this turn:
+1. `69f228f` (`weight_decay 0.20 -> 0.18`): `val_bpb 1.024793` → `discard` and reset.
+2. `40b8c4a` (`muon_momentum_end 0.95 -> 0.93`): `val_bpb 1.022516` → `keep`.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 4c4a4ee..96a0b29 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.0075
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.18
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 4c4a4ee..f796b75 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.6
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+```
+
+`memory/results.tsv` has been appended with both rows, and git is currently on the kept best commit `40b8c4a`.

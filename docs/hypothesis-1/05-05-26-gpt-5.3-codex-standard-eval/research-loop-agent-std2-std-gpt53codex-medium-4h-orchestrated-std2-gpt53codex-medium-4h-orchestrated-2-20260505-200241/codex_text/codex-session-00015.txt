@@ -1,0 +1,52 @@
+I’m starting by checking whether `memory/results.tsv` already has prior runs so I can either resume immediately or do fresh branch/setup exactly per your loop rules.
+
+I found an existing run history (`memory/results.tsv` has prior rows), so I’m resuming from the current branch/state and moving straight to selecting the next experiment from `editable/` context.
+
+I’ve loaded the current config and latest results; next I’m checking how each tunable is actually consumed in `train.py` so we change a parameter with high leverage instead of blind trial-and-error.
+
+I hit an environment detail (`python` isn’t on PATH here), so I’m using `uv run` for result parsing and then selecting the next config change from the historical best.
+
+I identified the current best as commit `4aaadb4` (`val_bpb 1.023880`). I’m testing one untried direction: increasing `embedding_lr` above 0.6 to `0.7` while keeping the best-known matrix/final LR settings fixed.
+
+I’ve applied the config edit and confirmed the unified diff. Next I’m committing this experiment and launching the 5-minute run with output redirected to `run.log`.
+
+Training is running in the background session now; I’m waiting for completion and will read only `metrics.json` for evaluation as required.
+
+I’m still waiting on the same run; no log inspection needed yet since this is a normal completion path and we’ll score from `metrics.json` once it exits.
+
+Run is still in progress within the allowed window. I’ll keep polling until it exits, then parse `metrics.json`, append TSV, and keep or reset based on `val_bpb`.
+
+Polling continues; once it exits I’ll immediately score and update `memory/results.tsv` before deciding keep/discard in git.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the result row, and then applying keep/discard by comparing against the current best `val_bpb`.
+
+`embedding_lr 0.7` regressed (`1.026146`), so I logged it and reset to the best commit. I’m launching the next experiment now: reduce `muon_initial_momentum` from `0.95` to `0.90` to test whether less aggressive early momentum improves stability.
+
+The new commit is in place; I’m running the 5-minute training job now and will score from `metrics.json` when it exits.
+
+Second run is active in session `76162`; I’m polling until completion and then I’ll log keep/discard and reset if needed.
+
+Still running normally; no crash signals so far. I’ll continue waiting for completion before touching git state.
+
+Progress update:
+- Resumed existing loop on branch `research-loops/may5` (best so far remains `4aaadb4`, `val_bpb=1.023880`).
+- Ran experiment `f88f98c` (`embedding_lr 0.7`).
+  - Result: `val_bpb=1.026146`, `peak_vram=41.1 GB`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reset branch back to `4aaadb4`
+- Started next experiment `c6b01a8` (`muon_initial_momentum 0.90`).
+  - Training is currently running in session `76162` (`timeout 600 uv run --extra research python editable/train.py > run.log 2>&1`).
+
+I will continue the loop from this running job.
+tokens used
+33,691
+Progress update:
+- Resumed existing loop on branch `research-loops/may5` (best so far remains `4aaadb4`, `val_bpb=1.023880`).
+- Ran experiment `f88f98c` (`embedding_lr 0.7`).
+  - Result: `val_bpb=1.026146`, `peak_vram=41.1 GB`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reset branch back to `4aaadb4`
+- Started next experiment `c6b01a8` (`muon_initial_momentum 0.90`).
+  - Training is currently running in session `76162` (`timeout 600 uv run --extra research python editable/train.py > run.log 2>&1`).
+
+I will continue the loop from this running job.

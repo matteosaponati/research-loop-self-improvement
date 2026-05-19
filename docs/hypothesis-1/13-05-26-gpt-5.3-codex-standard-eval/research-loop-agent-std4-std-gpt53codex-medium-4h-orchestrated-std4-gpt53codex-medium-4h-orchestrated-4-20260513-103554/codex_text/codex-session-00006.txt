@@ -1,0 +1,86 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume immediately or initialize branch/memory and run the baseline exactly as specified.
+
+I found prior experiments and a clear best (`val_bpb=1.023647` at commit `4d1aa32`), so I’m resuming from the current branch/state and moving straight to a new experiment by re-reading `editable/` configs and training code.
+
+I’ve identified a narrow signal: `matrix_lr=0.025` is best so far, while both lower values regressed. I’m making a small upward probe to `0.026`, committing it, then running one full 5-minute trial and deciding keep/revert strictly from `metrics.json`.
+
+The config change is committed as `d8f14c7`; I’m running the experiment now with output redirected to `run.log`, then I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+The run is still in progress; I’m letting it continue and will collect the exit code and metrics as soon as it finishes.
+
+I’m still waiting on the 5-minute training job; no diagnostics needed unless it fails to produce `metrics.json`.
+
+Training exited cleanly. I’m now reading `metrics.json`, logging the result row, and applying the keep/discard rule by comparing against the best prior `val_bpb`.
+
+The new run produced `val_bpb=1.0240057`, which is worse than the best `1.023647`, so I’m recording it as `discard` and resetting the branch back to the pre-experiment commit.
+
+I’m launching another iteration immediately from the best commit by testing a momentum schedule tweak (`muon_momentum_start`), since LR sweeps around `matrix_lr` appear locally exhausted.
+
+Second run is in progress now; once it exits I’ll read `metrics.json`, log the row, and either keep or reset this commit.
+
+I’m still waiting for the training window to complete; no crash signs yet, so I’ll finalize this trial as soon as the process returns.
+
+This run exited successfully; I’m extracting metrics and applying the keep/discard decision against the current best.
+
+The momentum-start change regressed (`1.024939`), so I’m recording it as `discard` and resetting back to the best checkpoint commit.
+
+Completed two new experiment iterations and applied keep/discard rules.
+
+1. `d8f14c7` (`editable/config.toml`): `matrix_lr 0.025 -> 0.026`
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.026
+```
+Result: `val_bpb=1.024006`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+Decision: `discard` (worse than best `1.023647`)  
+Action: reset branch back to `4d1aa32`
+
+2. `59cc550` (`editable/config.toml`): `muon_momentum_start 0.85 -> 0.9`
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.9
+```
+Result: `val_bpb=1.024939`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+Decision: `discard`  
+Action: reset branch back to `4d1aa32`
+
+Updated log: [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std4-gpt53codex-medium-4h-orchestrated-4-20260513-103554/research-loop/memory/results.tsv)  
+Current HEAD: `4d1aa32`  
+Current best remains: `1.023647` at `4d1aa32`.
+tokens used
+50,161
+Completed two new experiment iterations and applied keep/discard rules.
+
+1. `d8f14c7` (`editable/config.toml`): `matrix_lr 0.025 -> 0.026`
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.026
+```
+Result: `val_bpb=1.024006`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+Decision: `discard` (worse than best `1.023647`)  
+Action: reset branch back to `4d1aa32`
+
+2. `59cc550` (`editable/config.toml`): `muon_momentum_start 0.85 -> 0.9`
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.9
+```
+Result: `val_bpb=1.024939`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+Decision: `discard`  
+Action: reset branch back to `4d1aa32`
+
+Updated log: [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std4-gpt53codex-medium-4h-orchestrated-4-20260513-103554/research-loop/memory/results.tsv)  
+Current HEAD: `4d1aa32`  
+Current best remains: `1.023647` at `4d1aa32`.

@@ -1,0 +1,122 @@
+I’m starting the research loop by checking git state, whether prior results already exist, and the editable files so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized loop on branch `research-loops/may5` with prior results, so I’m resuming from step (2) and selecting the next experiment from current best. I’ll read `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and `memory/results.tsv` now.
+
+I have prior best `val_bpb=1.025252` from commit `55f1706`. I’m inspecting the scheduler and optimizer update logic in `train.py` to choose a high-signal next tweak before committing and running.
+
+I’m running a focused sweep step by lowering `matrix_lr` again (`0.035 -> 0.03`) since the previous decrease improved `val_bpb`; I’ll commit this single-variable change, run, and keep/reset based on the metric.
+
+The commit failed because those commands ran in parallel and raced; I’ll run the edit/check/commit sequence serially now.
+
+I’ve committed the experiment as `ffcab2c` and I’m launching the 5-minute run with output redirected to `run.log`. After it finishes, I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+The training process is running in the background PTY session; I’m polling for completion and will parse `metrics.json` immediately when it exits.
+
+Run is still in progress with no terminal completion yet; I’m continuing to wait and will enforce the timeout guard already applied.
+
+Training is still active; I’m waiting for completion before touching any outputs.
+
+Still running normally under timeout; I’ll keep polling until exit and then record the metric row.
+
+I’m at the tail end of the run window now; once the process exits I’ll immediately parse `metrics.json`, append the TSV row, and keep/reset based on best `val_bpb`.
+
+The run completed successfully; I’m now reading `metrics.json`, logging the result, and deciding whether to keep `ffcab2c` or reset.
+
+The shell doesn’t have `python` on PATH here, so I’m using `uv run python` to read and compare metrics, then I’ll update the TSV and apply keep/discard.
+
+This experiment improved to `1.024264`, so I’m keeping commit `ffcab2c` and advancing. Next I’m testing a smaller step in the same direction (`matrix_lr 0.03 -> 0.028`) as the next candidate.
+
+I’ve committed `fbdd034` and started the next timed run; after completion I’ll read `metrics.json`, append to `memory/results.tsv`, and keep or reset automatically.
+
+Second run is in progress; I’m polling for completion and will only use `metrics.json` for normal readout when it exits.
+
+The run is still active under timeout guard; I’ll keep waiting and then complete logging plus keep/discard decision as soon as it finishes.
+
+I’m in the final stretch of this trial window; once it exits I’ll immediately parse, append TSV, and revert automatically if it does not beat `1.024264`.
+
+Research loop resumed on existing branch `research-loops/may5` (results file already initialized), and I ran two new experiments.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..ff74137 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..906d3e1 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `ffcab2c` → `val_bpb=1.024264`, `41.1 GB`, `keep` (new best)
+- `fbdd034` → `val_bpb=1.025042`, `41.1 GB`, `discard` (auto-reset to previous keep commit)
+
+Current HEAD is back to best commit `ffcab2c`, with best-so-far `val_bpb=1.024264`.
+tokens used
+32,425
+Research loop resumed on existing branch `research-loops/may5` (results file already initialized), and I ran two new experiments.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..ff74137 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..906d3e1 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `ffcab2c` → `val_bpb=1.024264`, `41.1 GB`, `keep` (new best)
+- `fbdd034` → `val_bpb=1.025042`, `41.1 GB`, `discard` (auto-reset to previous keep commit)
+
+Current HEAD is back to best commit `ffcab2c`, with best-so-far `val_bpb=1.024264`.

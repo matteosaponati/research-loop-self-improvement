@@ -1,0 +1,58 @@
+I’m starting the research loop by checking the repo state, existing `memory/results.tsv`, current branch, and whether data/tokenizer artifacts already exist so I can either resume or initialize correctly.
+
+I found an active run history, so I’m resuming from the current branch and best score (`1.025695`). Next I’m reading all in-scope `editable/` files to pick the next experiment.
+
+I’ve loaded the training code and config; next I’m checking git state to confirm the exact starting commit before I apply a single targeted change for the next run.
+
+I’m making a small schedule experiment in `editable/config.toml`: add short warmup and gentler cooldown tail to stabilize the higher matrix LR currently on `HEAD`. I’ll show the exact unified diff, commit, run, and compare against `1.025695`.
+
+Unified diff for this experiment is ready; I’m committing it now and then launching a full 5-minute run with output redirected to `run.log`.
+
+The experiment run is in progress under a timeout guard; I’m waiting for completion and will read only `metrics.json` for result collection unless it crashes.
+
+Run is still executing normally. I’m continuing to wait for completion before extracting `metrics.json` and updating `memory/results.tsv`.
+
+Training is still running within the expected window; I’ll keep polling until it exits, then immediately parse metrics and decide keep vs discard.
+
+The run finished successfully. I’m now parsing `metrics.json`, appending the result row, and then resetting if it did not beat the current best `val_bpb`.
+
+The shell environment doesn’t expose `python` directly, so I’m using `uv run python` for metrics parsing and comparison.
+
+This trial regressed (`val_bpb 1.054426`), so I’m logging it as `discard` in `memory/results.tsv` and resetting to the pre-experiment commit.
+
+I’ve reverted to the current best code state and will immediately run the next experiment: keep the higher matrix LR but remove Muon momentum warmup (use 0.95 from the start) to test stability/throughput tradeoff.
+
+I’ve prepared the unified diff for experiment 2 and I’m committing it now before launching the next timed run.
+
+Experiment 2 is running under timeout. I’ll wait for completion, then collect only `metrics.json`, log to TSV, and keep or revert automatically.
+
+Run is still in progress and appears healthy from process state. I’m continuing to wait for termination before result extraction.
+
+Training is still active within expected timing. I’ll keep polling until it exits and then finalize the keep/discard decision.
+
+The run completed successfully. I’m extracting metrics now, updating `memory/results.tsv`, and applying keep/revert based on whether it beats `1.025695`.
+
+Completed two new experiments and logged both to `memory/results.tsv`, then reverted both because they were worse than best.
+
+- Current branch/head: `research-loops/may13` at `4f048e0`
+- Best `val_bpb` so far: `1.025695` (commit `6ef85a6`)
+- New runs:
+1. `4d8f2e1` (`warmup_ratio=0.03`, `warmdown_ratio=0.4`, `final_lr_frac=0.1`)  
+   - `val_bpb=1.054426`, `memory_gb=41.1`, `status=discard`
+2. `62ea316` (Muon momentum warmup removed: start at `0.95`)  
+   - `val_bpb=1.027243`, `memory_gb=41.1`, `status=discard`
+
+`memory/results.tsv` is updated with both rows.
+tokens used
+27,056
+Completed two new experiments and logged both to `memory/results.tsv`, then reverted both because they were worse than best.
+
+- Current branch/head: `research-loops/may13` at `4f048e0`
+- Best `val_bpb` so far: `1.025695` (commit `6ef85a6`)
+- New runs:
+1. `4d8f2e1` (`warmup_ratio=0.03`, `warmdown_ratio=0.4`, `final_lr_frac=0.1`)  
+   - `val_bpb=1.054426`, `memory_gb=41.1`, `status=discard`
+2. `62ea316` (Muon momentum warmup removed: start at `0.95`)  
+   - `val_bpb=1.027243`, `memory_gb=41.1`, `status=discard`
+
+`memory/results.tsv` is updated with both rows.

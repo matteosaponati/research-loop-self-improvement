@@ -1,0 +1,120 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has runs, then I’ll either resume or do the fresh branch/baseline setup exactly per your rules.
+
+I found an existing initialized loop (`memory/results.tsv` has prior runs), so I’m resuming from the current branch and moving directly to proposing the next experiment based on `editable/` plus prior results.
+
+I’ve identified the current best (`1.025097`, commit `0aab4b0`) and will run a focused next trial by lowering `matrix_lr` again, since earlier schedule tweaks regressed while the first `matrix_lr` reduction improved. I’ll patch `editable/config.toml`, commit, run, and keep/revert based on `metrics.json`.
+
+I’ve applied the config change and am now committing it as a single experiment so the keep/discard decision can be cleanly tied to one hash.
+
+I’m launching the 5-minute training run now with full log redirection, then I’ll read only `metrics.json`, append to `memory/results.tsv`, and keep or reset this commit strictly by `val_bpb`.
+
+The run completed successfully; I’m now extracting `metrics.json`, logging the trial to `memory/results.tsv`, and then deciding keep vs discard against the current best.
+
+I hit an environment detail (`python` missing on PATH), so I’m reading `metrics.json` via `uv run python` and proceeding with the keep/revert logic.
+
+This experiment improved the best `val_bpb`, so I’m keeping the commit and immediately starting the next iteration from this new best by testing an additional small `matrix_lr` decrease.
+
+The second run is still in progress after the timed training window, likely finishing evaluation/teardown; I’m waiting for completion and then I’ll apply the same metrics-only keep/discard flow.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da75557b72ed5fd3c7b44fcb5d9838eecacb..0065d03ddc913e33a9209113b5ccc19e4cdc3f6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.025
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run finished; extracting `metrics.json` now and deciding whether to retain `4d1aa32` or reset back to the previous best commit.
+
+Experiment loop resumed and ran 2 new trials.
+
+Unified diffs applied:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..ff74137 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.03
+ weight_decay = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..0065d03 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.025
+ weight_decay = 0.2
+```
+
+Commits created and evaluated:
+1. `179a0e1` (`matrix_lr=0.03`) → `val_bpb=1.024103`, `peak_vram_mb=42060.45` (`41.1 GB`) → `keep`
+2. `4d1aa32` (`matrix_lr=0.025`) → `val_bpb=1.023647`, `peak_vram_mb=42060.45` (`41.1 GB`) → `keep`
+
+`memory/results.tsv` updated with both rows.  
+Current best is now commit `4d1aa32` with `val_bpb=1.023647`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da75557b72ed5fd3c7b44fcb5d9838eecacb..0065d03ddc913e33a9209113b5ccc19e4cdc3f6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.025
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+49,946
+Experiment loop resumed and ran 2 new trials.
+
+Unified diffs applied:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..ff74137 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.03
+ weight_decay = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..0065d03 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.025
+ weight_decay = 0.2
+```
+
+Commits created and evaluated:
+1. `179a0e1` (`matrix_lr=0.03`) → `val_bpb=1.024103`, `peak_vram_mb=42060.45` (`41.1 GB`) → `keep`
+2. `4d1aa32` (`matrix_lr=0.025`) → `val_bpb=1.023647`, `peak_vram_mb=42060.45` (`41.1 GB`) → `keep`
+
+`memory/results.tsv` updated with both rows.  
+Current best is now commit `4d1aa32` with `val_bpb=1.023647`.

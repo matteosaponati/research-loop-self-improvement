@@ -1,0 +1,166 @@
+I’m starting the research loop by checking git state, whether prior results already exist, and the current best checkpoint so I can either resume or initialize exactly per your protocol.
+
+I found an active run history with a strong incumbent (`1.024269` at commit `9b69163`), so I’m resuming from current branch state and now reading the editable code/config to choose the next high-signal experiment.
+
+I’ve identified an untested axis (`muon_beta2` higher than `0.95`) and will run a single controlled change to `0.97`, commit it, execute one timed run, then keep or reset strictly based on `val_bpb`.
+
+I’m now editing only `editable/config.toml` to bump `muon_beta2` and then committing this as an isolated experiment.
+
+Commit `7854bcc` is ready; I’m launching the 5-minute training run with a 10-minute hard timeout and will read only `metrics.json` for result collection.
+
+The run is still in progress; I’m waiting for completion before parsing `metrics.json` and deciding keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..daa8a4737ad30e16b2b6bfc01557b9b18f153ef0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..daa8a4737ad30e16b2b6bfc01557b9b18f153ef0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+I’m continuing to wait on the trainer process; no diagnostics needed yet since this is a normal run path and not a crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..daa8a4737ad30e16b2b6bfc01557b9b18f153ef0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+Training finished successfully. I’m now reading `metrics.json`, comparing against the current best `val_bpb`, and then I’ll append the experiment row and either keep or reset this commit.
+
+The shell lacks a bare `python` binary here, so I’m rerunning the metric parsing via `uv run python` to stay within the workflow.
+
+This trial regressed (`1.025159` vs best `1.024269`), so I’m recording it as `discard` in `memory/results.tsv` and resetting the branch to the previous commit.
+
+I’m proceeding to the next experiment immediately: testing `muon_beta2 = 0.94` to probe the opposite direction from the failed increase.
+
+I’ve committed `657fc9e` and am starting the next timed training run now; after it ends I’ll parse `metrics.json`, log it, and keep/reset based on `val_bpb`.
+
+Second run is still active and within expected runtime; I’m waiting for completion before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..ab3fd1beaad494e2ab99958009b1cac0072bf59e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..ab3fd1beaad494e2ab99958009b1cac0072bf59e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+The run completed cleanly. I’m extracting `metrics.json` now, then I’ll append the row and decide keep/discard against the current best.
+
+`val_bpb` is worse than the best keep, so I’m logging this as `discard` and resetting to the last best commit before launching another idea.
+
+Completed two autonomous experiments and applied keep/discard rules correctly.
+
+Diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+```
+
+Commits and outcomes:
+1. `7854bcc` (`muon_beta2=0.97`): `val_bpb=1.025159`, `peak_vram=41.1 GB` → `discard` (worse than best `1.024269`), reset.
+2. `657fc9e` (`muon_beta2=0.94`): `val_bpb=1.024624`, `peak_vram=41.1 GB` → `discard` (worse than best `1.024269`), reset.
+
+`memory/results.tsv` has been updated with both rows, and branch head is back at best kept commit:
+- current HEAD: `9b69163`
+- best so far: `1.024269` (`9b69163`)
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..ab3fd1beaad494e2ab99958009b1cac0072bf59e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+tokens used
+25,331
+Completed two autonomous experiments and applied keep/discard rules correctly.
+
+Diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+```
+
+Commits and outcomes:
+1. `7854bcc` (`muon_beta2=0.97`): `val_bpb=1.025159`, `peak_vram=41.1 GB` → `discard` (worse than best `1.024269`), reset.
+2. `657fc9e` (`muon_beta2=0.94`): `val_bpb=1.024624`, `peak_vram=41.1 GB` → `discard` (worse than best `1.024269`), reset.
+
+`memory/results.tsv` has been updated with both rows, and branch head is back at best kept commit:
+- current HEAD: `9b69163`
+- best so far: `1.024269` (`9b69163`)

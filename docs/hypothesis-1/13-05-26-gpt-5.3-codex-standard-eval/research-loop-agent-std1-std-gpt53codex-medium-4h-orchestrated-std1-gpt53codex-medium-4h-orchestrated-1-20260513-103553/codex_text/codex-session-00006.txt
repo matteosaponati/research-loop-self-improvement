@@ -1,0 +1,102 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume or initialize branch/results and run the baseline exactly as specified.
+
+I found an existing `memory/results.tsv` with prior experiments, so I’m resuming from the current branch without reinitializing. Next I’ll read `editable/` files plus the results table to pick the next experiment.
+
+I have the prior results and current config; best so far is `1.023791` with `unembedding_lr=0.008`. I’m now inspecting the remaining training-loop sections to target the next high-impact knob before running another commit.
+
+I’ve identified the fastest next test: continue the improving trend on `unembedding_lr` with a controlled increase from `0.008` to `0.010`, keeping everything else fixed for clean attribution. I’m applying that single config edit, committing it, then running a timed experiment.
+
+The change is committed as `44c6cdc`; I’m running training now with full log redirection and will read only `metrics.json` when it exits.
+
+Training is in progress; I’m waiting for completion and will immediately parse `metrics.json` and update `memory/results.tsv`.
+
+The run is still active past the first wait window, so I’m continuing to wait within the allowed time cap and will treat it as failure only if it exceeds 10 minutes.
+
+The run completed successfully. I’m now reading `metrics.json`, recording the result row, and then deciding keep vs reset based on whether `val_bpb` improved over `1.023791`.
+
+The shell lacks plain `python`, so I’m using `uv run` to read `metrics.json` and proceed with logging and branch decision.
+
+This experiment is worse (`1.024103`), so I’m logging it as `discard` and resetting to the previous commit to continue from the current best branch state.
+
+I’m continuing the loop with a finer search around the current best by testing `unembedding_lr=0.009` (between 0.008 best and 0.010 worse) to probe for a local optimum.
+
+The `0.009` experiment is committed as `e5af17f`; I’m launching the training run now and will collect results from `metrics.json` only.
+
+Training is still running at the 5-minute poll mark, so I’m waiting for it to finish and then I’ll immediately log/keep-or-reset.
+
+This one is also worse than the best, so I’m recording it as `discard` and resetting back to `d28e76b` before the next iteration.
+
+Completed two new experiments and updated the loop state.
+
+Current branch/head:
+- `research-loops/may13` at `d28e76b` (best kept commit unchanged)
+
+Experiments run:
+1. `44c6cdc`  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.008
++unembedding_lr = 0.01
+```
+- Result: `val_bpb=1.024103`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Logged: `discard`
+- Action: reset back to `d28e76b`
+
+2. `e5af17f`  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.008
++unembedding_lr = 0.009
+```
+- Result: `val_bpb=1.024551`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Logged: `discard`
+- Action: reset back to `d28e76b`
+
+`memory/results.tsv` appended rows:
+- `44c6cdc	1.024103	41.1	discard	increase unembedding_lr 0.008->0.01`
+- `e5af17f	1.024551	41.1	discard	try intermediate unembedding_lr 0.008->0.009`
+
+Best remains:
+- `d28e76b` with `val_bpb=1.023791`
+tokens used
+21,530
+Completed two new experiments and updated the loop state.
+
+Current branch/head:
+- `research-loops/may13` at `d28e76b` (best kept commit unchanged)
+
+Experiments run:
+1. `44c6cdc`  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.008
++unembedding_lr = 0.01
+```
+- Result: `val_bpb=1.024103`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Logged: `discard`
+- Action: reset back to `d28e76b`
+
+2. `e5af17f`  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.008
++unembedding_lr = 0.009
+```
+- Result: `val_bpb=1.024551`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Logged: `discard`
+- Action: reset back to `d28e76b`
+
+`memory/results.tsv` appended rows:
+- `44c6cdc	1.024103	41.1	discard	increase unembedding_lr 0.008->0.01`
+- `e5af17f	1.024551	41.1	discard	try intermediate unembedding_lr 0.008->0.009`
+
+Best remains:
+- `d28e76b` with `val_bpb=1.023791`

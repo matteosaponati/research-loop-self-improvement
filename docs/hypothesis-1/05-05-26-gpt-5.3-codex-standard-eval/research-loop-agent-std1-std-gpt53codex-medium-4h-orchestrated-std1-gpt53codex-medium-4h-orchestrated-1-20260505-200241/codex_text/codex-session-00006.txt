@@ -1,0 +1,64 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs, verify branch state, and inspect the editable training/config files to pick the next experiment.
+
+I found an existing initialized run history on `research-loops/may5`, so I’m resuming directly from step (2). Next I’ll read `memory/results.tsv` plus `editable/train.py` and configs to choose the next high-impact tweak.
+
+I’ve got the recent experiment history and current hyperparameters; next I’m reading the scheduler/loop portion of `train.py` to target a change that affects early 5-minute convergence rather than just repeating LR micro-tweaks.
+
+I’m going to run one targeted experiment by keeping weight decay constant through training (`weight_decay_decay = false`) to test whether removing late-stage regularization drop improves 5-minute validation bpb. I’ll commit, run, collect `metrics.json`, and then keep or reset based on improvement.
+
+The edit is committed as `6ac974c`; I’m launching the 5-minute training run now and will only read `metrics.json` for result collection unless it crashes.
+
+Training is running in the background session; I’m monitoring it and will stop only if it exceeds the 10-minute failure threshold.
+
+Run is still in progress and within budget; I’m continuing to wait for completion before reading `metrics.json`.
+
+I’m still waiting on the training process; once it exits I’ll parse metrics and immediately update `memory/results.tsv` with keep/discard status.
+
+Process remains active and below the 10-minute cutoff, so I’m continuing to wait without touching `run.log`.
+
+I’m at roughly mid-run wall clock now; next update should include completion and metric extraction if it exits on schedule.
+
+Training completed successfully. I hit a local shell constraint (`python` not on PATH), so I’ll extract `metrics.json` with `uv run python`, then append the TSV row and apply keep/discard reset logic.
+
+I recorded the run and reverted the discarded commit. I’m continuing the loop with a new experiment: test `matrix_lr = 0.029` (between best `0.03` and worse `0.028`) to probe a narrower optimum around the current best setting.
+
+The new commit is `b0e8eec`; I’m running training again now and will collect only `metrics.json` after completion.
+
+Second run is progressing normally and remains within the allowed wall-clock limit. I’ll keep monitoring until it exits and then log the result.
+
+I’m still waiting on this run; once it completes I’ll immediately compute keep/discard against the current best `val_bpb = 1.024264`.
+
+Run is still active and healthy; I’m continuing to wait rather than inspecting logs, per the rules.
+
+This run is taking longer than expected but still below the 10-minute failure cutoff, so I’m continuing to wait.
+
+Training just finished. I’m extracting `metrics.json`, appending the result row, and then keeping or resetting this commit based on `val_bpb`.
+
+Both tested variants were worse and got discarded. I’m continuing with a fresh idea: increase `muon_beta2` from `0.95` to `0.975` to smooth matrix-update variance and potentially improve short-horizon validation.
+
+I committed `4b98428` and started the next training run now; I’ll keep logging outcomes to `memory/results.tsv` and revert if it does not beat `1.024264`.
+
+Experiment loop is active and ongoing.
+
+Completed this turn:
+- Logged and discarded `6ac974c` (`weight_decay_decay=false`): `val_bpb=1.027728`, `memory_gb=41.1`
+- Logged and discarded `b0e8eec` (`matrix_lr=0.029`): `val_bpb=1.028386`, `memory_gb=41.1`
+- Branch reset back after each discard, per protocol
+- Best-so-far remains `val_bpb=1.024264` (from `ffcab2c` in history)
+
+Now running:
+- Commit `4b98428` (`muon_beta2=0.975`) is currently training in background (session `38516`)
+- I will read `metrics.json`, append `memory/results.tsv`, and keep/reset automatically when it finishes.
+tokens used
+42,949
+Experiment loop is active and ongoing.
+
+Completed this turn:
+- Logged and discarded `6ac974c` (`weight_decay_decay=false`): `val_bpb=1.027728`, `memory_gb=41.1`
+- Logged and discarded `b0e8eec` (`matrix_lr=0.029`): `val_bpb=1.028386`, `memory_gb=41.1`
+- Branch reset back after each discard, per protocol
+- Best-so-far remains `val_bpb=1.024264` (from `ffcab2c` in history)
+
+Now running:
+- Commit `4b98428` (`muon_beta2=0.975`) is currently training in background (session `38516`)
+- I will read `metrics.json`, append `memory/results.tsv`, and keep/reset automatically when it finishes.

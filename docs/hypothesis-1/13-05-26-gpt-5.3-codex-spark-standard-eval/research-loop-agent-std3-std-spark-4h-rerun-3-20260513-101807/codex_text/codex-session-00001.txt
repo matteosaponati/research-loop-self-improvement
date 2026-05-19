@@ -1,0 +1,1667 @@
+I’m starting the research loop now. I’ll check whether this is a resumed run, set up or reuse the branch/results file per your protocol, then run the baseline and begin proposing iterative edits in `editable/` only.
+
+I’ve confirmed this is a fresh run: no `memory/results.tsv` content yet. Next I’ll create today’s branch name (`research-loops/may13` unless it exists), verify data/tokenizer presence, initialize the results file, then run baseline.
+
+Setup is complete (branch created, dataset/tokenizer present, results file initialized). I’m starting the baseline run now and then I’ll read `metrics.json` to log it.
+
+The first run is still executing; I’ll let it complete (5-minute training window) and then immediately ingest `metrics.json` for the baseline record.
+
+The run is taking longer than expected with no visible log output, so I’m checking process status to confirm training is still active before continuing.
+
+I confirmed the baseline process is still actively running and no `metrics.json` has been emitted yet. I’ll continue waiting for its completion, then record results immediately on first successful metrics read.
+
+The baseline is still active (~4:22 elapsed so far) and has only just started producing occasional output to `run.log`; I’m letting it continue to completion.
+
+I’m close to the expected runtime window now; GPU usage is present for the current run, so I’ll keep waiting for completion and then proceed with metrics capture once it exits.
+
+Baseline finished successfully. I’ve captured the final metrics and will now record the baseline entry in `memory/results.tsv` before proposing the first editable-code tweak.
+
+Baseline is logged. I’m now loading `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and current `memory/results.tsv` to choose a concrete first change and then run an experimental variant.
+
+I’ve got the key config context and baseline result; I still need to read `editable/config_loader.py` before selecting edits, then I’ll run first experiment.
+
+First experiment chosen: increase model depth from `8` to `9` to test capacity gain at fixed budget. I’ll patch `editable/config.toml`, commit, then run the same train command and log the result.
+
+The patch tool attempt inserted an extra `depth` line rather than replacing it. I’m fixing that immediately to keep only one `depth` setting, then continuing with the run.
+
+I’m now running the first edited configuration (depth increased to 9). I’ll wait for it to finish, then parse `metrics.json` and log the outcome.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth-9 run is active; I’ll keep it running and commit the change first so the commit hash is available for logging as soon as metrics come back.
+
+Depth-9 run is still progressing around 4½ minutes elapsed, matching the expected fixed training window. I’ll wait for it to finish and then compare `val_bpb` against the baseline.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth-9 experiment completed successfully. I’ll now read `metrics.json` and log it in `memory/results.tsv`.
+
+Second experiment will test a further capacity bump: set `depth = 10` to see whether extra layer improves validation bpb despite higher memory. I’ll patch config, commit, and run another 5‑minute training.
+
+I need to clean up a duplicate `depth` line again from the patch insertion, then I’ll retry with the proper formatter and continue.
+
+Baseline improvement held, so I’m now testing `depth=10` from that best state. I’ll monitor for completion and revert if it doesn’t improve on `1.002069`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-10 is still running and has crossed 3½ minutes so far. I’ll let it finish; if it succeeds, I’ll immediately compare its `val_bpb` to the current best.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Run is continuing and currently using about 67.9GB VRAM, so this depth-10 change is still alive (no crash yet). I’ll keep waiting until completion to confirm if it beats the 1.0020 score.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-10 did not improve; `val_bpb` rose to `1.005592`. I’m logging this as `discard` and resetting the branch back to the best `depth=9` commit before the next trial.
+
+I targeted a schedule tweak next and the patch context was slightly off. I’ll apply the correct edit to `final_lr_frac` and proceed.
+
+Current run with `final_lr_frac=0.05` is underway; I’ll let it finish and then check metrics versus best `1.002069`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cf446be418c23d1d8d6a9d759d898c0deb4745ff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cf446be418c23d1d8d6a9d759d898c0deb4745ff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run appears near completion timing-wise (about 4+ minutes elapsed); I’ll keep waiting a bit longer for final `metrics.json` write before evaluating the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cf446be418c23d1d8d6a9d759d898c0deb4745ff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cf446be418c23d1d8d6a9d759d898c0deb4745ff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This variant has finished. I’ll read its `metrics.json` now and either keep or discard based on whether it improved below `1.002069`.
+
+Current best is `1.001360` (commit `39cc553`). Next I’m testing a small schedule warmup (`warmup_ratio` from `0.0` to `0.02`) while keeping `depth=9` and `final_lr_frac=0.05`.
+
+I made another context mismatch; applying the warmup change with the correct line placement now.
+
+I’m running the warmup-ratio experiment now and will keep monitoring for completion before deciding keep/discard based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b8f22ec79697424d74d5784fdde3d34b623a2eb9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b8f22ec79697424d74d5784fdde3d34b623a2eb9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b8f22ec79697424d74d5784fdde3d34b623a2eb9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run is still active with no completion signal yet. I’ll check progress briefly and continue polling until exit.
+
+The warmup variant is around the usual runtime window and still hasn’t emitted completion. I’ll poll a bit longer and then read `metrics.json` once present.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b8f22ec79697424d74d5784fdde3d34b623a2eb9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b8f22ec79697424d74d5784fdde3d34b623a2eb9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The warmup run completed; I’ll extract its metric and decide whether to keep this setting versus current best `1.001360`.
+
+This variant is worse (`1.00534`). I’m recording it as discarded and resetting back to the best commit `39cc553` before trying another hyperparameter direction.
+
+Next experiment: reduce `weight_decay` from `0.2` to `0.15` while keeping the current best schedule settings, to test whether less regularization improves `val_bpb` further.
+
+The edit added a duplicate line, so I’m correcting `weight_decay` to a single updated value and proceeding.
+
+This run is active (new session started normally). I’ll continue waiting; elapsed runtime is still within expected wall time.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b6474d0bdbd49e8fdf9d6f626f8d719db32cc1d4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b6474d0bdbd49e8fdf9d6f626f8d719db32cc1d4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..b6474d0bdbd49e8fdf9d6f626f8d719db32cc1d4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Weight-decay reduction run has completed. I’ll evaluate `val_bpb` now and keep/discard accordingly.
+
+Current best is now `1.001291` with commit `3c11b50`. I’ll try one more regularization move: `weight_decay` down to `0.1` to see if it helps further.
+
+I’m applying the next value change and will correct it if the previous patch duplicated lines, then run and assess.
+
+This is the fourth post-baseline schedule tweak; I’ll keep polling this run to completion and then compare against the best `val_bpb=1.001291`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1d8310a26b58468ab7f9b9f618e77c6648ee3c9a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1d8310a26b58468ab7f9b9f618e77c6648ee3c9a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The weight-decay-0.1 run is still within normal runtime. I’ll check once more soon; based on this pattern they usually complete around this point.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1d8310a26b58468ab7f9b9f618e77c6648ee3c9a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1d8310a26b58468ab7f9b9f618e77c6648ee3c9a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1d8310a26b58468ab7f9b9f618e77c6648ee3c9a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m doing one additional targeted test from the current best state: increase `muon_ns_steps` from `5` to `6` to see if a slightly more expressive Muon update helps perplexity.
+
+Applying that setting directly produced a duplicate line, so I normalized it and will now run this experiment.
+
+I’ve committed the Muon step change and am launching a run to measure its effect.
+
+I cleaned the duplicate config line and recorded that fix in a separate commit; now I’ll run this Muon step-depth tweak experiment (`muon_ns_steps=6`) and evaluate.
+
+
+The Muon change run is in progress and at ~1 minute runtime so far. I’ll continue polling for completion and then score the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..84237073b0322d4daf9b88fcd051dab82151a403
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 6
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..84237073b0322d4daf9b88fcd051dab82151a403
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 6
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This is still in the usual 300‑second training window. I’ll do one more wait cycle; if it finishes, I’ll evaluate and either keep or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..84237073b0322d4daf9b88fcd051dab82151a403
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 6
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..84237073b0322d4daf9b88fcd051dab82151a403
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 6
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..84237073b0322d4daf9b88fcd051dab82151a403
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 6
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The Muon step-depth experiment improved to `1.001236`; I’m recording this as the new best and keeping this commit.
+
+Current best remains `1.001236`; this run will test `muon_beta2=0.98` while keeping `muon_ns_steps=6` to see if it improves slightly further.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The Muon beta2 experiment is still running through the expected warmup/evaluation window. I’ll keep waiting for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..65cf2dc57d0184ba2dfd0f493e6a8666394f90cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,19 +35,19 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run completed and produced metrics. I’ll read `val_bpb` now and record/discard or keep based on whether it beats `1.001236`.
+
+Best now is `1.001132` at `f42427a`. I’ll test one final optimizer-schedule tweak: raise `muon_momentum_start` from `0.85` to `0.90` while keeping the current best config.
+
+I need to normalize the patch for `muon_momentum_start` (it inserted an extra line), then I’ll proceed with the run.
+
+I’ve committed that last tweak and am now running it; if it doesn’t improve, I’ll reset back to `f42427a` which is the current best.
+
+Running the momentum-start experiment now; I’ll wait for completion and then score it versus current best `1.001132`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e0f2a3814489bab09cbe90d228efde4de5d423cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e0f2a3814489bab09cbe90d228efde4de5d423cc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+This run is in the same 5-minute execution profile. I’ll check process status once more; then once it exits I’ll finalize this round of decisions.
+
+This experiment improved best performance again: `val_bpb=1.000959`. I’m logging it as new best and keeping this commit.
+
+Current best is `1.000959` with `muon_momentum_start=0.90`. I’ll run one more focused tweak: raise `muon_momentum_end` to `0.97` and see if this further lowers bpb.
+
+Patch applied cleanly this time; I’ll commit and evaluate this final momentum-end adjustment.
+
+This is the new momentum-end test. I’ll let it run full window and then compare `val_bpb` against `1.000959`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..77af72a750d10fb349eb2c28c8315d1e7b16dbbe
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.90
++muon_momentum_end = 0.97
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..77af72a750d10fb349eb2c28c8315d1e7b16dbbe
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.90
++muon_momentum_end = 0.97
+ weight_decay_decay = true
+
+
+Momentum-end increase to `0.97` was worse (`1.004582`), so I’m marking it discard and reverting to the current best state `48b624e`.
+
+I’ll run one more conservative schedule tweak before pausing: reduce `warmdown_ratio` from `0.5` to `0.3` with the current best optimizer settings, then decide keep/discard based on metric.
+
+
+This run is in progress; I’ll wait for completion and then finalize this latest tweak against the best `1.000959`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still running as expected; I’ll check once it exits and then either keep or revert this warmdown change.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Warmdown to `0.3` underperformed (`1.002854`), so I’m logging it as discarded and reverting to best commit `48b624e`.
+
+I’ve run the loop and kept the branch `research-loops/may13`.
+
+Best result so far:
+- `val_bpb = 1.000959` (lowest seen)
+- Commit: `48b624e` (`raise muon momentum start to 0.90`)
+- Peak VRAM: `56.2 GB`
+- Status: keep
+
+Current best config is on top of previous kept changes:
+- `depth = 9`
+- `final_lr_frac = 0.05`
+- `weight_decay = 0.15`
+- `muon_ns_steps = 6`
+- `muon_beta2 = 0.98`
+- `muon_momentum_start = 0.90`
+
+Logged results file now contains all experiments (keep/discard) at:
+[`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-3-20260513-101807/research-loop/memory/results.tsv)
+
+If you want, I’ll continue running further experiments from this best commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..50422c6e8ac1367ae9871ba037dd4c0dccbb7060
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,20 +35,20 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_ns_steps = 6
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+tokens used
+258,289
+I’ve run the loop and kept the branch `research-loops/may13`.
+
+Best result so far:
+- `val_bpb = 1.000959` (lowest seen)
+- Commit: `48b624e` (`raise muon momentum start to 0.90`)
+- Peak VRAM: `56.2 GB`
+- Status: keep
+
+Current best config is on top of previous kept changes:
+- `depth = 9`
+- `final_lr_frac = 0.05`
+- `weight_decay = 0.15`
+- `muon_ns_steps = 6`
+- `muon_beta2 = 0.98`
+- `muon_momentum_start = 0.90`
+
+Logged results file now contains all experiments (keep/discard) at:
+[`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-3-20260513-101807/research-loop/memory/results.tsv)
+
+If you want, I’ll continue running further experiments from this best commit.

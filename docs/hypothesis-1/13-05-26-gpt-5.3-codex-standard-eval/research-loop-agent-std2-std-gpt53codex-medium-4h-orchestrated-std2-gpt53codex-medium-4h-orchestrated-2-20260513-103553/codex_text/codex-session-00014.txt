@@ -1,0 +1,90 @@
+I’m starting the research loop now by checking git state, whether `memory/results.tsv` already exists, and the current branch so I can either resume or initialize exactly per your setup rules.
+
+I found an existing initialized loop with many prior runs, so I’m resuming from the current branch and best recorded `val_bpb` (1.024269). Next I’ll read `editable/` files and choose a new targeted experiment not already tried.
+
+I have full training/config context now and I’m selecting the next trial around schedule shape, since most direct LR/momentum sweeps have already been explored. I’ll snapshot current commit, make one focused config edit, commit, run, and keep/revert strictly by `val_bpb`.
+
+I’m editing `editable/config.toml` for a single new hypothesis: keep a non-zero floor at the end of warmdown (`final_lr_frac`) so the optimizer doesn’t fully anneal to zero in the last phase. I’ll commit this as one isolated experiment.
+
+The experiment commit is ready (`18c2a0a`). I’m running the 5-minute training job now with output redirected, then I’ll read only `metrics.json`, log to `memory/results.tsv`, and keep or reset based on improvement.
+
+Training is in progress in the background session; I’m waiting for completion and will only collect `metrics.json` unless the run fails.
+
+Run is still executing within budget. I’m continuing to wait and will process results immediately when it exits.
+
+I’m still waiting on the run process; no log inspection needed so far since there’s no crash signal yet.
+
+Process is still active; I’m continuing to monitor until completion, then I’ll evaluate and apply keep/discard logic.
+
+I’m still on the same run wait; once it exits I’ll parse `metrics.json`, append TSV, and immediately launch the next variant if this one is discarded.
+
+The run finished successfully. I’m now reading `metrics.json`, logging the row in `memory/results.tsv`, and applying keep/discard by comparing against the current best `val_bpb`.
+
+This trial was worse (`1.024915` vs best `1.024269`), so I’m discarding it and resetting to the pre-experiment commit before launching the next hypothesis.
+
+I’m testing a new optimizer-shape hypothesis now: slightly increasing `adam_beta1` (0.8 → 0.85) to smooth AdamW updates on embeddings/unembedding while keeping the best LR settings intact.
+
+The new commit (`3dd61e7`) is ready, and I’m running the timed training job now. After it exits I’ll read `metrics.json`, append to TSV, and keep/revert automatically.
+
+Second run is still in flight and within budget; I’m waiting for completion before collecting metrics.
+
+I’m still waiting on the training process; no crash handling needed yet. I’ll immediately score and decide keep/discard once it exits.
+
+Run is still active; I’m continuing to monitor until exit and then applying the branch-advance rule from `memory/results.tsv`.
+
+Completed 2 new experiments and applied keep/discard rules correctly.
+
+- Baseline/best kept commit remains: `9b69163` with `val_bpb=1.024269`
+- Current `HEAD` is reset back to: `9b69163` (both new trials were discarded)
+
+New logged rows in [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/memory/results.tsv):
+
+- `18c2a0a` | `1.024915` | `41.1` GB | `discard` | set `final_lr_frac` to `0.1`
+- `3dd61e7` | `1.025238` | `41.1` GB | `discard` | tune `adam_beta1` to `0.85`
+
+Code changes tried (both reverted after worse results):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-adam_beta1 = 0.8
++adam_beta1 = 0.85
+```
+
+I followed the required flow: edit → commit → run (`uv run --extra research python editable/train.py > run.log 2>&1`) → read `metrics.json` only → append TSV → reset on non-improvement.
+tokens used
+41,812
+Completed 2 new experiments and applied keep/discard rules correctly.
+
+- Baseline/best kept commit remains: `9b69163` with `val_bpb=1.024269`
+- Current `HEAD` is reset back to: `9b69163` (both new trials were discarded)
+
+New logged rows in [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/memory/results.tsv):
+
+- `18c2a0a` | `1.024915` | `41.1` GB | `discard` | set `final_lr_frac` to `0.1`
+- `3dd61e7` | `1.025238` | `41.1` GB | `discard` | tune `adam_beta1` to `0.85`
+
+Code changes tried (both reverted after worse results):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-adam_beta1 = 0.8
++adam_beta1 = 0.85
+```
+
+I followed the required flow: edit → commit → run (`uv run --extra research python editable/train.py > run.log 2>&1`) → read `metrics.json` only → append TSV → reset on non-improvement.

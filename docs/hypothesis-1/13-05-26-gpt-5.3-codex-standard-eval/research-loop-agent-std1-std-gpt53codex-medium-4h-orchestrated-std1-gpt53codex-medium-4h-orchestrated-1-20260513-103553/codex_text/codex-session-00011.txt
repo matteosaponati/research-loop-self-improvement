@@ -1,0 +1,88 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized loop on branch `research-loops/may13` with prior results, so I’m resuming from current state and moving directly to proposing the next experiment after reading `editable/` and `memory/results.tsv`.
+
+I’ve loaded prior results and current hyperparameters; next I’m scanning the training schedule and optimizer code paths in `train.py` to pick a targeted change with high upside and low crash risk.
+
+I identified a narrow next test: keep the successful `unembedding_lr=0.0075` and probe a gentler tail LR by setting `final_lr_frac` to `0.05` (the earlier `0.2` was too aggressive). I’ll commit this single config change and run one 5-minute trial.
+
+The config edit is committed as `aa47c02`. I’m now launching the timed training run with log redirection, then I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+The run is in progress; I’ll wait for completion and then collect metrics.
+
+Training is still running within expected wall time. I’m continuing to wait and will parse `metrics.json` immediately when it exits.
+
+I’m still waiting on the training process; no crash signal yet. I’ll keep polling until exit and then record keep/discard automatically.
+
+Run is still active and within the timeout guard. I’m continuing to poll for completion.
+
+I’m at the tail end of the run window now; next poll should return completion or timeout status.
+
+Still running, so I’m continuing to wait; once it exits I’ll immediately compute result status against the best keep.
+
+I’m still blocked on process completion and keeping the 10-minute guard in place. Polling again now.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the TSV row, and applying keep/discard by resetting if it did not beat the best `val_bpb`.
+
+The tail-LR experiment was worse and has been reverted to `a922ddb`. I’m proceeding directly with another low-risk run by shortening warmup slightly (`warmup_ratio 0.01 -> 0.005`) to increase early effective LR.
+
+I’ve committed `81492c3` and I’m launching the next 5-minute run now. After it finishes, I’ll read `metrics.json`, append results, and keep/reset based on `val_bpb`.
+
+Run is active; I’m waiting on completion before collecting metrics.
+
+Training is still in progress and within the timeout window. I’ll continue polling.
+
+Still running; no failure indications yet. I’m continuing to wait for exit and then I’ll record the result.
+
+I’m at mid-run duration; waiting further for process completion.
+
+Run is still active and within safeguards; I’ll keep polling until it exits.
+
+Still waiting on completion; next poll should be near the end of the training window.
+
+I’m continuing to block on this run and will immediately process metrics once it exits.
+
+The process has not exited yet, but the hard timeout is still enforcing the 10-minute cap; I’m polling again now.
+
+The run just completed successfully. I’m now recording it to `memory/results.tsv` and applying keep/discard against the best retained score.
+
+This second run was also worse and I reverted to `a922ddb`. I’m launching another schedule-focused trial next: extend warmdown slightly (`warmdown_ratio 0.5 -> 0.6`) since shorter warmdown variants already underperformed.
+
+I’ve committed `5bb02aa` and started the next run. I’ll wait for completion, then read `metrics.json` and apply keep/discard logic.
+
+Run is active; I’m polling until it exits before recording the result.
+
+Still running within budget; continuing to wait.
+
+I’m continuing to block on this training process and will record metrics as soon as it exits.
+
+Run is still active and has not hit timeout; polling again now.
+
+I’m at late-run duration; waiting for final exit to collect the metric.
+
+The run completed successfully. I’m now appending the result and either keeping this commit or resetting based on `val_bpb` improvement.
+
+Completed 3 experiments in the loop and updated `memory/results.tsv` each time.
+
+Current best was improved and kept:
+- `5bb02aa` → `val_bpb=1.022921`, `memory_gb=41.1`, `status=keep`
+- Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std1-gpt53codex-medium-4h-orchestrated-1-20260513-103553/research-loop/editable/config.toml) set `warmdown_ratio = 0.6` (from `0.5`)
+
+Discarded runs:
+- `aa47c02` (`final_lr_frac 0.0->0.05`) → `1.024006` (discard, reset)
+- `81492c3` (`warmup_ratio 0.01->0.005`) → `1.024801` (discard, reset)
+
+Branch head is now at kept winner `5bb02aa`, and log entries are appended in [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std1-gpt53codex-medium-4h-orchestrated-1-20260513-103553/research-loop/memory/results.tsv).
+tokens used
+53,532
+Completed 3 experiments in the loop and updated `memory/results.tsv` each time.
+
+Current best was improved and kept:
+- `5bb02aa` → `val_bpb=1.022921`, `memory_gb=41.1`, `status=keep`
+- Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std1-gpt53codex-medium-4h-orchestrated-1-20260513-103553/research-loop/editable/config.toml) set `warmdown_ratio = 0.6` (from `0.5`)
+
+Discarded runs:
+- `aa47c02` (`final_lr_frac 0.0->0.05`) → `1.024006` (discard, reset)
+- `81492c3` (`warmup_ratio 0.01->0.005`) → `1.024801` (discard, reset)
+
+Branch head is now at kept winner `5bb02aa`, and log entries are appended in [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std1-gpt53codex-medium-4h-orchestrated-1-20260513-103553/research-loop/memory/results.tsv).

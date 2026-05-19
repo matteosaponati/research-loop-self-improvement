@@ -1,0 +1,90 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume or do the one-time branch/baseline setup exactly as specified.
+
+I found an existing initialized loop with prior runs, so I’m resuming from current branch state and now reading `editable/` plus the results history to choose the next experiment.
+
+I’ve identified a clear trend: lowering `matrix_lr` has consistently improved `val_bpb` down to `0.025`. I’m running the next incremental step (`0.0225`) with a single-file config edit, then I’ll commit, run, read `metrics.json`, log to TSV, and keep/reset based on improvement.
+
+The environment doesn’t expose `python` directly, so I’m applying the same edit with shell tools and then committing.
+
+The commit is in place (`18d2752`). I’m launching the 5-minute training run now with output redirected to `run.log`, then I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+Training is still running in the background; I’m waiting for completion and will immediately parse `metrics.json` when it exits.
+
+Run is still in progress and within the expected window. I’m continuing to wait for completion before collecting metrics.
+
+I’m still waiting on the training process; no log inspection is needed unless the run fails, so I’ll keep polling until exit.
+
+The process is taking longer than typical but still under the 10-minute cutoff, so I’m polling again and will mark failure if it crosses the limit.
+
+I’m near the expected finish window now; once this exits I’ll immediately parse and log metrics, then either keep or reset this commit.
+
+The run completed successfully but did not beat the current best (`1.023647`), so I’m logging it as `discard` and resetting to the prior commit as required by the loop.
+
+I’m continuing the loop with a local refinement around the apparent optimum: next experiment sets `matrix_lr` to `0.024` (between `0.025` best and `0.0225` worse).
+
+I’ve committed the second experiment (`d39f184`) and I’m launching another 5-minute run now.
+
+Run is progressing; I’m waiting for completion and will follow the same metrics-only collection path.
+
+Still in-flight and under timeout. I’ll keep polling until exit, then log and keep/reset based on `val_bpb`.
+
+I’m at the expected completion window now; collecting final status next and then updating `memory/results.tsv`.
+
+Training is still alive but approaching the upper end of normal duration; I’m polling once more and will enforce failure handling if needed.
+
+The run has exited cleanly; I’m now reading `metrics.json`, recording the result, and deciding whether to keep this commit.
+
+This trial is also slightly worse than the best-so-far, so I’m logging it as `discard` and resetting to the previous kept commit to continue from the best point.
+
+Resumed loop from existing branch `research-loops/may13` and ran two new experiments end-to-end.
+
+New experiment diffs committed before each run:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.0225
+```
+(commit `18d2752`)
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.024
+```
+(commit `d39f184`)
+
+Results recorded to `memory/results.tsv`:
+- `18d2752` → `val_bpb=1.023802`, `memory_gb=41.1`, `status=discard`, `lower matrix_lr further to 0.0225`
+- `d39f184` → `val_bpb=1.023852`, `memory_gb=41.1`, `status=discard`, `refine matrix_lr to 0.024`
+
+Both were worse than best-so-far `1.023647`, so both commits were reverted per protocol.  
+Current HEAD is back at kept best commit: `4d1aa32` (`matrix_lr=0.025`).
+tokens used
+30,783
+Resumed loop from existing branch `research-loops/may13` and ran two new experiments end-to-end.
+
+New experiment diffs committed before each run:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.0225
+```
+(commit `18d2752`)
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-matrix_lr = 0.025
++matrix_lr = 0.024
+```
+(commit `d39f184`)
+
+Results recorded to `memory/results.tsv`:
+- `18d2752` → `val_bpb=1.023802`, `memory_gb=41.1`, `status=discard`, `lower matrix_lr further to 0.0225`
+- `d39f184` → `val_bpb=1.023852`, `memory_gb=41.1`, `status=discard`, `refine matrix_lr to 0.024`
+
+Both were worse than best-so-far `1.023647`, so both commits were reverted per protocol.  
+Current HEAD is back at kept best commit: `4d1aa32` (`matrix_lr=0.025`).

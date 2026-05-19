@@ -1,0 +1,94 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, so I can resume correctly or initialize fresh per your rules.
+
+I found an active run history on `research-loops/may13`, so I’m resuming from the current branch and best prior result (`1.025251`). Next I’ll read all in-scope `editable/` files and choose the next targeted change.
+
+I’ve loaded the current config/history; recent wins came from lowering `embedding_lr`, while warmup/final decay and lower `unembedding_lr` hurt. I’m now checking the remaining training code to target the next high-impact knob with minimal risk.
+
+Plan for this iteration: test a small increase to `unembedding_lr` (from `0.004` to `0.005`) while keeping the improved `embedding_lr=0.40`, since lowering unembedding hurt and the current head LR may be slightly underpowered. I’m applying this as a single config edit, committing, running, and then keeping or resetting strictly by `val_bpb`.
+
+The experiment commit is in place (`cb82c8f`). I’m running the 5-minute train job now with output redirected to `run.log`, then I’ll read `metrics.json` and decide keep/discard.
+
+Training is running in the background PTY session; I’m monitoring until completion and will only read `metrics.json` unless it crashes.
+
+Still in progress; I’m waiting for the run to finish and then I’ll extract the metrics and update `memory/results.tsv`.
+
+Run is still active; I’m continuing to wait and will process results immediately on exit.
+
+I’m still waiting on the same run session; once it exits I’ll parse `metrics.json`, append the TSV row, and apply keep/reset.
+
+This has been running for several minutes but still within the 10-minute limit; I’m continuing to monitor and will treat timeout as failure if needed.
+
+The run finished successfully; I hit a local shell issue (`python` not on PATH), so I’m now reading `metrics.json` and best-so-far using `uv run python` instead.
+
+I recorded this as a new best keep (`1.025032` at `cb82c8f`). I’m immediately launching the next experiment: a small `embedding_lr` reduction to `0.39` to probe around the current optimum without changing other knobs.
+
+Second run is in progress (`7f10948`); I’m waiting for completion, then I’ll read `metrics.json`, append the TSV row, and keep or reset based on `val_bpb`.
+
+Run is still active and within limit; continuing to monitor until exit.
+
+Still running; I’ll process the result as soon as it exits and then enforce keep/discard with a git move back if needed.
+
+Result came back slightly worse (`1.025086` vs best `1.025032`), so I’m recording it as `discard` and moving the branch back to the previous best commit.
+
+I’m continuing the loop with a new probe around the latest win: keep `embedding_lr=0.40` and raise `unembedding_lr` from `0.005` to `0.006` to test if the prior gain continues with slightly stronger head updates.
+
+Third run is launched (`5ee64a7`) and I’m monitoring it now; once done I’ll record metrics and keep/reset.
+
+Run is still active and within policy limits; continuing to wait for completion before applying keep/discard logic.
+
+Still running; I’m keeping the session alive and will finalize this iteration with the metric-based decision as soon as the process exits.
+
+The run just completed; I’m extracting `metrics.json` now and applying keep/discard plus branch reset if needed.
+
+Completed 3 experiment iterations and updated `memory/results.tsv` accordingly.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = 5ee64a7`
+
+Best so far:
+- `val_bpb = 1.024988` (improved from `1.025032`)
+- `peak_vram_mb = 42060.4` (`41.1 GB`)
+
+Experiments run this cycle:
+1. `cb82c8f` `keep`  
+   - Diff: `unembedding_lr = 0.004 -> 0.005` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.025032`
+
+2. `7f10948` `discard`  
+   - Diff: `embedding_lr = 0.40 -> 0.39` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.025086` (worse)  
+   - Branch moved back with `git reset --keep HEAD~1`
+
+3. `5ee64a7` `keep`  
+   - Diff: `unembedding_lr = 0.005 -> 0.006` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.024988` (new best)
+
+`memory/results.tsv` has been appended for all 3 runs.
+tokens used
+68,456
+Completed 3 experiment iterations and updated `memory/results.tsv` accordingly.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = 5ee64a7`
+
+Best so far:
+- `val_bpb = 1.024988` (improved from `1.025032`)
+- `peak_vram_mb = 42060.4` (`41.1 GB`)
+
+Experiments run this cycle:
+1. `cb82c8f` `keep`  
+   - Diff: `unembedding_lr = 0.004 -> 0.005` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.025032`
+
+2. `7f10948` `discard`  
+   - Diff: `embedding_lr = 0.40 -> 0.39` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.025086` (worse)  
+   - Branch moved back with `git reset --keep HEAD~1`
+
+3. `5ee64a7` `keep`  
+   - Diff: `unembedding_lr = 0.005 -> 0.006` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260513-103553/research-loop/editable/config.toml)  
+   - Result: `val_bpb = 1.024988` (new best)
+
+`memory/results.tsv` has been appended for all 3 runs.

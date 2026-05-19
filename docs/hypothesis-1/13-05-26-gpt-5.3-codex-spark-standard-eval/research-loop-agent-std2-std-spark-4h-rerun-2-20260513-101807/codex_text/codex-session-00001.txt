@@ -1,0 +1,670 @@
+I’ll set up or resume the research branch, ensure data/tokenizer are present, then run a baseline and start iterating experiments by editing only `editable/`, committing each change, running `editable/train.py`, and logging every result to `memory/results.tsv` exactly as specified. I’ll begin by checking current workspace state and branch/results files.
+
+I’ve confirmed this is a fresh run (no existing results file), read the editable training/config files, and next I’m creating the research branch for today, checking local data/tokenizer availability, then launching the baseline run and logging it to `memory/results.tsv`.
+
+Baseline setup is complete. I’m starting the first baseline run now with the current `editable/train.py` defaults and `metrics.json`-based collection.
+
+I’ve started baseline and it’s still running without output (likely compile/run warmup), so I’m continuing to wait; if it exceeds 10 minutes I’ll stop and rerun/fix.
+
+The baseline command finished; I’m now collecting `metrics.json` to determine whether the run completed and to log the baseline row.
+
+Next experiment choice: cut `total_batch_size` in half to `262144` (keeping `device_batch_size=128`) so `grad_accum_steps` drops to `1`, which should increase optimizer updates per fixed time and likely lower validation bpb if it’s not already update-limited. I’ll apply only a unified diff to `editable/config.toml`, then commit it.
+
+I’ve committed the first experiment (`total_batch_size=262144`). I’ll run it now and collect `metrics.json` directly for comparison.
+
+The first candidate change is still executing under budget. I’m waiting for completion; if it hangs past 10 minutes I’ll flag and discard/redo.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run finished and I’ll now read only `metrics.json` to score it, then append it to `memory/results.tsv` and decide keep/discard against baseline.
+
+Best result improved (1.011175), so I’ll run a follow-up tweak: delay LR warmdown (`warmdown_ratio` 0.5→0.2) to keep high learning rate longer in the fixed 5‑minute window. I’ll commit that change, run, and compare.
+
+Second follow-up run is in progress; I’ll monitor completion and then immediately record the outcome and either keep or revert this commit per the loop rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m keeping the better commit and trying a targeted optimizer-tuning step: raise `matrix_lr` to `0.05` while retaining `total_batch_size=262144`, then I’ll run and evaluate.
+
+Third candidate is still running; I’ll capture metrics once it exits and decide keep/revert according to best-so-far val_bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+That change did not beat the best metric, so it was discarded and the branch was reset back to the best commit. I’ll run one more optimizer-schedule variant from that state and then stop unless it improves further.
+
+I hit a small patch context miss while applying the next setting change; I’ll apply the same batch-size experiment with exact current lines and rerun from there.
+
+This run is taking about the same wall-time as prior ones. I’m waiting for completion and then I’ll immediately compare against the best 1.011175 threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m keeping the best-performing commit and trying a capacity increase: bump `aspect_ratio` from `64`→`72` (=> `n_embd` +12.5%). If validation improves, this becomes the new branch head.
+
+Width increase is committed; running the experiment now with the same 5-minute budget and then evaluating `metrics.json`.
+
+This experiment is running; I’ll continue polling until completion and then compare against the best 1.011175 threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+We now have a better configuration (`aspect_ratio=72`) with `val_bpb=0.991268`. I’m doing one final targeted check from that point by reducing `weight_decay` from `0.2`→`0.1` to see if the new model size also benefits from weaker decay.
+
+New decay tweak is running; I’ll collect its metric on completion and decide keep/discard exactly as the loop requires.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run improved the objective (`val_bpb=0.989976`), so I’ll keep this commit and log it as the new best result. This is now the current branch head.
+
+I can continue with another controlled tweak; next I’m trying `weight_decay_decay = false` while keeping the current best geometry/learning setup, since static regularization sometimes works better once `weight_decay` is reduced.
+
+This run is also taking the full training window; I’ll evaluate as soon as it finishes and keep/discard per comparison.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’ve completed one more test (discarded, as expected), and current best remains `0.989976`. I’ll do one final light-weight follow-up: raise `softcap` from `15` to `20` to test output-logit clipping effects at lower perplexity, then stop unless it improves.
+
+Last scheduled check is in progress; if it finishes without improvement I’ll revert to the best commit and report the completed run history.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’ve finished this loop pass with the current best at `71e1e6c`. I’ll grab a quick status and then summarize the completed experiments and current best result in the required format.
+
+Completed. Research loop is running on branch `research-loops/may13` with results logged in `[memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-2-20260513-101807/research-loop/memory/results.tsv)`.
+
+- Best result achieved: `commit = 71e1e6c`, `val_bpb = 0.989976`, `memory_gb = 50.3`, `status = keep`.
+- Current branch head is the best commit: `71e1e6c` (`reduce weight_decay to 0.1`), and its config edits are in `[editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-2-20260513-101807/research-loop/editable/config.toml)`.
+- `memory/results.tsv` content now includes 9 experiments (baseline + 8 follow-ups), with 3 kept, 5 discarded by rule.
+
+Committed diffs that produced evaluated runs:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-total_batch_size = 524288
++total_batch_size = 262144
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-depth = 8
+-aspect_ratio = 64
++depth = 8
++aspect_ratio = 72
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.2
++weight_decay = 0.1
+```
+
+Keep/discard outcomes were enforced per instructions, with kept and discarded commits recorded in TSV.  
+
+`metrics.json` was generated and read each run for scoring (untracked by git by design).
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+tokens used
+85,461
+Completed. Research loop is running on branch `research-loops/may13` with results logged in `[memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-2-20260513-101807/research-loop/memory/results.tsv)`.
+
+- Best result achieved: `commit = 71e1e6c`, `val_bpb = 0.989976`, `memory_gb = 50.3`, `status = keep`.
+- Current branch head is the best commit: `71e1e6c` (`reduce weight_decay to 0.1`), and its config edits are in `[editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-2-20260513-101807/research-loop/editable/config.toml)`.
+- `memory/results.tsv` content now includes 9 experiments (baseline + 8 follow-ups), with 3 kept, 5 discarded by rule.
+
+Committed diffs that produced evaluated runs:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-total_batch_size = 524288
++total_batch_size = 262144
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-depth = 8
+-aspect_ratio = 64
++depth = 8
++aspect_ratio = 72
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-weight_decay = 0.2
++weight_decay = 0.1
+```
+
+Keep/discard outcomes were enforced per instructions, with kept and discarded commits recorded in TSV.  
+
+`metrics.json` was generated and read each run for scoring (untracked by git by design).

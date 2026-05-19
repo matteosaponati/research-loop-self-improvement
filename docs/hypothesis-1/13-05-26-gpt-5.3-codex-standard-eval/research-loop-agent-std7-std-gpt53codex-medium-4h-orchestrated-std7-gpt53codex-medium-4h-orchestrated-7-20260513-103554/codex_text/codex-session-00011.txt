@@ -1,0 +1,130 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume or perform full setup, then I’ll run the next experiment cycle from the current best commit.
+
+I found an existing initialized run history, so I’m resuming directly from the current branch state and now inspecting `editable/` to choose the next targeted change from prior outcomes.
+
+I’ve identified where LR, Muon momentum, and weight decay schedules are applied; next I’ll inspect those sections and pick a single high-signal tweak, then commit and run it.
+
+I’m making a single controlled schedule tweak next: keep the current best setup and only raise `final_lr_frac` from `0.0` to `0.05` so LR doesn’t collapse to zero at the end. Then I’ll commit, run, and score from `metrics.json`.
+
+I’ve applied the change and confirmed the diff; I’m cleaning up an intermediate backup file so only the intended tracked config edit remains before commit.
+
+Commit `8590baa` is ready; I’m launching the 5-minute training run now and will read only `metrics.json` for evaluation when it finishes.
+
+The run is in progress under a live session. I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv` before deciding keep or reset.
+
+Training is still running normally; I’m continuing to wait for exit and will immediately collect metrics once the process returns.
+
+Still executing within expected window. I’m monitoring until completion, then I’ll record the result and enforce keep/discard based on `val_bpb`.
+
+I’m still waiting on the same run session; once it exits I’ll parse JSON, append TSV, and reset immediately if it does not beat `1.024643`.
+
+Run is still active; I’m continuing to wait rather than inspecting logs, per your rules, and will only use `metrics.json` unless there’s a crash.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the experiment row to `memory/results.tsv`, and reverting this commit if it didn’t improve best `val_bpb`.
+
+I got valid metrics (`val_bpb=1.024431`) and this looks better than the current best; I’m finishing the best-value check, then I’ll log it as `keep` and continue to next experiment from this commit.
+
+Best improved to `1.024431`, so I’m advancing from this commit and immediately launching another nearby search point: increase `final_lr_frac` to `0.10` to test whether a higher tail LR helps further.
+
+I’ve committed `c3a99ef` and started the next timed run. After completion I’ll read `metrics.json`, log to TSV, and keep or reset based on improvement vs `1.024431`.
+
+Second run is in progress; I’m monitoring for completion without touching logs and will score from `metrics.json` only.
+
+Training is still active within budget, so I’m continuing to wait and will apply the keep/discard rule immediately at exit.
+
+No completion yet; I’m still waiting on the same run session and will update results as soon as it exits.
+
+Run remains active and healthy from process perspective. I’m continuing to block on completion so I can record and branch-advance/revert correctly.
+
+This run is taking longer than usual end-to-end but still below the 10-minute failure cutoff, so I’m waiting for normal termination before scoring.
+
+The run finished successfully; I’m extracting `metrics.json` now, logging the row, and reverting this commit if it didn’t beat `1.024431`.
+
+This configuration is worse (`1.025304`), so I’m marking it `discard` in memory and resetting the branch back to the previous best commit per loop rules.
+
+Completed two experiment iterations and updated the loop state.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 5bb3328..0183be0 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 0183be0..6814873 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.05
++final_lr_frac = 0.10
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `8590baa` → `val_bpb=1.024431`, `memory_gb=41.1`, `keep`, `set final_lr_frac to 0.05 during warmdown`
+- `c3a99ef` → `val_bpb=1.025304`, `memory_gb=41.1`, `discard`, `raise final_lr_frac to 0.10 during warmdown`
+
+Branch state now correctly reset to best kept commit `8590baa` (`final_lr_frac=0.05`).
+tokens used
+53,995
+Completed two experiment iterations and updated the loop state.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 5bb3328..0183be0 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 0183be0..6814873 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.05
++final_lr_frac = 0.10
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `8590baa` → `val_bpb=1.024431`, `memory_gb=41.1`, `keep`, `set final_lr_frac to 0.05 during warmdown`
+- `c3a99ef` → `val_bpb=1.025304`, `memory_gb=41.1`, `discard`, `raise final_lr_frac to 0.10 during warmdown`
+
+Branch state now correctly reset to best kept commit `8590baa` (`final_lr_frac=0.05`).

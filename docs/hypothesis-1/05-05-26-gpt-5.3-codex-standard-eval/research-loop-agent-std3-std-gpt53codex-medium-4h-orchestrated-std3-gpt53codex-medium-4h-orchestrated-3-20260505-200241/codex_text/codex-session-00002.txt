@@ -1,0 +1,80 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume from current branch or perform the fresh setup sequence (branch, data check, baseline).
+
+I found an existing initialized run (`research-loops/may5` with prior results), so I’m resuming directly and now reading `editable/` plus `memory/results.tsv` to pick the next experiment.
+
+I’ve pulled current results and config; next I’m scanning the rest of `train.py` for scheduler and optimizer behavior to choose the highest-leverage 5-minute change.
+
+I’m going to run a single high-signal schedule experiment next: keep LR higher later in the 5-minute window by reducing warmdown and raising final LR floor, then commit and benchmark.
+
+The config change is committed as `624b0d6`; I’m running the 5-minute training job now and will read `metrics.json` (not `run.log`) to decide keep vs reset.
+
+Training is in progress; I’m waiting for completion and will immediately parse `metrics.json` once the process exits.
+
+Still running within budget; I’m continuing to wait for the process to finish cleanly before collecting metrics.
+
+Run is still active; I’m polling again and will classify it as crash only if `metrics.json` is missing/invalid after exit.
+
+I’m continuing to wait for the training process; next step is metrics extraction and automatic keep/discard handling.
+
+Training is still running but within the timeout window; I’m polling again.
+
+I’m waiting for process exit now; once done, I’ll append the result row and either keep this commit or reset.
+
+The run is near completion time; I’m polling for the final exit and then collecting only `metrics.json`.
+
+The run finished successfully; I hit a shell-path issue (`python` unavailable), so I’m re-reading `metrics.json` and best-so-far using `uv run python` now.
+
+I collected metrics: this experiment regressed (`val_bpb 1.100645`), so I’m logging it as `discard` in `memory/results.tsv` and resetting one commit to continue from the previous best branch state.
+
+I’ve reverted to the prior branch state and the current best recorded result remains `1.027028`. I’m selecting a new experiment now by checking the current config on `HEAD` and making a smaller optimizer tweak.
+
+Next experiment: reduce `muon_ns_steps` from `5` to `4` to trade slightly cheaper orthogonalization for more optimization steps inside the fixed 5-minute budget.
+
+I committed `180d230` and started the run; after it exits I’ll append results and keep/reset strictly by `val_bpb`.
+
+Training is running; I’m waiting for completion and will collect only `metrics.json` once it exits.
+
+Run is still active and within timeout; I’m continuing to poll for process exit.
+
+Still running; once done I’ll evaluate against best `1.027028` and automatically keep or discard.
+
+The experiment is still in progress; I’m continuing to wait for clean completion before parsing results.
+
+Still running; I’m polling until the command returns its exit code, then I’ll record and branch-advance/reset accordingly.
+
+This is taking longer than expected; I’m checking elapsed runtime now, and if it crossed 10 minutes I’ll kill and mark as failure per your rule.
+
+This run improved throughput (`mfu`/steps) but not validation quality (`val_bpb 1.029201`), so I’m recording it as `discard` and resetting to the prior commit.
+
+Experiment loop resumed and executed correctly on branch `research-loops/may5`.
+
+What I ran:
+1. `624b0d6`: `warmdown_ratio 0.5 -> 0.3`, `final_lr_frac 0.2 -> 0.4`
+- Result: `val_bpb=1.100645`, `peak_vram=41.1 GB`
+- Decision: `discard` (worse), reset branch
+
+2. `180d230`: `muon_ns_steps 5 -> 4`
+- Result: `val_bpb=1.029201`, `peak_vram=41.1 GB`
+- Decision: `discard` (worse), reset branch
+
+Current state:
+- HEAD: `805c82f`
+- Best recorded `keep`: `1.027028` (commit `cfc6730`)
+- `memory/results.tsv` updated with both new discard rows.
+tokens used
+32,478
+Experiment loop resumed and executed correctly on branch `research-loops/may5`.
+
+What I ran:
+1. `624b0d6`: `warmdown_ratio 0.5 -> 0.3`, `final_lr_frac 0.2 -> 0.4`
+- Result: `val_bpb=1.100645`, `peak_vram=41.1 GB`
+- Decision: `discard` (worse), reset branch
+
+2. `180d230`: `muon_ns_steps 5 -> 4`
+- Result: `val_bpb=1.029201`, `peak_vram=41.1 GB`
+- Decision: `discard` (worse), reset branch
+
+Current state:
+- HEAD: `805c82f`
+- Best recorded `keep`: `1.027028` (commit `cfc6730`)
+- `memory/results.tsv` updated with both new discard rows.

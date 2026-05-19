@@ -1,0 +1,76 @@
+I’m starting the research loop by checking whether prior experiment memory exists so I can either resume immediately or initialize branch/baseline correctly. I’ll inspect git state and `memory/results.tsv` first.
+
+I found an existing initialized loop with prior results, so I’m resuming from the current branch and best checkpoint without rerunning baseline. Next I’ll re-read `editable/` and pick the next targeted change.
+
+I’ve reviewed the current setup and will run a tightly scoped next trial: nudge `unembedding_lr` slightly above the current best (0.0075 → 0.0077) to probe a local optimum without changing stability-sensitive settings. I’m editing `editable/config.toml`, committing, then launching a full 5-minute run.
+
+The experiment commit is in place and I’m running training now with full output redirected to `run.log`; after completion I’ll read only `metrics.json`, append to `memory/results.tsv`, and keep or revert based on `val_bpb`.
+
+Training is running under a timeout guard; I’m waiting for completion and will collect metrics as soon as it exits.
+
+Run is still in progress. I’m continuing to wait and will process `metrics.json` immediately once the job ends.
+
+Still executing within expected duration; next step remains metrics readout and automatic keep/discard decision.
+
+I’m still waiting on the training process to finish; once it exits I’ll record the result row and reset if it did not improve.
+
+The run is continuing normally. I’ll keep polling until it exits, then finalize this experiment bookkeeping.
+
+Still in-flight; I’m waiting for termination and then moving straight to metrics-based decision logic.
+
+I’m continuing to monitor the same run session; next action is parsing `metrics.json` and updating `memory/results.tsv`.
+
+Run is still active near expected completion window. I’ll continue polling and then immediately apply keep/discard with git state cleanup.
+
+The process has not exited yet; I’m waiting again and will close this experiment as soon as the command returns.
+
+I’m still waiting on the same training session; it’s taking longer than 5 minutes due startup/eval overhead, but still under the 10-minute failure threshold.
+
+Training finished successfully. I hit a local shell issue (`python` missing in PATH), so I’ll read `metrics.json` via `uv run python` and proceed with result logging and branch decision.
+
+I’ve got the metrics: `val_bpb=1.024835` with ~`41.1 GB` peak VRAM, which is worse than the current best. I’m recording this as `discard` and resetting to the pre-experiment commit.
+
+I’ve reverted to the best-known state and am launching the next trial immediately. New hypothesis: extend the high-LR phase slightly by reducing decay duration (`warmdown_ratio 0.5 -> 0.4`) while keeping the best `unembedding_lr=0.0075`.
+
+Second experiment commit is ready; I’m running the full timed training now and will again use `metrics.json` for the keep/discard decision.
+
+Run is active. I’m monitoring it and will finalize this experiment once the process exits.
+
+Training is still running normally; I’m continuing to wait for completion before reading `metrics.json`.
+
+Still in progress. I’ll keep polling until it exits, then record and either keep or reset immediately.
+
+The run remains active and under the timeout ceiling. I’m waiting for the final exit signal before scoring this variant.
+
+This run completed successfully. I’m reading `metrics.json`, appending the TSV row, and applying keep/discard against the standing best.
+
+Completed 2 new experiments and updated `memory/results.tsv` accordingly.
+
+- Current best remains `val_bpb=1.023110` at commit `720d11e` (`keep`).
+- Branch/head is reset to best commit after both non-improving trials.
+
+New logged rows:
+
+- `76b9fb3	1.024835	41.1	discard	unembedding_lr 0.0075->0.0077`
+- `e1f515d	1.025067	41.1	discard	warmdown_ratio 0.5->0.4`
+
+Working state now:
+
+- Git HEAD: `720d11e`
+- Best-known config still active (`unembedding_lr=0.0075`)
+tokens used
+44,223
+Completed 2 new experiments and updated `memory/results.tsv` accordingly.
+
+- Current best remains `val_bpb=1.023110` at commit `720d11e` (`keep`).
+- Branch/head is reset to best commit after both non-improving trials.
+
+New logged rows:
+
+- `76b9fb3	1.024835	41.1	discard	unembedding_lr 0.0075->0.0077`
+- `e1f515d	1.025067	41.1	discard	warmdown_ratio 0.5->0.4`
+
+Working state now:
+
+- Git HEAD: `720d11e`
+- Best-known config still active (`unembedding_lr=0.0075`)

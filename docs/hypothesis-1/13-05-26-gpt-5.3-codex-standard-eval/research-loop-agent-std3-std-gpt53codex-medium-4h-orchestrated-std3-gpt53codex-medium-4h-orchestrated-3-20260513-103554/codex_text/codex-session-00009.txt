@@ -1,0 +1,107 @@
+I’m starting the research loop now: I’ll check whether prior results already exist, then either resume from current state or initialize branch/results and run the baseline before proposing the next experiment.
+
+I found an active run history on branch `research-loops/may13`, so I’m resuming directly from the current best result (`1.023497`). Next I’ll reread `editable/` to pick the next high-signal tweak.
+
+I’ve confirmed recent winning trend came from momentum schedule tuning. I’ll inspect the scheduler section in `train.py` to target a tighter change around Muon momentum dynamics.
+
+I have enough context now and will run one focused experiment: slightly lower Muon end momentum to reduce late-training inertia while keeping the recently successful schedule shape intact. I’ll apply a minimal config edit, commit it, run the 5-minute training job, then keep/reset strictly based on `val_bpb`.
+
+I’m now editing `editable/config.toml` only, changing `muon_momentum_end` from `0.94` to `0.93` for this run.
+
+The experiment commit is in place (`344752b`) and training is running now in the background. I’ll wait for completion, then read only `metrics.json`, record to `memory/results.tsv`, and keep or reset accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..13cfd5078605e4ae4f0f3f3964e0e48fc9a369d4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+-muon_momentum_end = 0.94
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+
+Training is still in progress past the first 5-minute wait window, likely due startup/eval overhead; I’m polling again and will enforce the 10-minute failure rule if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..13cfd5078605e4ae4f0f3f3964e0e48fc9a369d4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+-muon_momentum_end = 0.94
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+
+The run finished successfully. I’m extracting `metrics.json`, appending the TSV row, and then resetting to the previous commit if this did not beat the current best.
+
+This trial is slightly worse (`1.023629` vs best `1.023497`), so I’m logging it as `discard` and resetting the branch tip to the prior best commit before starting the next idea.
+
+I’ve restored the best commit (`d8f3825`) and logged the discard. I’m launching the next experiment now by nudging `muon_momentum_start` up to `0.89` while keeping the winning `0.94` end momentum.
+
+Second experiment commit is running (`17a26ed`). I’ll wait for completion, read `metrics.json`, record the outcome, and keep/reset accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..1a7d669d64f6bc8d301e82bcd7ab3c89abaae1f5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.88
++muon_momentum_start = 0.89
+ muon_momentum_end = 0.94
+ weight_decay_decay = true
+
+
+The run is still active after the first wait window; I’m polling again and will mark failure only if it crosses the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..1a7d669d64f6bc8d301e82bcd7ab3c89abaae1f5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.88
++muon_momentum_start = 0.89
+ muon_momentum_end = 0.94
+ weight_decay_decay = true
+
+
+This run regressed (`1.024004`), so I’m recording it as `discard` and resetting to the current best checkpoint commit.
+
+Current loop status after 2 new experiments:
+
+- Best retained commit is still `d8f3825` with `val_bpb=1.023497`.
+- I ran and logged two new trials, both discarded:
+1. `344752b` (`muon_momentum_end=0.93`) → `val_bpb=1.023629`, `41.1 GB`, `discard`
+2. `17a26ed` (`muon_momentum_start=0.89`) → `val_bpb=1.024004`, `41.1 GB`, `discard`
+
+I reset back to the best commit after each non-improving run, and `memory/results.tsv` has been updated accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..1a7d669d64f6bc8d301e82bcd7ab3c89abaae1f5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.88
++muon_momentum_start = 0.89
+ muon_momentum_end = 0.94
+ weight_decay_decay = true
+
+tokens used
+21,574
+Current loop status after 2 new experiments:
+
+- Best retained commit is still `d8f3825` with `val_bpb=1.023497`.
+- I ran and logged two new trials, both discarded:
+1. `344752b` (`muon_momentum_end=0.93`) → `val_bpb=1.023629`, `41.1 GB`, `discard`
+2. `17a26ed` (`muon_momentum_start=0.89`) → `val_bpb=1.024004`, `41.1 GB`, `discard`
+
+I reset back to the best commit after each non-improving run, and `memory/results.tsv` has been updated accordingly.

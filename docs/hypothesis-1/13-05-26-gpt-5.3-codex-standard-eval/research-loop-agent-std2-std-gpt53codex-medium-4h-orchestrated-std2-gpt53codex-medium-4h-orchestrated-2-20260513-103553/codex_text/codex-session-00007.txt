@@ -1,0 +1,102 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize branch/results and run the baseline exactly per your protocol.
+
+I found an initialized run history on `research-loops/may13` with prior experiments, so I’m resuming from the current best and moving directly to a new experiment iteration by reading the editable files and selecting the next tweak.
+
+I have the current best (`1.024269`) and prior sweeps; next I’m checking the rest of `train.py` to pick a non-redundant, high-yield change before committing and running.
+
+I’m running a focused interpolation around the current best settings: keep `embedding_lr=0.42` and reduce `unembedding_lr` slightly from `0.006` to `0.0058`, since prior results suggest the optimum is near that range. I’ll patch `editable/config.toml`, show the diff, commit, and run.
+
+The experiment commit is in place (`c3211c0`). I’m launching the 5-minute training run now and will read only `metrics.json` on completion.
+
+Training is running in the background session; I’m waiting for it to finish and then I’ll extract metrics and apply keep/discard logic.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..9d668757c75da1143615987a506973695387d8b2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.42
+-unembedding_lr = 0.006
++unembedding_lr = 0.0058
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..9d668757c75da1143615987a506973695387d8b2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.42
+-unembedding_lr = 0.006
++unembedding_lr = 0.0058
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run completed successfully. I’m now reading `metrics.json`, comparing against the current best in `memory/results.tsv`, then appending the new row and resetting if it did not improve.
+
+This trial is worse than the best (`1.025291` vs `1.024269`), so I’m recording it as `discard` and resetting the branch back to the previous best commit before moving on.
+
+I’m continuing the loop with another experiment now: testing a slightly lower `matrix_lr` (`0.04 -> 0.038`) while keeping the current best AdamW settings, then I’ll commit, run, and apply keep/discard again.
+
+The new commit (`cfa8079`) is ready; I’m running the next 5-minute training experiment now.
+
+Run is still in progress; I’m waiting for completion and then I’ll collect `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..ddabf93d7de896318edde3f222a1ffefde7a8663
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.42
+ unembedding_lr = 0.006
+-matrix_lr = 0.04
++matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+This one is also worse than the best (`1.024984` vs `1.024269`), so I’m logging it as `discard` and resetting to the best retained commit.
+
+Resumed correctly from existing `memory/results.tsv` on branch `research-loops/may13` and ran 2 new experiments end-to-end.
+
+New experiments logged:
+- `c3211c0` → `val_bpb=1.025291`, `memory_gb=41.1`, `discard`, `tune unembedding_lr to 0.0058`
+- `cfa8079` → `val_bpb=1.024984`, `memory_gb=41.1`, `discard`, `tune matrix_lr to 0.038`
+
+Current best remains:
+- `9b69163` with `val_bpb=1.024269` (`keep`)
+
+I reset back to `9b69163` after each non-improving run, and `memory/results.tsv` is updated accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27daee938319461b43d802584e46416c3bf0b..ddabf93d7de896318edde3f222a1ffefde7a8663
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.42
+ unembedding_lr = 0.006
+-matrix_lr = 0.04
++matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+48,493
+Resumed correctly from existing `memory/results.tsv` on branch `research-loops/may13` and ran 2 new experiments end-to-end.
+
+New experiments logged:
+- `c3211c0` → `val_bpb=1.025291`, `memory_gb=41.1`, `discard`, `tune unembedding_lr to 0.0058`
+- `cfa8079` → `val_bpb=1.024984`, `memory_gb=41.1`, `discard`, `tune matrix_lr to 0.038`
+
+Current best remains:
+- `9b69163` with `val_bpb=1.024269` (`keep`)
+
+I reset back to `9b69163` after each non-improving run, and `memory/results.tsv` is updated accordingly.

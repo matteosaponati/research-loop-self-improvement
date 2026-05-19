@@ -1,0 +1,72 @@
+I’m starting the loop by checking repo state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an active branch with existing experiment history, so I’m resuming from the current state and now reading `editable/` plus prior results to pick the next experiment.
+
+I confirmed `HEAD` is at the current best commit (`8aa10bc`). Next I’m running a focused sweep point: slightly increasing `matrix_lr` from `0.028` to `0.029` while keeping the best schedule (`final_lr_frac=0.03`) to test if we’re just below the local optimum.
+
+The commit is in place; I’m launching the 5-minute training run now and will read only `metrics.json` on completion to decide keep vs reset.
+
+Training is running in the background session; I’m polling for completion and will record metrics immediately once it exits.
+
+Still running within expected window; I’m continuing to wait for process exit before reading `metrics.json`.
+
+The run is still active and hasn’t hit the timeout guard; I’m continuing to poll until it completes.
+
+I’m in the final stretch of the run window now; once the process exits I’ll parse `metrics.json`, append TSV, and keep/reset the commit.
+
+The process is taking longer than expected including startup overhead, but still under the 10-minute failure threshold; I’m waiting for termination.
+
+The result is slightly worse than the current best, so I’m logging it as `discard` and resetting back to the previous best commit to continue the search.
+
+I’m proceeding immediately with the next experiment from `8aa10bc`: increasing end Muon momentum (`muon_momentum_end`) from `0.95` to `0.97` to test whether stronger late-step smoothing helps validation at the same LR schedule.
+
+Commit is ready; launching the next timed run now, then I’ll evaluate via `metrics.json` and keep/reset based on `val_bpb`.
+
+This run is in progress and healthy so far; I’m polling for completion before collecting metrics.
+
+Still within expected runtime; once this exits I’ll immediately append the result and either advance or roll back.
+
+The process is nearing the end of its training window; I’m continuing to wait for final exit and metrics emission.
+
+This experiment regressed significantly, so I’m reverting to the best commit and continuing from there.
+
+Current loop state after resuming existing branch `research-loops/may13`:
+
+- Best retained commit: `8aa10bc`
+- Best `val_bpb`: `1.023317`
+- Best peak memory: `41.1 GB`
+
+I ran 2 new experiments and logged both to `memory/results.tsv`:
+
+1. `0a3e615` (`matrix_lr: 0.028 -> 0.029`)
+- Result: `val_bpb=1.023357`, `memory_gb=41.1`
+- Status: `discard` (worse than `1.023317`)
+- Reverted to `8aa10bc`
+
+2. `0f114b1` (`muon_momentum_end: 0.95 -> 0.97`)
+- Result: `val_bpb=1.025748`, `memory_gb=41.1`
+- Status: `discard` (worse)
+- Reverted to `8aa10bc`
+
+Both experiments were committed, executed with `uv run --extra research python editable/train.py > run.log 2>&1`, read out via `metrics.json`, recorded in `memory/results.tsv`, then reset on non-improvement per protocol.
+tokens used
+30,385
+Current loop state after resuming existing branch `research-loops/may13`:
+
+- Best retained commit: `8aa10bc`
+- Best `val_bpb`: `1.023317`
+- Best peak memory: `41.1 GB`
+
+I ran 2 new experiments and logged both to `memory/results.tsv`:
+
+1. `0a3e615` (`matrix_lr: 0.028 -> 0.029`)
+- Result: `val_bpb=1.023357`, `memory_gb=41.1`
+- Status: `discard` (worse than `1.023317`)
+- Reverted to `8aa10bc`
+
+2. `0f114b1` (`muon_momentum_end: 0.95 -> 0.97`)
+- Result: `val_bpb=1.025748`, `memory_gb=41.1`
+- Status: `discard` (worse)
+- Reverted to `8aa10bc`
+
+Both experiments were committed, executed with `uv run --extra research python editable/train.py > run.log 2>&1`, read out via `metrics.json`, recorded in `memory/results.tsv`, then reset on non-improvement per protocol.

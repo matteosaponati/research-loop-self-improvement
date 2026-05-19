@@ -1,0 +1,76 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your setup rules.
+
+I found an active run history, so I’m resuming from the current branch/state and moving to the next experiment by reading `editable/` files and identifying a targeted config change from prior results.
+
+I’ve loaded the main config and need one more pass through the scheduler/optimizer section of `train.py` to pick a high-signal next change rather than blind tuning.
+
+I identified the next trial as a schedule-only tweak: keep the current best hyperparameters and extend `warmdown_ratio` from `0.5` to `0.6` to start decay earlier but make it gentler across more of the run. I’m applying that edit and committing it.
+
+I committed the experiment as `75f7496` and I’m running training now with log redirection; after completion I’ll read only `metrics.json`, append `memory/results.tsv`, and then keep or reset based on `val_bpb`.
+
+Training is in progress under a timed wrapper; I’m waiting for completion, then I’ll collect metrics without reading the log unless the run failed.
+
+Still running within budget; I’m continuing to wait for the process to exit and then evaluating against the current best `1.022527`.
+
+Run is still active and not past the failure threshold; I’m waiting for completion so we can score and decide keep/discard.
+
+Training finished successfully. I’m now reading `metrics.json`, updating `memory/results.tsv`, and applying the keep/discard rule with a git reset if it did not beat the best prior value.
+
+The first parsing attempt failed because plain `python` is unavailable in this shell; I’m rerunning the metrics/readout using `uv run python` and then finalizing keep/discard.
+
+I found the live config has `warmup_ratio=0.008`; with the new best at `warmdown_ratio=0.6`, I’m running a local follow-up by nudging warmdown to `0.65` to test whether an even gentler tail helps further.
+
+I’ve committed `43ecc8b` and started the next 5-minute run; once it ends I’ll score from `metrics.json`, log to TSV, and reset if it doesn’t beat `1.022379`.
+
+Run is still executing normally; I’m waiting for it to finish before reading `metrics.json` and deciding whether to keep this commit.
+
+Still in progress and within limits; I’ll continue waiting for completion and then perform the keep/discard branch decision immediately.
+
+This run regressed, so I’m discarding it and resetting the branch to the previous keep commit as required by the loop.
+
+I’m continuing the loop with a new test from the current best commit: combine the successful warmdown `0.6` with `warmup_ratio=0.01` to check if the slightly longer warmup helps this improved schedule.
+
+The next run is launched and logging to `run.log`; I’m waiting on completion, then I’ll read `metrics.json`, append TSV, and keep/reset accordingly.
+
+Run is still active within the time cap; I’m continuing to wait for process exit before scoring this configuration.
+
+Training completed; I’m recording the metrics and applying keep/discard now.
+
+This one was slightly worse than the current best, so I’m discarding it and resetting to the best commit before continuing the next experiment cycle.
+
+Completed 3 experiment cycles and updated branch/memory per loop rules.
+
+Current best is still:
+- `75f7496` with `val_bpb=1.022379`, `memory_gb=41.1` (`keep`)
+
+New experiments run this turn:
+- `75f7496` `val_bpb=1.022379` `keep`  
+  Description: `extend lr warmdown window to 60%`
+- `43ecc8b` `val_bpb=1.022883` `discard`  
+  Description: `extend lr warmdown window to 65%`
+- `6c9c2a6` `val_bpb=1.022411` `discard`  
+  Description: `warmup 1% plus warmdown 60%`
+
+I reset after each discard, and HEAD is currently back on best commit:
+- `git rev-parse --short HEAD` -> `75f7496`
+
+`memory/results.tsv` has been appended with all results.
+tokens used
+35,749
+Completed 3 experiment cycles and updated branch/memory per loop rules.
+
+Current best is still:
+- `75f7496` with `val_bpb=1.022379`, `memory_gb=41.1` (`keep`)
+
+New experiments run this turn:
+- `75f7496` `val_bpb=1.022379` `keep`  
+  Description: `extend lr warmdown window to 60%`
+- `43ecc8b` `val_bpb=1.022883` `discard`  
+  Description: `extend lr warmdown window to 65%`
+- `6c9c2a6` `val_bpb=1.022411` `discard`  
+  Description: `warmup 1% plus warmdown 60%`
+
+I reset after each discard, and HEAD is currently back on best commit:
+- `git rev-parse --short HEAD` -> `75f7496`
+
+`memory/results.tsv` has been appended with all results.

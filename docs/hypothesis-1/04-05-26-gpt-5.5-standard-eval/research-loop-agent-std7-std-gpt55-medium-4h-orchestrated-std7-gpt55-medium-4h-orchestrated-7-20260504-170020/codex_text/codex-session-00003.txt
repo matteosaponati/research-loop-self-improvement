@@ -1,0 +1,3838 @@
+I’ll initialize or resume the research branch, inspect only the editable code plus recorded results, then start the commit-run-record loop. I’ll keep result collection to `metrics.json` unless a run crashes.
+
+This workspace is already on `research-loops/may4` with recorded experiments, so I’m resuming rather than creating a new branch or rerunning baseline. Next I’m reading the editable surface and the TSV to choose the next change against the current best.
+
+The best kept result is `0.981910` at depth 10 with a 153600-token batch and device batch 75. The nearby batch-size sweep looks saturated, so I’m going to test a conservative optimizer schedule change next rather than changing model size.
+
+I’m changing only `editable/config.toml` for one controlled experiment: keep the successful full warmdown shape but leave a small final learning-rate floor. This tests whether the last part of the 5-minute run is decaying too aggressively.
+
+The LR-floor experiment is committed as `88bf8d6`. I’m launching the 5-minute training run with output redirected to `run.log`, then I’ll read `metrics.json` and either keep or reset this commit.
+
+Training is running in the background. I’m leaving the log untouched during the normal run and will poll for completion rather than reading progress output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is still within the expected window. I’m continuing to wait; no result parsing until the training process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running normally. The compile/startup time can make total wall time longer than five minutes, so I’ll keep monitoring and enforce the 10-minute failure limit if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+No exit yet. I’m still waiting on the same training process and keeping result collection constrained to the metrics file when it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The experiment is about two minutes into wall-clock runtime. Nothing to act on yet; I’m continuing the run.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training is still active. I’m waiting for process completion before touching `metrics.json`, since partial metrics would be misleading.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running and under the timeout threshold. I’m continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run remains active. I’ll give it more time; the expected endpoint is after the fixed training budget plus evaluation.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still no process exit. It is approaching the later part of the expected run, so I’m watching the same session for completion or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training is still running. I’m continuing to wait; no crash diagnosis is warranted unless the process exits unsuccessfully or exceeds the limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run has passed the nominal training budget, which is expected because evaluation and startup are outside that timer. I’m waiting for final metrics now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3cb9a073452d404eb33133366a6c4174de419902
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 1.0
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The training process exited cleanly. I’m reading only `metrics.json` now, then I’ll append the TSV row and decide whether to keep the commit.
+
+The bare `python` executable is not on PATH in this shell, so I’m using `python3` for the local JSON read. This doesn’t affect the training command, which already ran through `uv`.
+
+This experiment is worse (`0.983690` versus best `0.981910`), so I’m recording it as `discard` and resetting the code back to the previous kept state. The TSV will retain the result row.
+
+The code is back at the pre-experiment commit. I noticed the current HEAD commit is not the same short hash as the last kept TSV row, so I’m checking the recent git history and config before choosing the next trial.
+
+Recent history shows `2233dda` raised `unembedding_lr` from `0.004` to `0.005`, but its TSV row is missing. I’ll treat the TSV’s best numeric score (`0.981910`) as the threshold and run the next experiment from the current branch state, resetting only if it fails to beat that score.
+
+I’m testing a narrow continuation of the unembedding LR sweep: `0.005` to `0.006`, with all batch and schedule settings unchanged. I’ll commit the diff, run it, and compare against the recorded best.
+
+The unembedding LR experiment is committed as `61321b9`. I’m starting the redirected training run now.
+
+The second run is active. I’ll keep the same discipline: no log reads during normal execution, then parse `metrics.json` after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing to wait for process completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is still in progress and under the timeout limit. I’m monitoring the same session.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. I’m letting the training budget complete before evaluating the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. The run remains within the expected wall-clock envelope.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Training is still going. I’m waiting on completion rather than sampling the log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still healthy and running. I’ll continue polling until it exits or reaches the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still waiting on final evaluation and metrics. No action needed yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is approaching the expected finish window. I’m keeping the session open for the final exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active, likely in the last stretch. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+It has passed the five-minute training budget and is still under the overall failure threshold. I’m waiting for the script to finish writing metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..649242ceff5325b19fe86baff00c9284d08b9395
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The unembedding LR run completed cleanly. I’m reading `metrics.json` now and then I’ll record the row.
+
+`unembedding_lr=0.006` is also worse than the recorded best (`0.983194`), so I’m discarding it and returning to the `0.005` state. Next I’ll try a smaller midpoint rather than pushing the LR higher.
+
+I’m making the next controlled edit now: `unembedding_lr=0.0045`, halfway between the recorded-best `0.004` and the current branch’s `0.005`. Everything else stays fixed.
+
+The midpoint unembedding LR experiment is committed as `b68c52e`. I’m starting the next 5-minute run.
+
+The third run is underway with redirected output. I’ll wait for completion before reading the metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing to monitor the process.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet; the run remains inside the expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’m keeping the log untouched and waiting.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. I’ll continue polling until the script exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under the timeout. I’m waiting for final metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. No intervention needed yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is progressing through the normal window. I’ll keep waiting for the final exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. It should be nearing completion after training plus eval.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet, but still within the allowed runtime. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The script has passed the nominal training timer and is likely finishing eval or finalization. I’m waiting for the process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..9c925c0aa6c7692be0769a3ef041c0cdd429b82a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.0045
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The midpoint LR run completed. I’m parsing `metrics.json` now.
+
+The midpoint is also worse (`0.983080`). I’m recording it as discarded, then I’ll fill the missing measurement for the current `2233dda` state itself so the branch and TSV are consistent before trying another direction.
+
+I’m running the current `2233dda` configuration (`unembedding_lr=0.005`) as its own measurement because it is in git history but not in `memory/results.tsv`. This will determine whether to keep this branch tip or move back to the last recorded best.
+
+The verification run for `2233dda` is active. I’ll again wait for completion and read only the metrics file.
+
+Still running normally. I’m monitoring the process.
+
+No result yet; continuing to wait.
+
+The run remains active and under the timeout threshold.
+
+Still in progress. I’ll keep polling until it exits.
+
+Training is still running. No log inspection needed.
+
+The process is still healthy. I’m waiting for the fixed-budget run and evaluation to complete.
+
+Still active and within the expected range. Continuing to monitor.
+
+The verification run is nearing the usual completion window. I’m waiting for the final metrics write.
+
+Still running. I’ll continue until process exit or timeout.
+
+It has passed the nominal training budget and remains below the 10-minute limit. I’m waiting for completion.
+
+The verification run finished cleanly. I’m reading `metrics.json` to decide whether `2233dda` should be recorded as keep or discard.
+
+`2233dda` itself measured worse (`0.984879`), so I’m recording it as discarded and moving code back to the last recorded best commit `eaaf249`. The next experiment will start from that known-good state.
+
+I’m back on the best recorded configuration. Since increasing unembedding LR degraded results, I’m going to test the opposite direction with `unembedding_lr=0.003`, leaving the architecture and batch setup unchanged.
+
+The lower unembedding LR experiment is committed as `d55cd72`. I’m launching its training run now.
+
+The run is active. I’ll wait for it to complete and then parse `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet; the process is within the expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training job is still active. I’m not reading the log during the normal run.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. I’ll keep polling until the script exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Run is still active and under the timeout. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. The next action remains reading metrics after clean exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains within the normal window. I’m waiting for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active, likely near the final part of training.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. I’ll keep monitoring under the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..727da1364d769262ed1ce60922c0edae893b640e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The lower unembedding LR run finished cleanly. I’m reading the metrics now.
+
+`unembedding_lr=0.003` is worse (`0.983003`), so I’m discarding it and restoring the best recorded configuration. Next I’ll move to the embedding LR instead of continuing this unembedding sweep.
+
+I’m testing `embedding_lr=0.8` from the best config. The token embedding AdamW LR is separate from the Muon matrix LR, so this is a focused optimizer change with the same memory footprint.
+
+The higher embedding LR experiment is committed as `0ec29f0`. I’m starting the training run.
+
+The embedding LR run is active. I’ll wait for completion and then parse `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The run is inside the expected time range.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’m waiting for the script to finish rather than reading progress.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. I’ll continue polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The job remains active and under the timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. I’m waiting for the metrics-producing exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is still active and within normal bounds. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active, likely nearing the end of timed training.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. I’ll keep it running under the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..852f956ed4344cf82293ba72e092439211b2e433
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.8
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The embedding LR run completed cleanly. I’m reading the metrics now.
+
+`embedding_lr=0.8` is very close but still worse than the recorded best (`0.981950` vs `0.981910`), so I’m discarding it. I’ll test a smaller increase, `0.7`, before abandoning that direction.
+
+I’m applying the smaller embedding LR increase now: `0.6` to `0.7`, with all other settings restored to the best config.
+
+The `embedding_lr=0.7` experiment is committed as `72f2ff2`. I’m starting the training run.
+
+The run is active. I’ll monitor until it exits, then read only `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The process is within the expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training job is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress and under the timeout cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active. I’m waiting for the final metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. No intervention needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still alive and within the normal run window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active, likely in the last part of timed training.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. I’m continuing to monitor below the 10-minute failure threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c277950be5ea730352dce536f75d27f8acef0bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.7
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The `embedding_lr=0.7` run finished cleanly. I’m reading the metrics.
+
+`embedding_lr=0.7` is worse (`0.982085`), so I’m discarding it. I’ll test the lower side (`0.5`) from the same best baseline next.
+
+I’m applying `embedding_lr=0.5` now. This checks whether the best point is below the current `0.6` rather than above it.
+
+The `embedding_lr=0.5` experiment is committed as `69af085`. I’m starting its training run.
+
+The run is active with output redirected. I’ll wait for completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The job is under the timeout and behaving normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’ll keep waiting.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. No metrics read until the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and within the expected window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. I’m waiting for the final metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still no exit, but it is under the failure cap. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run should be close to completion now. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+It has passed the nominal training budget and is still under the 10-minute cap. Waiting for script exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..cafbbb9c501c646d6abdaf3160c3fb80fa6c344f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.005
++embedding_lr = 0.5
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The `embedding_lr=0.5` run completed cleanly. I’m parsing the metrics.
+
+`embedding_lr=0.5` is worse (`0.982533`), so the embedding LR sweep did not beat the best. I’m resetting and moving to weight decay, starting with a lower value.
+
+I’m applying `weight_decay=0.15` from the best config. Since weight decay is already decayed over the run, this tests whether the initial regularization is too strong.
+
+The lower weight decay experiment is committed as `e22821f`. I’m starting the run.
+
+The weight decay run is active. I’ll wait for completion and collect from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running normally. Monitoring continues.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No exit yet; the run is within expected bounds.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The training process is still active. I’ll continue polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running. No result action yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still active. I’m waiting for clean exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still in progress and nearing the usual finish window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No exit yet. I’ll continue monitoring below the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The timed training phase should be complete or close; I’m waiting for evaluation and metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..771ca5b48b5007d758177b6a44fdecdc8b13cd5e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The weight decay run completed cleanly. I’m reading the metrics now.
+
+`weight_decay=0.15` is worse (`0.982049`), so I’m discarding it. I’ll test the higher side at `0.25` next.
+
+I’m applying `weight_decay=0.25` from the best config. This checks whether stronger early decay helps generalization in the fixed 5-minute budget.
+
+The `weight_decay=0.25` experiment is committed as `848d01e`. I’m starting the run.
+
+The higher weight decay run is active. I’ll monitor until completion and then parse metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running normally. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No exit yet; still within expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running. No metrics yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still active. I’m waiting for clean exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still in progress and nearing the expected finish window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No completion yet. I’m continuing below the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The timed phase should be done or close; waiting on finalization.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1c53f911432560f26f78b498639d60bf9f675811
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The higher weight decay run completed cleanly. I’m reading `metrics.json`.
+
+`weight_decay=0.25` is clearly worse (`0.984956`), so I’m resetting. The next higher-leverage trial will shorten sequence length to 1024 and double device batch to keep the per-step token batch constant, aiming for faster steps and more total tokens within the same time budget.
+
+I’m editing `sequence_len` from `2048` to `1024` and `device_batch_size` from `75` to `150`. That preserves `device_batch_size * sequence_len`, so gradient accumulation and global batch remain unchanged while attention cost drops.
+
+The shorter-sequence experiment is committed as `b1d532b`. I’m starting the run; if it crashes or produces invalid metrics I’ll record it as a crash and reset.
+
+The shorter-sequence run is active. I’m waiting for completion without inspecting `run.log`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet; the job is within expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. The shorter sequence may change throughput, but metrics will be read only after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. I’m waiting for final metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The shorter-sequence run is still active. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running and within the expected window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run has reached the later part of its wall-clock window. I’ll continue until completion or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+It has passed the nominal training budget and is still under the 10-minute limit. Waiting for finalization.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..b3cbfb8bbce44e05119a19af7874640ba1e40974
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 153600
+-device_batch_size = 75
++device_batch_size = 150
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The shorter-sequence run completed cleanly. I’m reading `metrics.json` now.
+
+The 1024-token sequence length is much worse (`0.992914`) and slower than expected, so I’m discarding it. Next I’ll test more model width at the proven 2048-token setup, since memory headroom is available.
+
+I’m increasing `aspect_ratio` from `64` to `72`, which rounds the model dimension from 640 to 768 while keeping depth, batch, and schedule unchanged. This tests whether extra capacity beats the throughput loss.
+
+The wider model experiment is committed as `e950d61`. I’m starting the run now.
+
+The wider model run is active. I’ll watch for completion and only inspect `metrics.json` unless there is a crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet; the run is inside the expected window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. The wider model may take a bit longer per step, so I’m monitoring against the same 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. I’m waiting for the final metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress and nearing the later part of the run.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. It is still below the failure threshold, so I’m continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run has passed the nominal training budget and is still under the timeout. Waiting for evaluation/finalization.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..034d2e7426be7327c754ed0d1792ac20f5eec0c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The wider model run finished cleanly. I’m reading the metrics now.
+
+The wider model is a clear improvement: `0.978545`, with about 43.4 GB peak VRAM and 83.4M params. I’m recording `e950d61` as kept and will continue experiments from this new best.
+
+Given the capacity increase paid off, I’m going to test the next width step: `aspect_ratio=84`, which rounds the hidden size to 896 with 7 heads. This keeps depth and batch unchanged to isolate width scaling.
+
+The hidden-size 896 experiment is committed as `7ea181e`. I’m starting its training run now.
+
+The 896-wide model run is active. I’ll monitor for completion and only inspect the log if it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The run remains within the expected wall-clock envelope.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. The larger model is expected to take longer per step, but it is under the timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active. I’m waiting for final metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress and under the cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. I’m continuing below the 10-minute threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The timed training budget should be near completion; waiting for finalization and metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet, but still inside the allowed timeout. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..5bd5670e06ec5ba46bc8f07c568b80de1077ce88
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 84
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The 896-wide run completed cleanly. I’m parsing `metrics.json` now.
+
+Hidden size 896 is worse (`0.982450`) despite higher MFU, so the 768-wide model is the better capacity/speed point. I’m resetting to `e950d61` and will tune batch size for that model.
+
+For the 768-wide model, I’m testing a smaller batch: `total_batch_size=131072`, `device_batch_size=64`. This increases optimizer update count and reduces memory while keeping sequence length at 2048.
+
+The smaller-batch wide-model experiment is committed as `7964da9`. I’m starting the run.
+
+The smaller-batch run is active. I’ll wait for completion and collect metrics afterward.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Monitoring continues.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The process is within expected bounds.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. No metrics read until exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. I’m waiting for finalization.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The smaller-batch run is still active. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running and nearing the usual finish window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. I’ll continue below the 10-minute threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The timed phase should be near completion; waiting for evaluation and metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..1292d0408b4f274fcbf40b92285fa3ab588336c6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The smaller-batch run completed cleanly. I’m reading `metrics.json`.
+
+The smaller batch improved the new best to `0.976377` with only 37.1 GB peak VRAM. I’m recording `7964da9` as kept and will continue tuning batch downward for the 768-wide model.
+
+I’m testing the next smaller per-step batch: `total_batch_size=114688`, `device_batch_size=56`. This keeps gradient accumulation at 1 and should trade some token throughput for more optimizer updates.
+
+The next smaller-batch experiment is committed as `49593e1`. I’m starting the training run.
+
+The run is active. I’ll wait for completion and then parse metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The process is within expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. Metrics will be read after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active. I’m waiting for the final metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still running normally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress and approaching the usual finish window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet, but still below the cap. Continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The timed phase should be complete or close. I’m waiting for evaluation and metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..a29e73b1790e3fde4776c593652851272a721a19
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 114688
++device_batch_size = 56
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The smaller batch run completed cleanly. I’m reading `metrics.json`.
+
+`114688` batch is worse (`0.979398`), so the sweet spot is not further down. I’m resetting to the `131072` best and will test slightly higher at `139264` to bracket the optimum.
+
+I’m applying `total_batch_size=139264`, `device_batch_size=68`. This sits between the current best `131072` and the worse `153600` point.
+
+The intermediate batch experiment is committed as `a0321fa`. I’m starting the run.
+
+The intermediate-batch run is active. I’ll wait for completion and parse metrics afterward.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. Continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet. The process is within expected runtime.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The training process is still active. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running. Metrics will be read after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run remains active and under timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still in progress. I’m waiting for clean completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process is still active.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running and nearing the usual finish window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. Continuing under the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The timed phase should be close to done; waiting for finalization.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7d4607b84ac2a5346877799bd20d6b786015bbda..3abd8e413a320f11fcc964feff0fd07b8fbc906d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 153600
+-device_batch_size = 75
++total_batch_size = 139264
++device_batch_size = 68
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 10
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The intermediate batch run completed cleanly. I’m reading `metrics.json`.
+
+`139264` batch improves again to `0.976130`, so I’m keeping `a0321fa`. I’ll test one more step upward, `147456`/`72`, to see whether the optimum sits just below the original 153600 point.
+
+I’m applying `total_batch_size=147456`, `device_batch_size=72` from the current best. This brackets the gap between the new best and the older 153600 batch.

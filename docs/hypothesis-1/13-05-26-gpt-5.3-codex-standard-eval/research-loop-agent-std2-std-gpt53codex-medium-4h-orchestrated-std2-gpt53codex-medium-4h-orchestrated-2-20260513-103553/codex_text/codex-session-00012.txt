@@ -1,0 +1,126 @@
+I’m starting the research loop now: first I’ll detect whether this workspace is already initialized (`memory/results.tsv` with rows), then either resume or do the required setup/baseline before launching the next experiment.
+
+I found an active loop with existing results on branch `research-loops/may13`, so I’m resuming directly and selecting the next experiment from the current best entry. I’ll read `editable/*` and the full `memory/results.tsv` now.
+
+I’ve identified the current best (`val_bpb=1.024269` at commit `9b69163`). Next experiment will be a narrow LR interpolation: keep `embedding_lr=0.42` and raise `unembedding_lr` slightly from `0.006` to `0.0062`, then commit and run.
+
+I committed the change and I’m launching the 5-minute training run with a hard 10-minute timeout guard. After completion, I’ll read `metrics.json`, append `memory/results.tsv`, and keep or reset based on improvement.
+
+The run is in progress. I’m waiting for process completion, then I’ll collect only `metrics.json` for result logging unless there’s a crash.
+
+Training is still running within budget. I’ll keep polling until it exits and then evaluate `val_bpb` from `metrics.json`.
+
+Run is still active; no crash signal yet. I’m continuing to wait for normal completion.
+
+I’m at the final wait window now; if this crosses the 10-minute cap I’ll mark it failed and revert, otherwise I’ll record metrics and continue to the next candidate.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and comparing against best to decide whether to keep or reset.
+
+The environment doesn’t expose plain `python`, so I’ll use `uv run python` for metrics parsing and logging.
+
+`val_bpb` is worse than the current best, so I’m recording this as `discard` and resetting to the previous commit to continue the loop cleanly.
+
+I’m proceeding immediately with the next experiment from the restored best commit. Next trial: slightly increase `muon_momentum_end` from `0.95` to `0.96` while keeping the rest fixed.
+
+I committed the second experiment and started the training run now with the same timeout guard. After it exits, I’ll log metrics and either keep or discard by reset.
+
+Second run is in progress; I’m waiting for completion before recording the result in `memory/results.tsv`.
+
+Run is still healthy and within the allotted window. I’ll continue polling until termination and then apply keep/discard logic.
+
+This run is taking longer than expected but still under the 10-minute failure cap because startup/compile can vary. I’m continuing to wait for either normal exit or timeout.
+
+Resumed existing loop on `research-loops/may13` (no re-init, no new baseline), ran 2 experiments, and applied keep/discard logic correctly.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27da..e120119 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+ embedding_lr = 0.42
+-unembedding_lr = 0.006
++unembedding_lr = 0.0062
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27da..61bffe5 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.96
+ weight_decay_decay = true
+```
+
+Commits and outcomes:
+1. `dd8abe7` (`unembedding_lr=0.0062`)  
+   - `val_bpb=1.025165`, `memory_gb=41.1`  
+   - worse than best `1.024269` -> `discard`  
+   - reset to `9b69163`
+
+2. `8a1034b` (`muon_momentum_end=0.96`)  
+   - `val_bpb=1.025722`, `memory_gb=41.1`  
+   - worse than best `1.024269` -> `discard`  
+   - reset to `9b69163`
+
+`memory/results.tsv` updated with both rows, and branch is currently back at best commit `9b69163` ready for next experiment.
+tokens used
+46,289
+Resumed existing loop on `research-loops/may13` (no re-init, no new baseline), ran 2 experiments, and applied keep/discard logic correctly.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27da..e120119 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+ embedding_lr = 0.42
+-unembedding_lr = 0.006
++unembedding_lr = 0.0062
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 3ac27da..61bffe5 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.96
+ weight_decay_decay = true
+```
+
+Commits and outcomes:
+1. `dd8abe7` (`unembedding_lr=0.0062`)  
+   - `val_bpb=1.025165`, `memory_gb=41.1`  
+   - worse than best `1.024269` -> `discard`  
+   - reset to `9b69163`
+
+2. `8a1034b` (`muon_momentum_end=0.96`)  
+   - `val_bpb=1.025722`, `memory_gb=41.1`  
+   - worse than best `1.024269` -> `discard`  
+   - reset to `9b69163`
+
+`memory/results.tsv` updated with both rows, and branch is currently back at best commit `9b69163` ready for next experiment.

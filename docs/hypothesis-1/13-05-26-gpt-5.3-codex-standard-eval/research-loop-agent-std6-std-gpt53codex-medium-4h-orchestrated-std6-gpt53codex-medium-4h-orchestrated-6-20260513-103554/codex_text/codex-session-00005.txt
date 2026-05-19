@@ -1,0 +1,197 @@
+I’m starting the research loop now by checking git state, whether `memory/results.tsv` already has runs, and whether data artifacts are present so I can either resume or initialize correctly.
+
+I found an existing initialized run history on branch `research-loops/may13`, so I’m resuming directly from the current branch and best prior result. Next I’m reading `editable/` and `memory/results.tsv` to pick the next targeted experiment.
+
+I’ve got the prior trajectory: most gains came from lowering `matrix_lr` and then adding a nonzero LR floor. I’m now checking the remaining scheduler/training sections in `train.py` to target the next highest-leverage knob.
+
+I’ve identified the current regime: no warmup, 50% warmdown, and 10% LR floor, with gains coming from lower `matrix_lr`. I’m going to test a slightly lower floor (`final_lr_frac`) next to reduce late-run update noise while keeping the same peak LR.
+
+I’m making a minimal config-only edit in `editable/config.toml`: decreasing `final_lr_frac` from `0.1` to `0.08` for this run, then I’ll commit and execute the 5-minute training job.
+
+The change is committed at `2a71ed9`. I’m running the timed training run now and will read only `metrics.json` afterward to decide keep vs revert.
+
+Training is in progress in the background; I’ll wait for completion and then collect `metrics.json` plus append the result row.
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..77b9d82e3209d6e0a844533dcb03a282c35e7886
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..77b9d82e3209d6e0a844533dcb03a282c35e7886
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run completed successfully. I’m now reading `metrics.json`, logging the experiment to `memory/results.tsv`, and comparing against the current best to either keep this commit or reset it.
+
+The shell doesn’t expose a plain `python` binary here, so I’m re-reading metrics and best score via `uv run python` to finish the keep/discard decision.
+
+This improved the best score, so I’m advancing from `2a71ed9`. I’m launching the next experiment by slightly reducing `matrix_lr` to `0.027` while keeping the better LR floor (`0.08`).
+
+I’m committing this second experiment now, then running the 5-minute train/eval cycle and collecting metrics from `metrics.json` only.
+
+Second run is started from commit `b317f6f`; I’ll wait for it to finish and then apply keep/discard logic based on `val_bpb`.
+
+The run is in progress; once it exits I’ll parse `metrics.json`, append to `memory/results.tsv`, and reset if it’s not a new best.
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..058c45e8b09e41284bc864f24033a50a0d163dee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.028
++matrix_lr = 0.027
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..058c45e8b09e41284bc864f24033a50a0d163dee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.028
++matrix_lr = 0.027
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This candidate looks worse than the current best; I’m confirming the tracked best value, then I’ll record as `discard` and reset to the previous commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..058c45e8b09e41284bc864f24033a50a0d163dee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.028
++matrix_lr = 0.027
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’ve reverted correctly to the current best commit `2a71ed9` and logged the discard. I’m running the next experiment by increasing `warmdown_ratio` to `0.6` so LR decay starts earlier while retaining the `0.08` floor.
+
+I’m committing this warmdown-schedule change and launching another timed run.
+
+Third run is now starting from `fbc09fa`; I’ll apply the same keep/discard flow as soon as `metrics.json` is written.
+
+The third run is still executing through eval; I’m waiting for process exit, then I’ll finalize logging and branch state.
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..6bdfe02084e3966e19560220644238d3d686c41c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++warmdown_ratio = 0.6
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Completed 3 experiments in the loop and applied keep/discard with git resets as required.
+
+Current branch/head:
+- `research-loops/may13` at commit `2a71ed9` (kept)
+
+Best so far:
+- `val_bpb = 1.023576` at `2a71ed9`
+- change: lowered `final_lr_frac` from `0.10` to `0.08` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/editable/config.toml)
+
+New logged rows appended to [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/memory/results.tsv):
+- `2a71ed9	1.023576	41.1	keep	lower final_lr_frac to 0.08`
+- `b317f6f	1.024175	41.1	discard	lower matrix_lr to 0.027 with final_lr_frac 0.08`
+- `fbc09fa	1.023957	41.1	discard	increase warmdown_ratio to 0.6 with final_lr_frac 0.08`
+
+I reverted discarded experiments with `git reset --hard HEAD~1` each time, so the working tree is advanced only on the best commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index b43337b93e11e4dbfeb6be445c89f3cf72b038b5..6bdfe02084e3966e19560220644238d3d686c41c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.1
++warmdown_ratio = 0.6
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+tokens used
+41,396
+Completed 3 experiments in the loop and applied keep/discard with git resets as required.
+
+Current branch/head:
+- `research-loops/may13` at commit `2a71ed9` (kept)
+
+Best so far:
+- `val_bpb = 1.023576` at `2a71ed9`
+- change: lowered `final_lr_frac` from `0.10` to `0.08` in [config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/editable/config.toml)
+
+New logged rows appended to [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/memory/results.tsv):
+- `2a71ed9	1.023576	41.1	keep	lower final_lr_frac to 0.08`
+- `b317f6f	1.024175	41.1	discard	lower matrix_lr to 0.027 with final_lr_frac 0.08`
+- `fbc09fa	1.023957	41.1	discard	increase warmdown_ratio to 0.6 with final_lr_frac 0.08`
+
+I reverted discarded experiments with `git reset --hard HEAD~1` each time, so the working tree is advanced only on the best commit.

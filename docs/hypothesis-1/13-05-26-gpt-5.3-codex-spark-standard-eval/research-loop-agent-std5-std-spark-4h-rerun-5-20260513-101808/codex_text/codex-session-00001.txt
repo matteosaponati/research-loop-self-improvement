@@ -1,0 +1,1034 @@
+I’ll initialize the loop from the current workspace state, check whether we’re resuming from prior results, then run the first experiment baseline and proceed with additional edits only if needed based on the metric. I’ll follow the branch/logging and commit-or-revert protocol strictly.
+
+Setup is complete: new branch `research-loops/may13` created, `memory/results.tsv` initialized, and data/tokenizer are present. Next I’m running the baseline `editable/train.py` to capture the initial metric and decide the first experimental direction.
+
+Training is running under the 5-minute budget; I’m waiting for completion and will only proceed with `metrics.json` after it exits successfully.
+
+The baseline launch is still running and hasn’t errored yet. I’m continuing to wait to completion before reading `metrics.json`; no log inspection is needed unless the process fails or times out.
+
+The baseline process has returned; I’ll read `metrics.json` now to capture results. If `metrics.json` is missing or invalid, I’ll treat it as a crash and move to corrective action.
+
+Baseline finished with `val_bpb=1.025861` and I’ve got the metric JSON. I’ll now log it, inspect the editable configuration/model code once, then run a parameter-only experiment.
+
+Baseline metrics are parsed successfully, and I’ve confirmed current code/settings. I’ll log it now in `memory/results.tsv` and then commit the baseline state as the starting point for the branch.
+
+I’ve got the baseline row written. `git` currently only shows `metrics.json` as untracked, so I’ll keep the result file as part of the repository state and proceed to the first experiment.
+
+Proposed first edit is a conservative LR schedule change:
+- `editable/config.toml`: `warmup_ratio 0.0 -> 0.05`
+- `editable/config.toml`: `final_lr_frac 0.0 -> 0.05`
+I’m committing this now, then running the experiment.
+
+First tuned run is still in progress; I’m waiting for completion before reading `metrics.json` and only then deciding whether to keep or revert this commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run finished; I’ll read `metrics.json` and compare against the 1.025861 baseline to decide keep/revert and then log the row.
+
+That experiment regressed (`val_bpb 1.026450`), so I’m discarding it by resetting back to baseline commit `58ae17a` and continuing with a new code change.
+
+I’m switching to a batch-size experiment next to increase update frequency within the same 5-minute budget:
+- reduce `total_batch_size` from `524288` to `262144` (gradient accumulation from 2→1). This is a single hyperparameter-only change and keeps the model untouched.
+
+I caught a patching mistake (duplicate `total_batch_size` entry) and corrected it, leaving only `262144` active. I’ll commit this experiment now.
+
+The second experiment is running now; I’ll wait for completion and then compare metrics against baseline before deciding whether to keep or revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Current best is `1.011124` at commit `c2f3a9f`. I’m trying a small LR-schedule follow-up (`warmup_ratio` and final LR floor) on this state to see if update-frequency gains can be amplified.
+
+Running the warmup-floor variant now; continuing to wait for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+That run is taking a while but still active; I’ll continue waiting and only then evaluate and log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Next experiment: halve sequence length to `1024` while keeping `total_batch_size=262144` (which gives 2 accumulation steps). This should increase update frequency and might improve short-horizon prediction quality in this fixed-time setting.
+
+Running the sequence-length experiment; waiting for completion so I can capture metric-only results and log/decide keep-versus-revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Run still active after several intervals; I’ll poll once more and then evaluate.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run completed; I’ll read `metrics.json`, log it, and if it undercuts `1.011124` I’ll keep this commit, otherwise I’ll discard/reset.
+
+Sequence-length change regressed (`val_bpb 1.028804`), so I’m discarding this experiment and restoring to best commit `c2f3a9f`.
+
+I’ll try a modest optimizer-strength adjustment next: reduce `matrix_lr` from `0.04` to `0.03` while keeping the successful batch-size setting.
+
+The optimizer LR tweak is still running; continuing to wait before metric evaluation.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m extending from the best commit with a second optimizer-strength refinement: reduce `matrix_lr` further to `0.025` to see whether the Muon branch can be stabilized more.
+
+Second matrix-LR refinement is still running; I’ll pull the result as soon as it exits and decide keep/revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still no completion output from this process; I’ll poll once more and then move to metric read.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run regressed slightly (`val_bpb 1.009583`), so I’m discarding it and reverting to best commit `37930e6`.
+
+I’ll try one final quick run in this cycle: reduce `embedding_lr` from `0.6` to `0.5` while keeping the current best settings, then evaluate.
+
+Running the `embedding_lr` reduction now; I’ll wait for completion and then compare metrics to the current best.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run is still active. I’ll check once more for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m making one more targeted optimizer-adjustment attempt from the current best: set `dmodel_lr_reference` to `512` (removes the current LR up-scaling for smaller model dim) and evaluate.
+
+This run is unusually long; I’m continuing to wait and will treat it as a failure if it exceeds the 10-minute hard limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still active after another 40 seconds. I’ll do one more short wait and then inspect for completion.
+
+I have kept `37930e6` as the current best (`val_bpb 1.008927`). I’ll run one additional targeted optimizer-shape tweak (`muon_ns_steps 5→4`) to see if we can push it further.
+
+Another optimizer tweak is running. I’ll keep polling and then evaluate as usual.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still active but likely nearing normal finish; I’ll check completion now.
+
+I’m keeping one more experiment in the loop: reduce `weight_decay` from `0.2` to `0.15` to test whether regularization is too strong at this 5-minute regime.
+
+Weight-decay sweep still running. I’ll continue waiting and then evaluate once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run is taking longer than the others; I’ll do a final check now and proceed with whatever metric result is available.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run improved the score to `1.008872`, narrowly better than the prior best, so I’m keeping commit `4fec998` as the new best. I’ll log it now.
+
+I’ll run one final one-step experiment from the current best to probe output layer LR:
+- reduce `unembedding_lr` from `0.004` to `0.0035`.
+
+Testing `unembedding_lr` now and waiting for the run to finish to compare with `1.008872` best.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Final experiment completed; I’ll read metrics and apply keep/discard accordingly.
+
+
+Research loop started and ran on branch `research-loops/may13` with the required setup. Baseline was executed and logged, then multiple experiments were run with git commit → run → metrics collection → keep/discard policy.
+
+Current best result:
+- `commit`: `4fec998`
+- `val_bpb`: `1.008872`
+- `memory_gb`: `41.0`
+- `status`: `keep`
+- `description`: `lower weight_decay to 0.15`
+
+The current best config is effectively:
+- `total_batch_size = 262144` (from `config.toml`)
+- `matrix_lr = 0.03`
+- `weight_decay = 0.15`
+- baseline `warmup_ratio`/`final_lr_frac` unchanged
+
+Experiment log is in [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-5-20260513-101808/research-loop/memory/results.tsv).  
+Result history (commit order with outcome):
+1. `58ae17a` keep baseline `1.025861`
+2. `0b975e9` discard `1.026450` (LR warmup/floor)
+3. `c2f3a9f` keep `1.011124` (total_batch_size=262144)
+4. `4ef2b4b` discard `1.012392` (warmup 0.02/floor 0.02)
+5. `80844c9` discard `1.028804` (sequence_len=1024)
+6. `37930e6` keep `1.008927` (matrix_lr=0.03)
+7. `ed806da` discard `1.009583` (matrix_lr=0.025)
+8. `885cf59` discard `1.009097` (embedding_lr=0.5)
+9. `8c237d1` discard `1.009315` (dmodel_lr_reference=512)
+10. `1f8dfc9` discard `1.009577` (muon_ns_steps=4)
+11. `4fec998` keep `1.008872` (weight_decay=0.15)
+12. `a9b943c` discard `1.009466` (unembedding_lr=0.0035)
+
+Current branch head is `4fec998`.
+
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fab7f090fb2886a3089a3a1d5648d55c315bed20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,6 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+tokens used
+114,223
+Research loop started and ran on branch `research-loops/may13` with the required setup. Baseline was executed and logged, then multiple experiments were run with git commit → run → metrics collection → keep/discard policy.
+
+Current best result:
+- `commit`: `4fec998`
+- `val_bpb`: `1.008872`
+- `memory_gb`: `41.0`
+- `status`: `keep`
+- `description`: `lower weight_decay to 0.15`
+
+The current best config is effectively:
+- `total_batch_size = 262144` (from `config.toml`)
+- `matrix_lr = 0.03`
+- `weight_decay = 0.15`
+- baseline `warmup_ratio`/`final_lr_frac` unchanged
+
+Experiment log is in [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-5-20260513-101808/research-loop/memory/results.tsv).  
+Result history (commit order with outcome):
+1. `58ae17a` keep baseline `1.025861`
+2. `0b975e9` discard `1.026450` (LR warmup/floor)
+3. `c2f3a9f` keep `1.011124` (total_batch_size=262144)
+4. `4ef2b4b` discard `1.012392` (warmup 0.02/floor 0.02)
+5. `80844c9` discard `1.028804` (sequence_len=1024)
+6. `37930e6` keep `1.008927` (matrix_lr=0.03)
+7. `ed806da` discard `1.009583` (matrix_lr=0.025)
+8. `885cf59` discard `1.009097` (embedding_lr=0.5)
+9. `8c237d1` discard `1.009315` (dmodel_lr_reference=512)
+10. `1f8dfc9` discard `1.009577` (muon_ns_steps=4)
+11. `4fec998` keep `1.008872` (weight_decay=0.15)
+12. `a9b943c` discard `1.009466` (unembedding_lr=0.0035)
+
+Current branch head is `4fec998`.
+
+

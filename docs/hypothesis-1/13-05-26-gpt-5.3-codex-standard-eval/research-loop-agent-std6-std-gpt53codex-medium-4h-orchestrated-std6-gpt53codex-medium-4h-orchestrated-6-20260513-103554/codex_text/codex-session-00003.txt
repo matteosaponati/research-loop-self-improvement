@@ -1,0 +1,188 @@
+I’m starting the research loop now by checking whether prior results already exist, then I’ll either resume from them or perform the full setup flow before running the next experiment.
+
+I found an existing `memory/results.tsv` with prior runs, so I’m resuming directly from the current branch state and now reading `editable/` plus past results to choose the next experiment.
+
+I’ve identified the current best (`val_bpb=1.024655`) and the strongest trend is that lowering `matrix_lr` helped twice. I’m making a single targeted experiment by reducing `matrix_lr` again to `0.030` and then I’ll commit and run it.
+
+The config change is committed (`73eb4fa`). I’m launching the 5-minute training run now and will collect only `metrics.json` for evaluation.
+
+The run is in progress in the background. I’m monitoring it with a timeout guard and will read `metrics.json` as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Training is still running normally; I’m continuing to wait for completion before extracting the metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m still waiting on the same run; once it returns I’ll immediately parse `metrics.json`, append `results.tsv`, and keep or reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run is taking longer due to startup/compile overhead, but still within the 10-minute failure threshold. I’m continuing to wait for normal completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run completed successfully. I’m reading `metrics.json`, logging this result, and then deciding whether to keep the commit or reset to the previous best state.
+
+The shell doesn’t have a direct `python` executable, so I’m re-reading both metrics and best history using `uv run python` to keep the loop consistent.
+
+The result improved and has been recorded as `keep`; I hit a shell quoting issue only when trying to chain a preview command, so I’m quickly verifying the TSV state and proceeding to the next experiment.
+
+I’m continuing the loop with the next focused test: reduce `matrix_lr` again to `0.028` to probe whether the improvement trend continues.
+
+I committed `ed19ef0` and I’m running the next 5-minute training job now with the same logging/metrics procedure.
+
+This run is still active and within limits; I’m continuing to wait for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..906d3e190613beaeb58b99b2169bae294768d5f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..906d3e190613beaeb58b99b2169bae294768d5f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The second run completed. I’m extracting `metrics.json`, comparing against the current best (`1.024283`), then I’ll either keep this commit or reset and continue.
+
+Completed two autonomous experiments and advanced the branch both times.
+
+- Current branch/head: `research-loops/may13` @ `ed19ef0`
+- Best `val_bpb` so far: `1.024159` (improved from `1.024655` at start of this turn)
+- Best memory: `41.1 GB`
+
+Applied edits (in [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/editable/config.toml)):
+
+```diff
+- matrix_lr = 0.032
++ matrix_lr = 0.03
+```
+
+```diff
+- matrix_lr = 0.03
++ matrix_lr = 0.028
+```
+
+Recorded results appended to [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/memory/results.tsv):
+
+- `73eb4fa	1.024283	41.1	keep	lower matrix_lr to 0.030`
+- `ed19ef0	1.024159	41.1	keep	lower matrix_lr to 0.028`
+diff --git a/editable/config.toml b/editable/config.toml
+index 355aad2000a8491169d136318b3421789433ca60..906d3e190613beaeb58b99b2169bae294768d5f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.032
++matrix_lr = 0.028
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+41,098
+Completed two autonomous experiments and advanced the branch both times.
+
+- Current branch/head: `research-loops/may13` @ `ed19ef0`
+- Best `val_bpb` so far: `1.024159` (improved from `1.024655` at start of this turn)
+- Best memory: `41.1 GB`
+
+Applied edits (in [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/editable/config.toml)):
+
+```diff
+- matrix_lr = 0.032
++ matrix_lr = 0.03
+```
+
+```diff
+- matrix_lr = 0.03
++ matrix_lr = 0.028
+```
+
+Recorded results appended to [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std6-gpt53codex-medium-4h-orchestrated-6-20260513-103554/research-loop/memory/results.tsv):
+
+- `73eb4fa	1.024283	41.1	keep	lower matrix_lr to 0.030`
+- `ed19ef0	1.024159	41.1	keep	lower matrix_lr to 0.028`

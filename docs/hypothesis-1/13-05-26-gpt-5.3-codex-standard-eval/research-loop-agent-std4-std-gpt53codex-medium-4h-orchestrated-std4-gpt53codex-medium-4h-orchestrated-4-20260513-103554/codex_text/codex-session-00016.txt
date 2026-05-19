@@ -1,0 +1,128 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs, verify git state/branch, and then either resume or initialize exactly per your setup rules.
+
+I found an existing initialized loop on branch `research-loops/may13` with many prior results, so I’m resuming from current best and moving directly to a new experiment proposal by reading the editable code and current settings.
+
+I’ve loaded the full training/optimizer/schedule code and will now pick one targeted change based on the prior sweep history, commit it, run a 5‑minute trial, and keep/discard strictly by `val_bpb`.
+
+I’m making a single-parameter experiment in `editable/config.toml`: lower `muon_momentum_end` from `0.95` to `0.93` to test whether less late-training inertia improves convergence in this fixed 5-minute budget.
+
+The experiment commit is in place (`a7afe52`); I’m running the 5-minute training now with full output redirected, then I’ll read only `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+Training is still running past the first 5 minutes of wall time including startup; I’m polling once more and will hard-stop if it approaches the 10-minute failure limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2d2036e1f28e64c5e4a43e11042acda99a7b62a0..15d874e97981fc04ebdba0d201859e520abd3ac9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+
+I hit an environment detail: plain `python` is unavailable here, so I’m using `uv run python` for metrics parsing and best-score comparison before deciding keep/reset.
+
+I’ve got `val_bpb=1.023321`, which is worse than the current best `1.022379`, so I’m recording this as `discard` in `memory/results.tsv` and resetting git back to the pre-experiment commit.
+
+I’m launching the next trial from the kept commit `75f7496`: set a small nonzero LR floor (`final_lr_frac=0.02`) while keeping warmdown at 60%, then run and evaluate against the current best.
+
+Second experiment is running; once it completes I’ll read `metrics.json`, append the TSV row, and keep or reset immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2d2036e1f28e64c5e4a43e11042acda99a7b62a0..734af52b7409e366bc3e05c8144dd1543a13f4f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.008
+ warmdown_ratio = 0.6
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2d2036e1f28e64c5e4a43e11042acda99a7b62a0..734af52b7409e366bc3e05c8144dd1543a13f4f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.008
+ warmdown_ratio = 0.6
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training finished within limit; I’m now collecting `metrics.json`, logging to `memory/results.tsv`, and applying keep/discard against the `1.022379` best.
+
+Experiment loop resumed and executed 2 new trials from current best commit `75f7496` (`val_bpb=1.022379`).
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `a7afe52` → `val_bpb=1.023321`, `41.1 GB`, `discard`, `lower muon_momentum_end to 0.93`
+- `dfef036` → `val_bpb=1.023056`, `41.1 GB`, `discard`, `set final_lr_frac to 0.02`
+
+Both were worse than best, so branch was reset after each discard.  
+Current HEAD is back at kept best commit `75f7496`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2d2036e1f28e64c5e4a43e11042acda99a7b62a0..734af52b7409e366bc3e05c8144dd1543a13f4f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.008
+ warmdown_ratio = 0.6
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+tokens used
+24,554
+Experiment loop resumed and executed 2 new trials from current best commit `75f7496` (`val_bpb=1.022379`).
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `a7afe52` → `val_bpb=1.023321`, `41.1 GB`, `discard`, `lower muon_momentum_end to 0.93`
+- `dfef036` → `val_bpb=1.023056`, `41.1 GB`, `discard`, `set final_lr_frac to 0.02`
+
+Both were worse than best, so branch was reset after each discard.  
+Current HEAD is back at kept best commit `75f7496`.

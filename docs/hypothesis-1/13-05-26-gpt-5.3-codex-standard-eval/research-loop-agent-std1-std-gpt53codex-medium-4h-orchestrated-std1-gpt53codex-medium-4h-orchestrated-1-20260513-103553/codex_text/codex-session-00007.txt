@@ -1,0 +1,196 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize the branch/baseline exactly per your protocol.
+web search: 
+web search: 
+
+I found an existing initialized loop with prior experiments, so I’m resuming from the current branch and best keep (`val_bpb 1.023791` at `d28e76b`). Next I’ll read the editable code/config and choose the next high-signal change.
+
+I’ve loaded config and most of `train.py`; I’ll quickly inspect the remaining training loop/scheduler sections to target the next change without guessing.
+
+I’ve identified the next lever: LR schedule shape has been tested, but weight decay scheduling hasn’t. I’m going to try disabling weight-decay decay (`weight_decay_decay=false`) so Muon regularization stays constant through the 5-minute window, then run and evaluate via `metrics.json`.
+
+I’ve applied the config change and will now commit it, run a full 5-minute training job, and then record the result in `memory/results.tsv` before deciding keep vs reset.
+
+The experiment is running now. I’ll wait for completion, then read only `metrics.json` and update the results table.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7af509b4f8068b8d254ff040a7a8a14bd87da254..9e5d179d671b70f08bda5181cfbe0334d628d192
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7af509b4f8068b8d254ff040a7a8a14bd87da254..9e5d179d671b70f08bda5181cfbe0334d628d192
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Training finished successfully. I’m collecting `metrics.json`, appending this commit to `memory/results.tsv`, and then comparing against the best kept score to decide whether to keep or reset.
+
+The constant-weight-decay trial was worse and I’ve reset to the best checkpoint commit. I’ll run another experiment targeting optimizer dynamics: increase `muon_momentum_end` from `0.95` to `0.97` while keeping everything else fixed.
+
+Second experiment is running. I’ll wait for completion and then do the same `metrics.json`-only collection and keep/discard decision.
+web search: 
+web search: 
+diff --git a/editable/config.toml b/editable/config.toml
+index 7af509b4f8068b8d254ff040a7a8a14bd87da254..258505cb773354982b0c12626f1da82bcc26dd3e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7af509b4f8068b8d254ff040a7a8a14bd87da254..258505cb773354982b0c12626f1da82bcc26dd3e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+ weight_decay_decay = true
+
+
+That momentum increase also regressed and has been discarded/reset. I’ll run a fine-grained LR probe around the current best by setting `unembedding_lr` to `0.0075` to test whether the optimum is just below `0.008`.
+
+This run completed; I’m recording the metrics now and will keep the commit only if it beats the current best `1.023791`.
+
+This experiment improved to a new best (`1.023110`), so I’m advancing the branch on commit `720d11e`. I’m immediately launching a follow-up nearby probe at `unembedding_lr=0.0070` to continue descending around the new optimum.
+
+The follow-up run finished; I’m logging metrics and applying the same keep/discard rule against the new best (`1.023110`).
+
+Completed 4 experiment iterations in the loop and updated `memory/results.tsv` each time.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = 720d11e` (kept)
+
+New experiments run:
+1. `ed1bed7` `val_bpb=1.026705` `discard`  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -weight_decay_decay = true
+   +weight_decay_decay = false
+   ```
+
+2. `680bdcb` `val_bpb=1.027203` `discard`  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -muon_momentum_end = 0.95
+   +muon_momentum_end = 0.97
+   ```
+
+3. `720d11e` `val_bpb=1.023110` `keep` (new best)  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -unembedding_lr = 0.008
+   +unembedding_lr = 0.0075
+   ```
+
+4. `fb40bce` `val_bpb=1.023794` `discard` (reset afterward)  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -unembedding_lr = 0.0075
+   +unembedding_lr = 0.007
+   ```
+
+Best result so far:
+- `val_bpb=1.023110` at commit `720d11e`
+- `peak_vram_mb≈41.1 GB` logged as `41.1` in TSV
+
+I will continue the loop from this best commit in the same pattern.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7af509b4f8068b8d254ff040a7a8a14bd87da254..6f862adfdf8ac7a7da1ae60544b74232c6db14f3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.008
++unembedding_lr = 0.007
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+tokens used
+73,991
+Completed 4 experiment iterations in the loop and updated `memory/results.tsv` each time.
+
+Current branch/head:
+- `research-loops/may13`
+- `HEAD = 720d11e` (kept)
+
+New experiments run:
+1. `ed1bed7` `val_bpb=1.026705` `discard`  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -weight_decay_decay = true
+   +weight_decay_decay = false
+   ```
+
+2. `680bdcb` `val_bpb=1.027203` `discard`  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -muon_momentum_end = 0.95
+   +muon_momentum_end = 0.97
+   ```
+
+3. `720d11e` `val_bpb=1.023110` `keep` (new best)  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -unembedding_lr = 0.008
+   +unembedding_lr = 0.0075
+   ```
+
+4. `fb40bce` `val_bpb=1.023794` `discard` (reset afterward)  
+   Diff:
+   ```diff
+   --- a/editable/config.toml
+   +++ b/editable/config.toml
+   @@
+   -unembedding_lr = 0.0075
+   +unembedding_lr = 0.007
+   ```
+
+Best result so far:
+- `val_bpb=1.023110` at commit `720d11e`
+- `peak_vram_mb≈41.1 GB` logged as `41.1` in TSV
+
+I will continue the loop from this best commit in the same pattern.

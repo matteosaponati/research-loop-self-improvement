@@ -1,0 +1,80 @@
+I’m starting the loop by checking git state, whether prior results already exist, and whether this run should resume or initialize from scratch. I’ll then follow the exact branch/baseline flow based on what I find.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and skipping branch creation and baseline. Next I’ll read `editable/` plus the results history to pick the next experiment.
+
+I have the recent history and current hyperparameters; best so far is `val_bpb=1.024264` at `matrix_lr=0.03`. I’m now scanning the training loop/schedules in `train.py` to choose the highest-impact next change for the 5-minute budget.
+
+I’m making a single targeted schedule change next: reduce `warmdown_ratio` so LR stays high longer within the fixed 5-minute window. I’ll commit that isolated edit, run, and keep only if `val_bpb` improves.
+
+The change is committed (`86c3964`) and I’m running the 5-minute training job now with output redirected to `run.log`. After it finishes, I’ll read `metrics.json`, append `memory/results.tsv`, and decide keep vs reset.
+
+Training is in progress; I’m waiting for completion and will only read `metrics.json` unless the run fails.
+
+Run is still active; I’m continuing to wait and will enforce the 10-minute failure cutoff if needed.
+
+Still running normally. I’m waiting for completion before collecting metrics and updating the results table.
+
+I’m continuing to poll the training process; once it exits I’ll immediately parse `metrics.json` and apply keep/discard logic.
+
+Training is still within expected runtime; I’m waiting for process exit now.
+
+The run completed successfully. I’m now reading `metrics.json`, logging this experiment in `memory/results.tsv`, and reverting the commit if it did not beat the current best `val_bpb`.
+
+The shell lacks plain `python`, so I’m re-reading metrics via `uv run python` and proceeding with the keep/discard decision.
+
+I’ve discarded that commit and returned to the previous best branch state. Next experiment: speed up Muon momentum warmup (`300 -> 150`) so the optimizer reaches target momentum earlier in the short run.
+
+The new momentum-warmup experiment is committed (`31498f9`); I’m launching training now and will keep or discard strictly based on `val_bpb`.
+
+Training is running; I’m waiting for completion and then will read only `metrics.json` for result collection.
+
+Still in progress and within normal timing. I’m continuing to poll until exit.
+
+Run is still active; once it exits I’ll immediately parse metrics and update `memory/results.tsv`.
+
+I’m continuing to wait on the training process; no crash signs so far.
+
+Final wait cycle before collecting metrics. I’ll log and apply keep/discard immediately after exit.
+
+The run is taking slightly longer including startup/teardown; I’m still under the 10-minute cutoff and waiting for clean completion.
+
+Run finished successfully. I’m extracting `metrics.json`, recording the row, and reverting if it doesn’t improve the best `1.024264`.
+
+I reverted to the last kept state and I’m testing a finer schedule tweak next: set `final_lr_frac` to `0.02` (much smaller than the previously-bad `0.1`) to avoid decaying all the way to zero at the end.
+
+Committed experiment `30a91fd`; I’m running the training job now and will keep it only if `val_bpb` beats `1.024264`.
+
+Training is in progress; I’m polling to completion and then I’ll record metrics plus keep/discard.
+
+Still running normally and within budget constraints. I’m continuing to wait.
+
+Run is still active; I’ll collect `metrics.json` immediately on exit.
+
+Continuing to poll; no crash symptoms so far.
+
+Final wait cycle before result extraction. I’ll update the experiment log and branch state right after this run exits.
+
+This run completed but did not beat the best score, so I’m recording it as `discard` and resetting to the last kept commit before continuing.
+
+Loop is running and resumed correctly from existing state (`research-loops/may5`, `memory/results.tsv` already populated). I executed 3 new experiments and logged all results.
+
+New entries added to `memory/results.tsv`:
+- `86c3964	1.028438	41.1	discard	shorten lr warmdown window from 0.4 to 0.2`
+- `31498f9	1.025718	41.1	discard	accelerate muon momentum warmup steps from 300 to 150`
+- `30a91fd	1.025003	41.1	discard	set final_lr_frac from 0.0 to 0.02`
+
+All three were worse than current best, so each was discarded and branch reset after logging.  
+Current HEAD is back at `a9bb668` (last kept trajectory).  
+Best `val_bpb` remains `1.024264` (commit `ffcab2c`).
+tokens used
+67,754
+Loop is running and resumed correctly from existing state (`research-loops/may5`, `memory/results.tsv` already populated). I executed 3 new experiments and logged all results.
+
+New entries added to `memory/results.tsv`:
+- `86c3964	1.028438	41.1	discard	shorten lr warmdown window from 0.4 to 0.2`
+- `31498f9	1.025718	41.1	discard	accelerate muon momentum warmup steps from 300 to 150`
+- `30a91fd	1.025003	41.1	discard	set final_lr_frac from 0.0 to 0.02`
+
+All three were worse than current best, so each was discarded and branch reset after logging.  
+Current HEAD is back at `a9bb668` (last kept trajectory).  
+Best `val_bpb` remains `1.024264` (commit `ffcab2c`).

@@ -1,0 +1,360 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from the current branch state or initialize branch/memory and run the baseline exactly once.
+
+I found an initialized run (`memory/results.tsv` already has entries), so I’m resuming from the current branch and moving directly to the next experiment cycle by reading `editable/` and prior results.
+
+I’ve reviewed prior runs; best so far is `1.023497` with current momentum settings. I’m now scanning the rest of `editable/train.py` to target a high-leverage change that hasn’t been tried yet.
+
+I have enough context now; next I’ll pick one novel change in `editable/config.toml`, commit it, run a full 5-minute trial, and keep/reset strictly based on `val_bpb`.
+
+I’m selecting a single unexplored knob rather than retesting prior LR/momentum variants; I’ll verify current `HEAD`, then apply one config-only change to keep turnaround fast and clean.
+
+I confirmed `HEAD` is already on the current best keep commit, so I’m applying one new experiment: increase logits softcap to reduce early saturation and potentially improve short-horizon optimization.
+
+The change is committed (`fd118f8`); I’m launching the 5-minute training run now and will read only `metrics.json` for evaluation.
+
+Training is in progress in the background session; I’m polling until it exits, then I’ll parse `metrics.json` and decide keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Run is still active with no crash signal so far; I’ll keep waiting and then collect metrics immediately when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+I’m still waiting on completion; once it finishes I’ll compute `val_bpb` and memory from `metrics.json`, append to `memory/results.tsv`, and automatically keep or discard by resetting if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..8212dad1abb3b74f260bf93cd937f593e0cae6f4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The run regressed (`1.023977` vs best `1.023497`), so I’m discarding this experiment by moving `HEAD` back and restoring `editable/config.toml` while keeping the new row in `memory/results.tsv`.
+
+I’m proceeding directly with the next trial: reduce `muon_ns_steps` from `5` to `4` to trade a bit of optimizer sophistication for faster updates within the same 5-minute budget.
+
+The new commit is ready (`8a1fbbe`); I’m running the timed training now and will evaluate strictly from `metrics.json`.
+
+This run is still active and appears healthy so far; I’ll continue polling until it exits, then append the result and keep/reset automatically.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+
+I’m waiting on the final summary now; as soon as the process exits I’ll parse `metrics.json`, update `memory/results.tsv`, and advance or roll back based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+
+Completed 2 experiment cycles and applied keep/discard logic correctly.
+
+1. `fd118f8` (`softcap 15.0 -> 20.0` in `editable/config.toml`)  
+Result: `val_bpb=1.023977`, `memory_gb=41.1`  
+Decision: `discard` (worse than best `1.023497`)  
+Action: reset back to `d8f3825`
+
+2. `8a1fbbe` (`muon_ns_steps 5 -> 4` in `editable/config.toml`)  
+Result: `val_bpb=1.026123`, `memory_gb=41.1`  
+Decision: `discard`  
+Action: reset back to `d8f3825`
+
+Logged both runs to [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/memory/results.tsv).
+
+Current branch state:
+- `HEAD`: `d8f3825` (still best keep: `1.023497`)
+- Working tree: only untracked `metrics.json` from last run.
+diff --git a/editable/config.toml b/editable/config.toml
+index e6e6ee612290320d82e6836386c3319da0de24c8..febc50482dd8fa93c2bf80228b40301bc9e8a197
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+tokens used
+31,387
+Completed 2 experiment cycles and applied keep/discard logic correctly.
+
+1. `fd118f8` (`softcap 15.0 -> 20.0` in `editable/config.toml`)  
+Result: `val_bpb=1.023977`, `memory_gb=41.1`  
+Decision: `discard` (worse than best `1.023497`)  
+Action: reset back to `d8f3825`
+
+2. `8a1fbbe` (`muon_ns_steps 5 -> 4` in `editable/config.toml`)  
+Result: `val_bpb=1.026123`, `memory_gb=41.1`  
+Decision: `discard`  
+Action: reset back to `d8f3825`
+
+Logged both runs to [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/memory/results.tsv).
+
+Current branch state:
+- `HEAD`: `d8f3825` (still best keep: `1.023497`)
+- Working tree: only untracked `metrics.json` from last run.

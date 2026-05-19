@@ -1,0 +1,102 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+The loop is already initialized on branch `research-loops/may13` with prior results, so I’m resuming from current best and reading all in-scope `editable/` files plus `memory/results.tsv` to choose the next experiment.
+
+I found the current best logged result at `1.022738` with `weight_decay=0.28` and `matrix_lr=0.0246`. Next I’ll run a minimally invasive schedule test: add a small `warmup_ratio=0.01` (keeping other best settings fixed) to see if early-step stabilization helps.
+
+I hit an environment issue (`python` not on PATH), so I’m applying the same config edit with shell tooling and then committing.
+
+I’ve committed the experiment change and I’m now running the 5-minute training job with output redirected, then I’ll read only `metrics.json` and decide keep vs reset.
+
+Training is in progress; I’m waiting for completion and will capture exit status before reading metrics.
+
+Run is still executing; I’m continuing to wait and will parse `metrics.json` immediately once it exits.
+
+Still running within the allowed window; I’m polling again until the process exits.
+
+I’m still waiting on the training process; once it exits I’ll record the result and apply keep/discard logic immediately.
+
+Process is nearing expected finish time; I’m polling for final exit and then extracting metrics.
+
+I’m still waiting; this can happen with startup/compile overhead before the fixed 5-minute measured training window completes.
+
+The run finished successfully; I’m now reading `metrics.json`, appending to `memory/results.tsv`, and resetting the commit if it did not beat the best `val_bpb`.
+
+This experiment improved to a new best `val_bpb=1.022348`, so I kept the commit and I’m immediately launching the next experiment from this new baseline. I’ll test `warmup_ratio=0.02` to probe whether the gain continues.
+
+I’ve committed the second schedule variant and started another training run; I’ll keep/discard based on `metrics.json` afterward.
+
+Second run is in progress; I’m waiting for completion before extracting and logging metrics.
+
+Still running; I’m continuing to poll and will record the result as soon as it exits.
+
+Experiment loop resumed and advanced.
+
+- Resumed existing branch/state (`research-loops/may13`) with populated `memory/results.tsv`.
+- Read all in-scope files in `editable/` plus prior results.
+- Ran experiment 1:
+  - Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml) `warmup_ratio = 0.0 -> 0.01`
+  - Commit: `7b7d1dc`
+  - Result from `metrics.json`: `val_bpb=1.022348`, `peak_vram_mb` => `41.1 GB`
+  - Decision: `keep` (improved vs previous best `1.022738`)
+  - Logged to `memory/results.tsv`.
+
+Unified diff used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index c14f546..1eefacb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+```
+
+- Started experiment 2:
+  - Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml) `warmup_ratio = 0.01 -> 0.02`
+  - Commit: `8abd5ad`
+  - Training run is currently in progress (`timeout 600 uv run --extra research python editable/train.py > run.log 2>&1`).
+
+
+tokens used
+23,962
+Experiment loop resumed and advanced.
+
+- Resumed existing branch/state (`research-loops/may13`) with populated `memory/results.tsv`.
+- Read all in-scope files in `editable/` plus prior results.
+- Ran experiment 1:
+  - Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml) `warmup_ratio = 0.0 -> 0.01`
+  - Commit: `7b7d1dc`
+  - Result from `metrics.json`: `val_bpb=1.022348`, `peak_vram_mb` => `41.1 GB`
+  - Decision: `keep` (improved vs previous best `1.022738`)
+  - Logged to `memory/results.tsv`.
+
+Unified diff used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index c14f546..1eefacb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+```
+
+- Started experiment 2:
+  - Change: [`editable/config.toml`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml) `warmup_ratio = 0.01 -> 0.02`
+  - Commit: `8abd5ad`
+  - Training run is currently in progress (`timeout 600 uv run --extra research python editable/train.py > run.log 2>&1`).
+
+

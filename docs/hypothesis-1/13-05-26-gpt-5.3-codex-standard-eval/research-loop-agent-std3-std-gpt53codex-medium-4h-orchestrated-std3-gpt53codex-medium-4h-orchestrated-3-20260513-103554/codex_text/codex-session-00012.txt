@@ -1,0 +1,250 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from that state or perform the full setup/baseline sequence exactly as specified.
+
+I found an initialized run (`memory/results.tsv` has 22 experiments), so I’m resuming directly from the current branch and gathering full context from `editable/` plus prior results before proposing the next change.
+
+Context is loaded. Next experiment will be a small schedule adjustment: I’m increasing `warmdown_ratio` from `0.45` to `0.50` to keep a higher LR slightly longer before decay, then I’ll commit and run.
+
+I’ve applied the config edit and will now show the exact diff, commit it, and launch the 5-minute run with output redirected to `run.log`.
+
+Training is running now under timeout control; I’ll wait for completion, then read only `metrics.json`, log the result, and decide keep/discard via git reset rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+
+Run is still in progress; once it exits I’ll parse `metrics.json` and update `memory/results.tsv` without inspecting the log.
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+
+I’m waiting on the training process to finish; no diagnostics needed yet since this is a normal run path.
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..db4e7a5fe25b8118a3a9f4de3a47849214664335
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.45
++warmdown_ratio = 0.50
+ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.88
+
+
+The run completed successfully. I’m extracting metrics, appending the experiment row, and then applying keep/discard by comparing against the best recorded `val_bpb`.
+
+This experiment regressed strongly (`1.063436`), so I’m reverting the code commit while keeping the new row in `memory/results.tsv`, then I’ll proceed to the next experiment.
+
+I’m launching the next experiment from the restored best commit: a small `matrix_lr` reduction to `0.044` (between tested `0.045` and weaker `0.043`) to probe a narrower optimum.
+
+I’ve made the config change; next I’ll commit with the exact diff and run the 5-minute training job again.
+
+Second run is in progress with `matrix_lr=0.044`; I’ll wait for completion and then evaluate via `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Waiting on training completion; no crash indicators yet, so I’m staying on the normal metrics-only path.
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run finished. I’m now recording this result in `memory/results.tsv`, applying keep/discard against the current best, and resetting if needed.
+
+Executed 2 new experiments and applied keep/discard correctly.
+
+- Best checkpoint remains commit `d8f3825` with `val_bpb=1.023497`.
+- Current branch head is reset to `fd046d5` after both new trials regressed.
+- Logged both runs to [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/memory/results.tsv).
+
+New results recorded:
+
+- `1c72591` | `1.063436` | `41.1 GB` | `discard` | lengthen lr warmdown to 0.50
+- `a4e0b71` | `1.023706` | `41.1 GB` | `discard` | lower matrix lr to 0.044
+
+Working tree now only has untracked [`metrics.json`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/metrics.json).
+diff --git a/editable/config.toml b/editable/config.toml
+index efb3f0acffc3e72f255eb474de8a6baea21df39d..29892f7794a5b15d1d536690eaf60cd36c7379b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.006
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+39,709
+Executed 2 new experiments and applied keep/discard correctly.
+
+- Best checkpoint remains commit `d8f3825` with `val_bpb=1.023497`.
+- Current branch head is reset to `fd046d5` after both new trials regressed.
+- Logged both runs to [`memory/results.tsv`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/memory/results.tsv).
+
+New results recorded:
+
+- `1c72591` | `1.063436` | `41.1 GB` | `discard` | lengthen lr warmdown to 0.50
+- `a4e0b71` | `1.023706` | `41.1 GB` | `discard` | lower matrix lr to 0.044
+
+Working tree now only has untracked [`metrics.json`](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std3-gpt53codex-medium-4h-orchestrated-3-20260513-103554/research-loop/metrics.json).

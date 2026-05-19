@@ -1,0 +1,114 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior experiment rows so I can either resume or initialize exactly per your protocol.
+
+I found an already-initialized run on branch `research-loops/may5` with prior results, so I’m resuming from step (2). Next I’ll read `editable/train.py`, config files, and `memory/results.tsv` to pick the highest-leverage next experiment.
+
+I’ve loaded prior results and core config; best so far is `1.024804` at commit `b5b989a`. I’m now reading the remainder of `editable/train.py` to target a change that affects useful learning dynamics inside the fixed 5-minute budget.
+
+I identified an untouched axis: slower Muon momentum ramp (`muon_momentum_warmup_steps` longer). I’m editing only `editable/config.toml`, committing, running one timed experiment, then I’ll log and keep/reset based on `val_bpb` against the current best `1.024804`.
+
+I’ve applied the config change and verified the exact diff. Next I’m committing this experiment and launching the 5-minute training run with output redirected to `run.log`.
+
+The training process is running under a timeout guard (`610s`) to enforce your 10-minute failure rule. I’m waiting for completion, then I’ll read `metrics.json` only and record the result.
+
+Run is still in progress; I’m continuing to wait without reading `run.log`, and will parse `metrics.json` immediately once the process exits.
+
+I’m still waiting on the timed run to finish; once it exits I’ll extract `val_bpb`/VRAM from `metrics.json`, append `memory/results.tsv`, and decide keep vs reset.
+
+The process is still active and within budget. I’m continuing to block on completion so we can capture a clean `metrics.json` result for this commit.
+
+Waiting for process exit; after that I’ll immediately log this experiment and start the next mutation from the current best commit.
+web search: 
+web search: time: {"utc_offset":"+02:00"}
+
+Training completed successfully. I’m now extracting the new metrics and appending `memory/results.tsv`, then I’ll either keep this commit or reset it based on the current best keep score.
+
+I logged that run as `discard` and reset to the pre-experiment commit. I’m immediately starting the next experiment: disabling weight decay decay so regularization stays constant through the full 5-minute window.
+
+Second run is launched and currently training with timeout protection. I’ll wait for completion, then read only `metrics.json`, log the row, and keep/reset by `val_bpb`.
+
+The process is still running within budget; I’m continuing to wait and not touching `run.log` unless a metrics failure forces crash diagnosis.
+
+Still waiting on the timed run. Once it exits I’ll extract metrics, append `memory/results.tsv`, and continue with the next mutation automatically.
+
+Run is nearing expected completion window; I’m still blocked on exit and will process `metrics.json` immediately after.
+
+Experiment loop resumed on existing branch `research-loops/may5` (HEAD back at `6445c81`) and I ran 2 new experiments end-to-end.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 1d293c4..eba5a88 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.7
+ final_lr_frac = 0.05
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 600
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 1d293c4..5195f08 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+Results appended to `memory/results.tsv`:
+
+- `48c7eae` | `1.028406` | `41.1 GB` | `discard` | muon momentum warmup 300->600
+- `a88e1cb` | `1.033901` | `41.1 GB` | `discard` | constant weight decay (`weight_decay_decay=false`)
+
+Both were worse than best keep (`1.024804` at `b5b989a`), so both commits were reset per protocol. Current code is restored to `6445c81`.
+tokens used
+40,869
+Experiment loop resumed on existing branch `research-loops/may5` (HEAD back at `6445c81`) and I ran 2 new experiments end-to-end.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 1d293c4..eba5a88 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.7
+ final_lr_frac = 0.05
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 600
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 1d293c4..5195f08 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@ final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+Results appended to `memory/results.tsv`:
+
+- `48c7eae` | `1.028406` | `41.1 GB` | `discard` | muon momentum warmup 300->600
+- `a88e1cb` | `1.033901` | `41.1 GB` | `discard` | constant weight decay (`weight_decay_decay=false`)
+
+Both were worse than best keep (`1.024804` at `b5b989a`), so both commits were reset per protocol. Current code is restored to `6445c81`.

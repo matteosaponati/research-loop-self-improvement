@@ -1,0 +1,142 @@
+I’m starting the research loop now: I’ll first detect whether this workspace is already initialized (`memory/results.tsv` with prior rows), then either resume immediately or perform the required branch/baseline setup before launching the next experiment.
+
+I found an active run history and will resume from it. Next I’m checking `editable/` and the current git state to identify the exact best commit anchor, then I’ll implement one focused hyperparameter change and run it.
+
+I identified `2a71ed9` as the current best kept commit, so I’m testing a single change around optimization dynamics: adding a small LR warmup (`warmup_ratio` from `0.0` to `0.02`) while keeping the rest fixed. I’ll commit this, run one 5-minute experiment, and keep/reset strictly by `val_bpb`.
+
+I’ve applied the config edit and next I’m capturing the unified diff and committing it before launching training.
+
+The experiment commit is in place (`69ea314`). I’m running the 5-minute training job now with output redirected to `run.log`, then I’ll read `metrics.json` and decide keep vs reset.
+
+Training is in progress; I’m waiting for completion and will only read `metrics.json` for result collection unless the run crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..bdca49e44ea75b94ec29af5765069e0f89f0ad9f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+
+
+The process is still active past the first wait window; I’m checking again and will enforce the 10-minute cap from start time.
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..bdca49e44ea75b94ec29af5765069e0f89f0ad9f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+
+
+Run completed successfully. I’m reading `metrics.json`, appending the TSV record, and then comparing against the best `val_bpb` to either keep this commit or reset it.
+
+The environment lacks plain `python`, so I’m extracting `metrics.json` using `uv run python` and proceeding with keep/discard logic from that.
+
+This run is worse than the best (`1.0247366` vs `1.023576`), so I’m logging it as `discard` in `memory/results.tsv` and resetting back to `2a71ed9`.
+
+I’ve returned to the best anchor commit and I’m launching the next experiment: modestly shorter decay (`warmdown_ratio` from `0.5` to `0.4`) to reach the LR floor earlier while preserving the current best LR/floor values.
+
+I’ve made the edit; now I’m capturing the unified diff, committing it, and then running the next training trial.
+
+The commit is ready (`c76340e`); I’m running the timed training job now and will keep/discard based on `metrics.json` only.
+
+Training is running; I’m waiting for completion before extracting metrics and applying keep/reset logic.
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..65684cd7a45b1f28823c69107d415de92a173f37
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..65684cd7a45b1f28823c69107d415de92a173f37
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Run finished. I’m now reading `metrics.json`, recording the result in `memory/results.tsv`, and deciding whether to keep or reset this commit.
+
+This is also slightly worse than the current best (`1.0238753` vs `1.023576`), so I’m logging it as `discard` and resetting to the best commit anchor.
+
+I’m proceeding with another experiment from the best commit: reducing `muon_momentum_warmup_steps` (`300` → `200`) to reach higher momentum earlier, while keeping all LR settings at the current best values.
+
+I’ve committed experiment `bee1deb` and I’m running the 5-minute training trial now. After completion, I’ll record `metrics.json` and keep/reset accordingly.
+
+The run is still active after the first wait; I’m polling once more and will then finalize logging and keep/reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..d2ac32009c1442bfd35f1487ac4d355ac708c0db
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.08
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 200
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training completed; I’m extracting `metrics.json`, appending the result row, and applying the keep/discard rule now.
+
+Completed 3 new experiments and kept the branch anchored at the current best commit `2a71ed9` (`val_bpb=1.023576`).
+
+New logged runs in `memory/results.tsv`:
+- `69ea314` → `1.024737`, `41.1 GB`, `discard` (`warmup_ratio=0.02`)
+- `c76340e` → `1.023875`, `41.1 GB`, `discard` (`warmdown_ratio=0.4`)
+- `bee1deb` → `1.024444`, `41.1 GB`, `discard` (`muon_momentum_warmup_steps=200`)
+
+Current HEAD is reset to `2a71ed9` per keep/discard rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index 77b9d82e3209d6e0a844533dcb03a282c35e7886..d2ac32009c1442bfd35f1487ac4d355ac708c0db
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.08
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 200
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+tokens used
+29,820
+Completed 3 new experiments and kept the branch anchored at the current best commit `2a71ed9` (`val_bpb=1.023576`).
+
+New logged runs in `memory/results.tsv`:
+- `69ea314` → `1.024737`, `41.1 GB`, `discard` (`warmup_ratio=0.02`)
+- `c76340e` → `1.023875`, `41.1 GB`, `discard` (`warmdown_ratio=0.4`)
+- `bee1deb` → `1.024444`, `41.1 GB`, `discard` (`muon_momentum_warmup_steps=200`)
+
+Current HEAD is reset to `2a71ed9` per keep/discard rules.

@@ -1,0 +1,70 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume or initialize the branch/baseline flow exactly as specified.
+
+I found an initialized run (`memory/results.tsv` already has results), so I’m resuming from the current branch and moving directly to proposing the next experiment from current best history. I’ll now read `editable/` code and prior results.
+
+I have the prior experiment history and config; next I’m scanning the rest of `editable/train.py` to target a high-impact change rather than repeating low-yield LR tweaks.
+
+I’ve confirmed the full training/schedule logic. I’m now choosing a single targeted change: increasing AdamW momentum (`adam_beta1`) to stabilize short-horizon embedding/head updates, which should be meaningful given the 5-minute budget and prior LR sweeps.
+
+I hit an environment detail (`python` is unavailable directly), so I’m applying the edit via shell tools and then I’ll show the exact unified diff before committing.
+
+I have the diff ready and I’m committing this single config change now, then running the 5-minute training job and collecting only `metrics.json`.
+
+Training is running in the background session now; I’ll wait for completion, then read `metrics.json`, append `memory/results.tsv`, and decide keep vs reset based on `val_bpb`.
+
+The run is still in progress and within time budget; I’m continuing to wait and will treat anything beyond 10 minutes as failure per your rule.
+
+Still running; once the process exits I’ll parse `metrics.json` directly (without reading `run.log`) and immediately update the TSV with keep/discard.
+
+Run is still active; no crash signal yet. I’ll keep polling until completion and then perform the git decision step against the current best `val_bpb` (`1.024804`).
+
+The run finished successfully. I’m now reading `metrics.json`, appending the experiment row, and resetting the commit if it didn’t beat the best score.
+
+I’ve reverted the discarded commit and resumed from the previous best branch state. I’m launching the next experiment with a different axis: slightly higher final Muon momentum to test better late-stage stabilization.
+
+Second run is in progress and healthy so far; I’m waiting for completion before scoring and keep/discard decision.
+
+I’m still waiting on the run; once it exits I’ll read `metrics.json`, append the TSV row, and either keep the commit or hard-reset it immediately.
+
+Completed and continued the loop from existing state (`research-loops/may5`, resumed because `memory/results.tsv` already had rows).
+
+Ran 2 new experiments:
+
+1. `918ece4`  
+- Diff: `adam_beta1 = 0.8 -> 0.85` in `editable/config.toml`  
+- Result: `val_bpb=1.031424`, `peak_vram_mb≈41.1 GB`  
+- Decision: `discard` (worse than best `1.024804`)  
+- Action: reset branch back after logging
+
+2. `cf87b6c`  
+- Diff: `muon_momentum_end = 0.95 -> 0.97` in `editable/config.toml`  
+- Result: `val_bpb=1.028886`, `peak_vram_mb≈41.1 GB`  
+- Decision: `discard`  
+- Action: reset branch back after logging
+
+State now:
+- Current commit: `6445c81`
+- Best recorded remains: `1.024804` (`b5b989a` in log history)
+- `memory/results.tsv` updated with both new discarded runs.
+tokens used
+44,042
+Completed and continued the loop from existing state (`research-loops/may5`, resumed because `memory/results.tsv` already had rows).
+
+Ran 2 new experiments:
+
+1. `918ece4`  
+- Diff: `adam_beta1 = 0.8 -> 0.85` in `editable/config.toml`  
+- Result: `val_bpb=1.031424`, `peak_vram_mb≈41.1 GB`  
+- Decision: `discard` (worse than best `1.024804`)  
+- Action: reset branch back after logging
+
+2. `cf87b6c`  
+- Diff: `muon_momentum_end = 0.95 -> 0.97` in `editable/config.toml`  
+- Result: `val_bpb=1.028886`, `peak_vram_mb≈41.1 GB`  
+- Decision: `discard`  
+- Action: reset branch back after logging
+
+State now:
+- Current commit: `6445c81`
+- Best recorded remains: `1.024804` (`b5b989a` in log history)
+- `memory/results.tsv` updated with both new discarded runs.

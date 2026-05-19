@@ -1,0 +1,126 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has runs, and the current branch so I can either resume or initialize exactly per your protocol.
+
+I found an initialized run history on branch `research-loops/may5`, so I’m resuming from current state and now reading `editable/` plus prior results to pick the next experiment.
+
+I have the prior experiment trajectory; next I’m pinpointing where schedule and optimizer knobs are consumed in `train.py` so I can choose a high-signal next tweak and commit it cleanly.
+
+I’m proposing a narrow interpolation around the current best: keep `final_lr_frac=0.01` and `matrix_lr=0.03`, and test a slightly lower `unembedding_lr` (`0.0058`) since `0.005` and `0.006` were both strong but `0.0065+` degraded. I’ll edit only `editable/config.toml`, commit, run one timed experiment, read `metrics.json`, append to `memory/results.tsv`, then keep or reset based on `val_bpb`.
+
+I’m now applying the single-parameter config change in `editable/config.toml` and then committing it before launching the run.
+
+Commit `7dbe9b6` is in place; I’m running the 5-minute training job now and will collect only `metrics.json` for evaluation.
+
+The run is active in the background session; I’m waiting for completion and will stop it if it crosses the 10-minute failure limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 239a0c5bba9b12d6e4eec74015cce56a2d702a65..a8f1f61cde8695dece974d2f5a4860dfe3b4cc3c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.006
++unembedding_lr = 0.0058
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Training passed the 5-minute window and is likely finishing evaluation; I’m polling again and will enforce the 10-minute cap if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 239a0c5bba9b12d6e4eec74015cce56a2d702a65..a8f1f61cde8695dece974d2f5a4860dfe3b4cc3c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.006
++unembedding_lr = 0.0058
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run finished successfully; I’m now reading `metrics.json`, comparing against the current best `val_bpb`, and updating `memory/results.tsv` before deciding whether to keep or reset.
+
+The shell has no bare `python` binary here, so I’m rerunning the metrics parsing using `uv run python` and then proceeding with logging and keep/discard.
+
+This trial is slightly worse than the best so I’m marking it `discard`, appending it to `memory/results.tsv`, and resetting the branch back to the prior commit as required by the loop rules.
+
+I reverted to the current best commit and recorded the discarded result. I’m immediately launching the next experiment: test a slight increase `unembedding_lr=0.0062` to probe the local optimum around the current best `0.006`.
+
+I’ve committed `a0331c3` and started the next 5-minute training run; after completion I’ll read `metrics.json` and keep or discard accordingly.
+
+Training is still wrapping up (likely eval stage); I’m polling again now and will fail it only if it approaches the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 239a0c5bba9b12d6e4eec74015cce56a2d702a65..f2e78d0c1f6d08f68896e8774a2f5e6fb036fefc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.006
++unembedding_lr = 0.0062
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run completed successfully; I’m collecting the metric, appending the result row, and then deciding keep vs reset from the current best threshold.
+
+Both local `unembedding_lr` probes were worse, so I’m moving to a different axis: testing a slightly higher LR floor with `final_lr_frac=0.015` while keeping the current best `unembedding_lr=0.006`.
+
+Experiment `d7511c9` is running now; I’m waiting for completion and will apply the same metrics-only evaluation flow.
+diff --git a/editable/config.toml b/editable/config.toml
+index 239a0c5bba9b12d6e4eec74015cce56a2d702a65..0f277085a6d3298deddcf759537bd12cbeab94a6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.01
++final_lr_frac = 0.015
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 239a0c5bba9b12d6e4eec74015cce56a2d702a65..0f277085a6d3298deddcf759537bd12cbeab94a6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.01
++final_lr_frac = 0.015
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run finished; I’m extracting `metrics.json` now and then recording keep/discard plus branch reset decision.
+
+Completed 3 new experiments and updated `memory/results.tsv` for each. Current branch is reset to best commit `2c231bd` after all non-improving trials.
+
+New results logged:
+- `7dbe9b6` → `val_bpb=1.022938`, `41.1 GB`, `discard` (`unembedding_lr 0.0058`)
+- `a0331c3` → `val_bpb=1.023296`, `41.1 GB`, `discard` (`unembedding_lr 0.0062`)
+- `d7511c9` → `val_bpb=1.025863`, `41.1 GB`, `discard` (`final_lr_frac 0.015`)
+
+Best remains:
+- `2c231bd` → `val_bpb=1.022737` (`keep`)
+tokens used
+38,469
+Completed 3 new experiments and updated `memory/results.tsv` for each. Current branch is reset to best commit `2c231bd` after all non-improving trials.
+
+New results logged:
+- `7dbe9b6` → `val_bpb=1.022938`, `41.1 GB`, `discard` (`unembedding_lr 0.0058`)
+- `a0331c3` → `val_bpb=1.023296`, `41.1 GB`, `discard` (`unembedding_lr 0.0062`)
+- `d7511c9` → `val_bpb=1.025863`, `41.1 GB`, `discard` (`final_lr_frac 0.015`)
+
+Best remains:
+- `2c231bd` → `val_bpb=1.022737` (`keep`)

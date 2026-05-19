@@ -1,0 +1,153 @@
+I’m starting the research loop now by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume from current branch or do the required fresh setup sequence before running experiments.
+
+I found an existing initialized run on `research-loops/may5`, so I’m resuming directly from current state and reading `editable/` plus prior results to choose the next experiment.
+
+I’ve loaded prior experiment history and core configs; next I’m pinpointing which schedule/optimizer knobs are still underexplored so we can run a targeted next trial with high upside.
+
+I’m running the next trial with a schedule tweak that keeps higher LR longer (`warmdown_ratio` down) plus a slightly higher `matrix_lr`, since the previous best improved when `matrix_lr` increased. I’ll patch `editable/config.toml`, commit, and execute.
+
+The config patch is committed as `bc6eec0`; I’m launching the 5-minute training run now and will collect results strictly from `metrics.json`.
+
+Training is in progress under timeout protection; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..1285e1b1d451c9be58cf8559e540e71d23a070d2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.032
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Run is still active and within budget; I’m continuing to wait, then I’ll read metrics and decide keep vs discard against the current best `1.023880`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..1285e1b1d451c9be58cf8559e540e71d23a070d2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.032
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+I’m polling for completion now; once the process exits I’ll immediately record the result and reset if it did not improve.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..1285e1b1d451c9be58cf8559e540e71d23a070d2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.032
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The run finished successfully, but plain `python` isn’t on PATH here, so I’m using `uv run` to read `metrics.json` and compare against the best keep score.
+
+The trial scored worse (`1.025557`), so I’m logging it as `discard` in `memory/results.tsv` and resetting one commit to continue from the current best branch state.
+
+I’ve reverted to `4aaadb4` and will run another experiment now: increasing `unembedding_lr` slightly to improve output-layer adaptation while keeping the current best schedule and matrix settings fixed.
+
+The new commit is `3e4ab78`; I’m running the next 5-minute training job and will again read only `metrics.json` for evaluation.
+
+This run is still progressing normally; I’m waiting for completion and then I’ll immediately score and either keep or discard via reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..74447ee9257cf420bd7bcaa1f04e28619b926c54
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..74447ee9257cf420bd7bcaa1f04e28619b926c54
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+I’ve logged this trial as a discard (`1.035812`), and I’m resetting to the previous best commit before starting the next hypothesis cycle.
+
+Current loop status:
+
+- Resumed existing branch `research-loops/may5` at best commit `4aaadb4` (`val_bpb=1.023880`).
+- Ran 2 new experiments, both worse, both discarded and reset.
+
+New logged results in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260505-200241/research-loop/memory/results.tsv):
+
+- `bc6eec0` → `val_bpb=1.025557`, `memory_gb=41.1`, `discard`  
+  Change: `matrix_lr 0.032`, `warmdown_ratio 0.4`
+- `3e4ab78` → `val_bpb=1.035812`, `memory_gb=41.1`, `discard`  
+  Change: `unembedding_lr 0.005`
+
+Working tree is back to best-known config at commit `4aaadb4`, ready for the next experiment iteration.
+tokens used
+37,962
+Current loop status:
+
+- Resumed existing branch `research-loops/may5` at best commit `4aaadb4` (`val_bpb=1.023880`).
+- Ran 2 new experiments, both worse, both discarded and reset.
+
+New logged results in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/std2-gpt53codex-medium-4h-orchestrated-2-20260505-200241/research-loop/memory/results.tsv):
+
+- `bc6eec0` → `val_bpb=1.025557`, `memory_gb=41.1`, `discard`  
+  Change: `matrix_lr 0.032`, `warmdown_ratio 0.4`
+- `3e4ab78` → `val_bpb=1.035812`, `memory_gb=41.1`, `discard`  
+  Change: `unembedding_lr 0.005`
+
+Working tree is back to best-known config at commit `4aaadb4`, ready for the next experiment iteration.

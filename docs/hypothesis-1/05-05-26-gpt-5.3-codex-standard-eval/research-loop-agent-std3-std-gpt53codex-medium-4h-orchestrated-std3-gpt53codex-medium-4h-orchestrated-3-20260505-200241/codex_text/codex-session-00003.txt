@@ -1,0 +1,56 @@
+Starting the research loop now. I’ll first check whether `memory/results.tsv` already has prior runs so I can either resume immediately or perform the required one-time setup.
+
+I found an existing initialized loop with prior experiments, so I’m resuming directly from the current branch state and preparing the next edit by reading `editable/` code and config.
+
+I’ve confirmed we’re on `research-loops/may5` and identified schedule-related knobs in `train.py`; next I’ll inspect that section to choose one targeted change and run a single controlled experiment.
+
+I identified a clean next test: reduce `matrix_lr` slightly to trade a bit of speed for optimization stability within the same 5-minute budget. I’m editing `editable/config.toml`, then I’ll commit and run.
+
+The commit is in place (`531a27d`). Running a timed training trial now and I’ll read only `metrics.json` for result collection.
+
+Training is running in the background session; I’m polling for completion and will handle timeout/failure automatically if it exceeds limits.
+
+Still in progress; continuing to wait for the run to finish before extracting `metrics.json` and logging the result.
+
+Run is still active and within the allowed window; I’m continuing to monitor until it exits.
+
+I’m waiting on final completion now; once it exits I’ll parse `metrics.json`, append `memory/results.tsv`, and decide keep/discard via git reset.
+
+This is taking longer than usual startup-plus-train but still under the hard cutoff I set; I’ll keep polling and treat timeout as failure if needed.
+
+The run completed successfully and I’ve extracted its metric; I’m now computing best-so-far from `memory/results.tsv`, then I’ll append this trial and reset if it didn’t improve.
+
+First experiment is logged and reverted (no improvement). I’m launching a second experiment now: add a small LR warmup (`warmup_ratio = 0.01`) while keeping other hyperparameters unchanged.
+
+Second run is in progress; I’ll keep polling until completion, then record and keep/discard based on `val_bpb`.
+
+Still training and within timeout; I’m continuing to monitor without reading logs.
+
+I’m at the tail end of this run; once it exits I’ll immediately extract metrics, append to TSV, and reset if needed.
+
+Run is still active but under the hard cap; continuing to wait for a clean exit signal.
+
+The process is unusually slow to return, so I’m waiting for the timeout wrapper to resolve it; if it times out I’ll mark it as failure and revert.
+
+Experiment loop resumed and I ran 2 new trials end-to-end (edit → commit → run → metrics → log → revert on non-improvement).
+
+New results appended to `memory/results.tsv`:
+- `531a27d` | `1.028118` | `41.1` GB | `discard` | lower `matrix_lr` `0.04 -> 0.035`
+- `bcb1b42` | `1.030132` | `41.1` GB | `discard` | `warmup_ratio` `0.0 -> 0.01`
+
+Branch state after both discards:
+- Current `HEAD`: `805c82f`
+- Best `val_bpb` remains: `1.027028` (commit `cfc6730`)
+- Working tree note: untracked `metrics.json` present (expected from last run).
+tokens used
+40,038
+Experiment loop resumed and I ran 2 new trials end-to-end (edit → commit → run → metrics → log → revert on non-improvement).
+
+New results appended to `memory/results.tsv`:
+- `531a27d` | `1.028118` | `41.1` GB | `discard` | lower `matrix_lr` `0.04 -> 0.035`
+- `bcb1b42` | `1.030132` | `41.1` GB | `discard` | `warmup_ratio` `0.0 -> 0.01`
+
+Branch state after both discards:
+- Current `HEAD`: `805c82f`
+- Best `val_bpb` remains: `1.027028` (commit `cfc6730`)
+- Working tree note: untracked `metrics.json` present (expected from last run).

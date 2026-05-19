@@ -1,0 +1,89 @@
+I’ll start by checking repository state and whether this loop is already initialized. Then I’ll follow the exact branch/results protocol, run the baseline first if needed, and proceed with iterative experiments logging each commit to `memory/results.tsv` using only `metrics.json` for scoring.
+
+I confirmed this is a resumed loop and baseline/result tracking is already in place. Next I’m reading the rest of `editable/train.py` to identify safe, single-pass hyperparameter knobs and then I’ll run one experiment at a time from the current best commit state.
+
+I’m at a keep state with current best `0.987694` (commit `8dc8530`). Next, I’ll run a focused width bump in `editable/config.toml` (`aspect_ratio 72 -> 73`) to test whether a slightly larger hidden width improves validation bpb.
+
+Running experiment 1 with commit `7e818fd`; logging stays in `run.log` and I’ll read only `metrics.json` for evaluation.
+
+The run is still in progress beyond the first few seconds (likely startup/compile latency), I’ll continue waiting until it exits or hits the configured timeout behavior.
+diff --git a/editable/config.toml b/editable/config.toml
+index 79edf8607152f319c8521c4c91da5b9053666f58..002fee60f854d6a89931565f1e8e8009ae4682f7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 72
++aspect_ratio = 73
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 79edf8607152f319c8521c4c91da5b9053666f58..002fee60f854d6a89931565f1e8e8009ae4682f7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 72
++aspect_ratio = 73
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 79edf8607152f319c8521c4c91da5b9053666f58..002fee60f854d6a89931565f1e8e8009ae4682f7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 72
++aspect_ratio = 73
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+The run is near the expected 300s training window; I’ll keep waiting briefly so it can complete evaluation and emit `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 79edf8607152f319c8521c4c91da5b9053666f58..002fee60f854d6a89931565f1e8e8009ae4682f7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 72
++aspect_ratio = 73
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+The training process exited; I’ll now parse `metrics.json` and append this run to `memory/results.tsv`, then continue with the next experiment if needed.
+
+First experiment improved to `0.987525` (`7e818fd`), so it becomes the incumbent. Next I’ll test a stronger width jump (`aspect_ratio 81`, which increases `n_embd` from 640 to 768) and keep it only if it lowers `val_bpb` further.
+
+Running commit `af7b1f0` now; I’ll collect metrics and decide keep/discard based on val_bpb only.
+diff --git a/editable/config.toml b/editable/config.toml
+index 79edf8607152f319c8521c4c91da5b9053666f58..d871cfc7dce32cbe84dbe5d870e00b560da91e95
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 72
++aspect_ratio = 81
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+I detected two overlapping training processes writing to the same workspace outputs, which can corrupt result tracking. I’m terminating those train processes and will rerun a single clean measurement for commit `af7b1f0`.

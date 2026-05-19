@@ -1,0 +1,357 @@
+I’ll start by checking whether this run is already initialized, then either resume with the existing best state or create the `research-loops/<tag>` branch, run baseline, and begin experiments using only `editable/` edits with `metrics.json`-based evaluation.
+
+I’ve initialized the branch `research-loops/may13`, confirmed data/tokenizer already exist, and now I’ll initialize `memory/results.tsv`, run the baseline once, and log its `val_bpb` from `metrics.json`.
+
+The baseline run finished. I’m now recording its `metrics.json` values into `memory/results.tsv` (status `keep`) before launching experiments.
+
+I logged baseline and now I’m inspecting the editable training/config files plus the current results table to choose the first controlled hyperparameter/code change.
+
+Next experiment design: lower `total_batch_size` from 524288 to 262144 in `editable/config.toml` to double optimizer update frequency at the same fixed token budget pattern, which often improves sample efficiency in short fixed-time runs. I’ll patch and run one experiment with this single change.
+
+I’ve committed the batch-size change as `d5ac36b`. Running the first experimental training pass now.
+
+First experiment improved `val_bpb` to `1.011521`, so I’m logging it as a keep and will continue from this branch state.
+
+I’m keeping the improved batch-size change and now testing an architecture tweak in `editable/train.py`: replacing the squared-ReLU MLP nonlinearity with SiLU. This is one-line and keeps memory/compute profile similar.
+
+Running experiment `23c2d69` now to compare val_bpb against the current best `1.011521`.
+
+This run regressed (`1.020972`), so I’m logging it as `discard` and resetting this branch back to the best-keeping commit.
+
+I’ll try a second controlled change from the current best commit: set `warmup_ratio` in `editable/config.toml` to a small nonzero value to smooth early optimization and potentially reduce over-shoot in the first minutes.
+
+Running `7890ad3` now and will log the result to memory after metrics parsing.
+
+This warmup change regressed to `1.013973`, so it’s being discarded. I’m appending that row to `memory/results.tsv` and returning the branch to `d5ac36b`.
+
+I’m testing a schedule variant from the best state: reduce `warmdown_ratio` to `0.2` so learning rate stays near peak longer before the final cooldown. This may improve the final few minutes’ optimization quality.
+
+This warmdown change also regressed (`1.019802`), so I’m marking it discard and restoring to the current best commit `d5ac36b`.
+
+I’ll try a capacity increase next: change `aspect_ratio` from `64` to `96` (n_embd 512→768, more compute and representational power) while keeping the smaller batch. If it crashes/OOM it will be logged and discarded immediately.
+
+Training run for the width-increase experiment is starting now.
+
+This change improved val materially (`0.980411`), so it becomes the new kept state. Logging it now and continuing experiments from this stronger checkpoint.
+
+Since the best result is now significantly better, I’m trying one capacity push next: increase `depth` from `8` to `10` while retaining the current width/batch settings.
+
+I’ve applied the `depth=10` change from the best checkpoint and committed it; launching that experiment now.
+
+I’m monitoring this depth-increase run; if it takes too long I’ll continue polling until completion and then apply the keep/discard rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Depth increase reached `0.992063` (worse than `0.980411`) and used much more VRAM, so I’m discarding this commit and reverting to the current best state.
+
+Current best is `0.980411`. I’ll probe context-length effects now by lowering `sequence_len` to `1024` while keeping `total_batch_size=262144`, which should increase update count and may improve short-run convergence.
+
+This length-reduction experiment gives `0.986582`, still worse than the current best `0.980411`, so I’ll log it as discard and revert.
+
+I’ll try an optimizer-scale tweak from the current best: raise `matrix_lr` to `0.05` while keeping other settings at the winning configuration.
+
+I hit a bad patch typo and will reapply the learning-rate edit directly to the optimizer block now.
+
+I’ve corrected the patch and will run a `matrix_lr=0.05` experiment; if it’s not better, it will be discarded and reverted.
+
+`matrix_lr=0.05` came back worse (`0.983584`), so this run is logged as `discard` and I’m reverting to `3cfd971`.
+
+I’ll run one additional targeted optimizer tweak: reduce `weight_decay` from `0.2` to `0.15`, then evaluate and apply the keep/discard rule.
+
+Launching the `weight_decay=0.15` experiment now.
+
+I’m still waiting on that run’s completion; once finished I’ll compare against `0.980411` and either keep it or revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+This tweak improved the score (`0.979936`), so it becomes the new best and will be kept. I’m recording it in `memory/results.tsv`.
+
+I have a new best. I’ll probe one more conservative direction by dropping `weight_decay` further to `0.1` to test whether stronger reduction helps short-horizon validation.
+
+Running the `weight_decay=0.1` run now.
+
+`weight_decay=0.1` came in slightly worse (`0.980083`), so it’s discarded and the branch is restored to `06d813c` as current best.
+
+I’ve completed multiple iterations and now the best configuration is stable at `06d813c` (`val_bpb 0.979936`). I’ll do a final read of `memory/results.tsv` and report the current experiment ledger plus the current config.
+
+I’m checking the final working commit pointer and then I’ll report the experiment ledger as the loop state summary.
+
+I’ll quickly verify the key effective hyperparameters at the best commit so the loop summary is complete.
+
+Research loop executed and is currently active on branch:
+
+- `research-loops/may13`  
+- `HEAD = 06d813c`  
+- Working log: [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/memory/results.tsv)
+
+Ledger summary (all entries written to `memory/results.tsv`):
+
+- 58ae17a: `1.026326` keep baseline
+- d5ac36b: `1.011521` keep — `total_batch_size` 524288 → 262144
+- 23c2d69: `1.020972` discard — MLP `F.relu().square()` → `F.silu()`
+- 7890ad3: `1.013973` discard — `warmup_ratio = 0.05`
+- cbbc8a8: `1.019802` discard — `warmdown_ratio = 0.2`
+- 3cfd971: `0.980411` keep — `aspect_ratio = 96` (width increase)
+- f197362: `0.992063` discard — `depth = 10`
+- 12e0e88: `0.986582` discard — `sequence_len = 1024`
+- 7c9216a: `0.983584` discard — `matrix_lr = 0.05`
+- 06d813c: `0.979936` keep (current best) — `weight_decay = 0.15`
+- b0abc67: `0.980083` discard — `weight_decay = 0.1`
+
+Current effective best config edits are in:
+
+- [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/editable/config.toml)
+
+Key hyperparameters now at best commit:
+- `sequence_len = 2048`
+- `total_batch_size = 262144`
+- `device_batch_size = 128`
+- `depth = 8`
+- `aspect_ratio = 96`
+- `head_dim = 128`
+- `weight_decay = 0.15`
+- `embedding_lr = 0.6`
+- `unembedding_lr = 0.004`
+- `matrix_lr = 0.04`
+- `warmup_ratio = 0.0`
+- `warmdown_ratio = 0.5`
+
+I can continue additional runs immediately from this best commit if you want me to keep searching for lower `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..792be9b3d5ca604b3e998bc3bc70841b8c8e2778
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+tokens used
+66,690
+Research loop executed and is currently active on branch:
+
+- `research-loops/may13`  
+- `HEAD = 06d813c`  
+- Working log: [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/memory/results.tsv)
+
+Ledger summary (all entries written to `memory/results.tsv`):
+
+- 58ae17a: `1.026326` keep baseline
+- d5ac36b: `1.011521` keep — `total_batch_size` 524288 → 262144
+- 23c2d69: `1.020972` discard — MLP `F.relu().square()` → `F.silu()`
+- 7890ad3: `1.013973` discard — `warmup_ratio = 0.05`
+- cbbc8a8: `1.019802` discard — `warmdown_ratio = 0.2`
+- 3cfd971: `0.980411` keep — `aspect_ratio = 96` (width increase)
+- f197362: `0.992063` discard — `depth = 10`
+- 12e0e88: `0.986582` discard — `sequence_len = 1024`
+- 7c9216a: `0.983584` discard — `matrix_lr = 0.05`
+- 06d813c: `0.979936` keep (current best) — `weight_decay = 0.15`
+- b0abc67: `0.980083` discard — `weight_decay = 0.1`
+
+Current effective best config edits are in:
+
+- [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-6-20260513-101808/research-loop/editable/config.toml)
+
+Key hyperparameters now at best commit:
+- `sequence_len = 2048`
+- `total_batch_size = 262144`
+- `device_batch_size = 128`
+- `depth = 8`
+- `aspect_ratio = 96`
+- `head_dim = 128`
+- `weight_decay = 0.15`
+- `embedding_lr = 0.6`
+- `unembedding_lr = 0.004`
+- `matrix_lr = 0.04`
+- `warmup_ratio = 0.0`
+- `warmdown_ratio = 0.5`
+
+I can continue additional runs immediately from this best commit if you want me to keep searching for lower `val_bpb`.

@@ -1,0 +1,1523 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+model: gpt-5.3-codex
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: medium
+reasoning summaries: none
+session id: 019e2263-bb19-7893-bcbf-ac799a890498
+--------
+user
+# Automatic research loop
+
+This repo is an automatic ML research sandbox. You are a completely autonomous researcher. The only visible workspace is this directory, which contains a local `.git` checkout plus `editable/`, `immutable/`, `program.md`, `pyproject.toml`, and `uv.lock`. The goal is to get the lowest val_bpb after training an LLM using `editable/train.py`. The time budget is fixed to 5 mins for each run. You have full freedom in editing files inside the `editable/` directory. Each experiment runs on a single GPU. The training script runs for a fixed time budget of 5 minutes (wall clock training time, excluding startup/compilation). You launch it simply as: `uv run --extra research python editable/train.py`.
+
+# Rules
+
+- The visible workspace must be a git checkout. If `.git` is not available to git from this directory, the branch/commit/reset loop will not work.
+- You may ONLY edit code files inside the `editable/` directory.
+- You may write run logs, `metrics.json`, and `memory/results.tsv` in this workspace.
+- You MUST NOT edit or inspect files inside `immutable/`. Files there are strictly immutable. The only allowed direct use is executing `immutable/prepare.py` if data/tokenizer artifacts are missing.
+- You MUST NOT install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
+- The loop is git-based: edit → commit → run → decide keep/revert.
+- Each experiment runs on a single GPU. The training script runs for a fixed time budget of 5 minutes (wall clock training time, excluding startup/compilation).
+- If a run exceeds 10 minutes, kill it and treat it as a failure (discard and revert).
+- Normal result collection MUST read only `metrics.json`, never the full training log. Do not run `cat`, `sed`, `head`, `tail`, `less`, or broad `grep` on `run.log` unless you are diagnosing a crash. The run log may contain very large step-by-step progress output that wastes context.
+- You run indefinitely until the human stops you. NEVER ask for permission to continue.
+
+# Output format
+
+Once the script finishes it prints a summary like this:
+
+```
+---
+val_bpb:          0.997900
+training_seconds: 300.1
+total_seconds:    325.9
+peak_vram_mb:     45060.2
+mfu_percent:      39.80
+total_tokens_M:   499.6
+num_steps:        953
+num_params_M:     50.3
+depth:            8
+```
+
+Note that the script is configured to always stop after 5 minutes, so depending on the computing platform of this computer the numbers might look different. 
+
+The script also writes the same final values to `metrics.json` in compact JSON form. Use this file for normal result collection:
+
+```
+{
+  "depth": 8,
+  "mfu_percent": 39.8,
+  "num_params_M": 50.3,
+  "num_steps": 953,
+  "peak_vram_mb": 45060.2,
+  "total_seconds": 325.9,
+  "total_tokens_M": 499.6,
+  "training_seconds": 300.1,
+  "val_bpb": 0.9979
+}
+```
+
+# Logging Results
+
+When an experiment is done, log it to `memory/results.tsv` (tab-separated, NOT comma-separated — commas break in descriptions).
+
+The TSV has a header row and 5 columns:
+
+```
+commit	val_bpb	memory_gb	status	description
+```
+
+1. git commit hash (short, 7 chars)
+2. val_bpb achieved (e.g. 1.234567) — use 0.000000 for crashes
+3. peak memory in GB, round to .1f (e.g. 12.3 — divide peak_vram_mb by 1024) — use 0.0 for crashes
+4. status: `keep`, `discard`, or `crash`
+5. short text description of what this experiment tried
+
+Example:
+
+```
+commit	val_bpb	memory_gb	status	description
+a1b2c3d	0.997900	44.0	keep	baseline
+b2c3d4e	0.993200	44.2	keep	increase LR to 0.04
+c3d4e5f	1.005000	44.0	discard	switch to GeLU activation
+d4e5f6g	0.000000	0.0	crash	double model width (OOM)
+```
+
+# Experiments
+
+To test ideas and run experiments, follow exactly these steps in strict order.
+
+## (1) Setup.
+
+First, you setup the stage for your experimentation by doing the following:
+
+1. **Resume if already initialized**: If `memory/results.tsv` already exists and contains at least one result row after the header, do not create a new branch, do not overwrite `memory/results.tsv`, and do not rerun the baseline. Continue directly with step (2) from the current git branch and current best result.
+2. **Define a tag** based on today's date (e.g. mar5). The branch `research-loops/<tag>` must not already exist for a fresh run. If it already exists but `memory/results.tsv` has no result rows, pick a unique suffix such as `research-loops/<tag>-2`.
+3. **Create the branch**: git checkout -b research-loops/<tag> from current master.
+4. **Verify data exists**: Check that `.local/data` and `.local/tokenizer` contain data shards and a tokenizer. If not, run `uv run --extra research python immutable/prepare.py`.
+5. **Initialize results**: Create the `memory/` directory and `memory/results.tsv` with just the header row. This is your ephemeral working memory where you store the results. The baseline will be recorded after the first run.
+6. **Run baseline**: Run the training script as is with `uv run --extra research python editable/train.py > run.log 2>&1`, then read `metrics.json` and store the baseline result in `memory/results.tsv`.
+
+## (2) Propose and run a new experiment.
+
+Next, you setup a new experiment by doing the following:
+
+1. **Read the in-scope files**: The repo is small. Read the files in `editable/` for full context: `train.py` for the model architecture, optimizer, training loop; `config.toml` and `config_loader.py` for the configuration; `memory/results.tsv` for the previous experiments and the associated results.
+2. **Propose experiment**: Tune the file(s) in `editable/` with an experimental idea by directly hacking the code. Output the edit as a clean unified diff, then git commit.
+3. **Run the experiment**: simply run `uv run --extra research python editable/train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context).
+4. **Read out the results**: read `metrics.json` only, for example with `python - <<'PY'` and `json.load`. If `metrics.json` is missing or invalid, the run crashed. Do not inspect `run.log` unless you need to diagnose a crash.
+5. **Record the results**: write the results in `memory/results.tsv`.
+6. **If val_bpb improved (lower)**: you "advance" the branch, keeping the git commit.
+7. **If val_bpb is equal or worse**: you git reset back to where you started.
+
+# Start the job
+
+Now you are in the loop. Follow these instructions and start running experiments.
+codex
+I’m starting the research loop by checking whether prior results already exist, confirming git state, and then either resuming or initializing the branch/memory baseline flow exactly as specified.
+exec
+/bin/bash -lc 'if [ -f memory/results.tsv ]; then echo EXISTS; wc -l memory/results.tsv; cat memory/results.tsv; else echo MISSING; fi' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+EXISTS
+10 memory/results.tsv
+commit	val_bpb	memory_gb	status	description
+6ef85a6	1.025695	41.1	keep	baseline
+61e9fc9	1.026419	41.1	discard	matrix_lr 0.035 plus warmup_ratio 0.05
+6a047bd	1.030323	41.1	discard	warmdown_ratio 0.3 and final_lr_frac 0.2
+96ecbb4	1.028307	41.1	discard	constant weight decay (no decay schedule)
+49228c0	1.026747	41.1	discard	small global lr warmup ratio 0.02
+d9e9045	1.026271	41.1	discard	raise muon_beta2 to 0.98
+5dae6cf	1.026093	41.1	discard	lower weight_decay to 0.15
+4d8f2e1	1.054426	41.1	discard	warmup 3pct, warmdown 40pct, final lr frac 0.1
+62ea316	1.027243	41.1	discard	muon momentum fixed at 0.95 from step 0
+
+exec
+/bin/bash -lc 'pwd; git rev-parse --is-inside-work-tree; git branch --show-current; ls -la; ls -la memory 2>/dev/null || true' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+true
+research-loops/may13
+total 360
+drwxr-x--- 7 matteosaponati matteosaponati   4096 May 13 19:29 .
+drwxr-x--- 3 matteosaponati matteosaponati   4096 May 13 18:27 ..
+drwxr-x--- 8 matteosaponati matteosaponati   4096 May 13 19:29 .git
+-rw-r----- 1 matteosaponati matteosaponati     67 May 13 10:35 .gitignore
+drwxr-x--- 4 matteosaponati matteosaponati   4096 May 13 18:28 .local
+lrwxrwxrwx 1 matteosaponati matteosaponati     90 May 13 10:35 .venv -> /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/research-loop/.venv
+drwxr-x--- 3 matteosaponati matteosaponati   4096 May 13 19:29 editable
+drwxr-x--- 3 matteosaponati matteosaponati   4096 May 11 23:40 immutable
+drwxr-x--- 5 matteosaponati matteosaponati   4096 May 13 18:29 memory
+-rw-r----- 1 matteosaponati matteosaponati    283 May 13 19:29 metrics.json
+-rw-r----- 1 matteosaponati matteosaponati   6413 May  7 14:39 program.md
+-rw-r----- 1 matteosaponati matteosaponati    573 May 11 10:40 pyproject.toml
+-rw-r----- 1 matteosaponati matteosaponati 117802 May 13 19:29 run.log
+-rw-r----- 1 matteosaponati matteosaponati 189961 May 11 10:40 uv.lock
+total 304
+drwxr-x--- 5 matteosaponati matteosaponati   4096 May 13 18:29 .
+drwxr-x--- 7 matteosaponati matteosaponati   4096 May 13 19:29 ..
+drwxr-x--- 2 matteosaponati matteosaponati   4096 May 13 19:30 codex
+drwxr-x--- 2 matteosaponati matteosaponati   4096 May 13 19:30 codex_text
+drwxr-x--- 3 matteosaponati matteosaponati   4096 May 13 19:30 harness
+-rw-r----- 1 matteosaponati matteosaponati 280784 May 13 19:30 harness-440235.log
+-rw-r----- 1 matteosaponati matteosaponati    615 May 13 19:29 results.tsv
+
+codex
+I found an initialized run with existing results, so I’m resuming from the current branch state and moving directly to a new experiment by re-reading `editable/` and prior outcomes.
+exec
+/bin/bash -lc "rg --files editable; echo '---'; sed -n '1,260p' editable/train.py; echo '---'; sed -n '1,260p' editable/config.toml; echo '---'; sed -n '1,260p' editable/config_loader.py; echo '---'; cat memory/results.tsv" in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+editable/config_loader.py
+editable/config.toml
+editable/train.py
+editable/config.toml.bak
+editable/__init__.py
+---
+"""
+Autoresearch pretraining script. Single-GPU, single-file.
+Cherry-picked and simplified from nanochat.
+Usage: PYTHONPATH=research-loop uv run --project research-loop --extra research python research-loop/editable/train.py
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+METRICS_PATH = Path("metrics.json")
+METRICS_PATH.unlink(missing_ok=True)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from editable.config_loader import CONFIG
+from immutable.eval import evaluate_model
+
+PROJECT_NAME = "research_loops_stresstest"
+RUNS_DIR = "runs"
+BASELINE_NAME = "baseline"
+
+PYTORCH_ALLOC_CONF = "expandable_segments:True"
+COMPILE_MODEL = True
+COMPILE_DYNAMIC = False
+
+TIME_BUDGET_SECONDS = 300
+WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+LOSS_FAIL_THRESHOLD = 100.0
+EMA_BETA = 0.9
+GC_FREEZE_AFTER_FIRST_STEP = True
+GC_COLLECT_INTERVAL = 5000
+
+os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+
+import gc
+import math
+import time
+from dataclasses import dataclass, asdict
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from immutable import prepare
+
+prepare.DATA_DIR = os.path.expanduser(str(prepare.DATA_DIR))
+prepare.TOKENIZER_DIR = os.path.expanduser(str(prepare.TOKENIZER_DIR))
+prepare.MAX_SEQ_LEN = CONFIG.sequence_len
+
+# ---------------------------------------------------------------------------
+# GPT Model
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GPTConfig:
+    sequence_len: int
+    vocab_size: int
+    n_layer: int
+    n_head: int
+    n_embd: int
+    mlp_hidden_multiplier: int
+    rotary_seq_len_multiplier: int
+    rotary_base: float
+    softcap: float
+    ignore_index: int
+    init_wte_mean: float
+    init_wte_std: float
+    init_lm_head_mean: float
+    init_lm_head_std: float
+    init_matrix_scale: float
+
+
+def norm(x):
+    return F.rms_norm(x, (x.size(-1),))
+
+
+def apply_rotary_emb(x, cos, sin):
+    assert x.ndim == 4
+    d = x.shape[3] // 2
+    x1, x2 = x[..., :d], x[..., d:]
+    y1 = x1 * cos + x2 * sin
+    y2 = x1 * (-sin) + x2 * cos
+    return torch.cat([y1, y2], 3)
+
+
+def standard_attention(q, k, v):
+    """Full causal self-attention through PyTorch SDPA."""
+    q = q.transpose(1, 2)
+    k = k.transpose(1, 2)
+    v = v.transpose(1, 2)
+    y = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+    return y.transpose(1, 2)
+
+
+class CausalSelfAttention(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd
+        self.head_dim = self.n_embd // self.n_head
+        assert self.n_embd % self.n_head == 0
+        self.c_q = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+        self.c_k = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+        self.c_v = nn.Linear(self.n_embd, self.n_head * self.head_dim, bias=False)
+        self.c_proj = nn.Linear(self.n_embd, self.n_embd, bias=False)
+
+    def forward(self, x, cos_sin):
+        B, T, C = x.size()
+        q = self.c_q(x).view(B, T, self.n_head, self.head_dim)
+        k = self.c_k(x).view(B, T, self.n_head, self.head_dim)
+        v = self.c_v(x).view(B, T, self.n_head, self.head_dim)
+
+        cos, sin = cos_sin
+        q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
+        q, k = norm(q), norm(k)
+
+        y = standard_attention(q, k, v)
+        y = y.contiguous().view(B, T, -1)
+        y = self.c_proj(y)
+        return y
+
+
+class MLP(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+        self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
+        self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+
+    def forward(self, x):
+        x = self.c_fc(x)
+        x = F.relu(x).square()
+        x = self.c_proj(x)
+        return x
+
+
+class Block(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.attn = CausalSelfAttention(config)
+        self.mlp = MLP(config)
+
+    def forward(self, x, cos_sin):
+        x = x + self.attn(norm(x), cos_sin)
+        x = x + self.mlp(norm(x))
+        return x
+
+
+class GPT(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.transformer = nn.ModuleDict({
+            "wte": nn.Embedding(config.vocab_size, config.n_embd),
+            "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+        })
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        head_dim = config.n_embd // config.n_head
+        # Rotary embeddings
+        self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+        cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+        self.register_buffer("cos", cos, persistent=False)
+        self.register_buffer("sin", sin, persistent=False)
+
+    @torch.no_grad()
+    def init_weights(self):
+        # Embedding and unembedding
+        torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+        # Transformer blocks
+        n_embd = self.config.n_embd
+        s = self.config.init_matrix_scale * n_embd**-0.5
+        for block in self.transformer.h:
+            torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+            torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+            torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+            torch.nn.init.zeros_(block.attn.c_proj.weight)
+            torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+            torch.nn.init.zeros_(block.mlp.c_proj.weight)
+        # Rotary embeddings
+        head_dim = self.config.n_embd // self.config.n_head
+        cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+        self.cos, self.sin = cos, sin
+        # Cast embeddings to bf16
+        self.transformer.wte.to(dtype=torch.bfloat16)
+
+    def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+        if base is None:
+            base = self.config.rotary_base
+        if device is None:
+            device = self.transformer.wte.weight.device
+        channel_range = torch.arange(0, head_dim, 2, dtype=torch.float32, device=device)
+        inv_freq = 1.0 / (base ** (channel_range / head_dim))
+        t = torch.arange(seq_len, dtype=torch.float32, device=device)
+        freqs = torch.outer(t, inv_freq)
+        cos, sin = freqs.cos(), freqs.sin()
+        cos, sin = cos.bfloat16(), sin.bfloat16()
+        cos, sin = cos[None, :, None, :], sin[None, :, None, :]
+        return cos, sin
+
+    def estimate_flops(self):
+        """Estimated FLOPs per token (forward + backward)."""
+        nparams = sum(p.numel() for p in self.parameters())
+        nparams_exclude = self.transformer.wte.weight.numel()
+        h = self.config.n_head
+        q = self.config.n_embd // self.config.n_head
+        t = self.config.sequence_len
+        attn_flops = self.config.n_layer * 12 * h * q * t
+        return 6 * (nparams - nparams_exclude) + attn_flops
+
+    def num_scaling_params(self):
+        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+        total = wte + lm_head + transformer_matrices
+        return {
+            'wte': wte, 'lm_head': lm_head,
+            'transformer_matrices': transformer_matrices, 'total': total,
+        }
+
+    def setup_optimizer(self, unembedding_lr, embedding_lr, matrix_lr, weight_decay,
+                        adam_betas, adam_eps, dmodel_lr_reference,
+                        muon_initial_momentum, muon_ns_steps, muon_beta2):
+        model_dim = self.config.n_embd
+        matrix_params = list(self.transformer.h.parameters())
+        embedding_params = list(self.transformer.wte.parameters())
+        lm_head_params = list(self.lm_head.parameters())
+        assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+            len(lm_head_params))
+        # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+        dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+        print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+        param_groups = [
+            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+        ]
+        for shape in sorted({p.shape for p in matrix_params}):
+            group_params = [p for p in matrix_params if p.shape == shape]
+            param_groups.append(dict(
+                kind='muon', params=group_params, lr=matrix_lr,
+                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+            ))
+        optimizer = MuonAdamW(param_groups)
+        for group in optimizer.param_groups:
+            group["initial_lr"] = group["lr"]
+        return optimizer
+
+    def forward(self, idx, targets=None, reduction='mean'):
+        B, T = idx.size()
+        assert T <= self.cos.size(1)
+        cos_sin = self.cos[:, :T], self.sin[:, :T]
+
+        x = self.transformer.wte(idx)
+        x = norm(x)
+        for block in self.transformer.h:
+---
+# Runtime environment
+hf_hub_disable_progress_bars = "1"
+seed = 42
+device = "cuda"
+matmul_precision = "high"
+autocast_dtype = "bfloat16"
+h100_bf16_peak_flops = 989500000000000.0
+
+# Data and run budget
+sequence_len = 2048
+total_batch_size = 524288
+device_batch_size = 128
+dataloader_buffer_size = 1000
+tokenizer_batch_size = 128
+
+# Model architecture
+vocab_size_default = 32768
+depth = 8
+aspect_ratio = 64
+head_dim = 128
+mlp_hidden_multiplier = 4
+rotary_seq_len_multiplier = 10
+rotary_base = 10000.0
+softcap = 15.0
+ignore_index = -1
+
+# Initialization
+init_wte_mean = 0.0
+init_wte_std = 1.0
+init_lm_head_mean = 0.0
+init_lm_head_std = 0.001
+init_matrix_scale = 1.7320508075688772
+
+# Optimization
+embedding_lr = 0.6
+unembedding_lr = 0.004
+matrix_lr = 0.042
+weight_decay = 0.2
+adam_beta1 = 0.8
+adam_beta2 = 0.95
+adam_eps = 0.0000000001
+dmodel_lr_reference = 768
+muon_initial_momentum = 0.95
+muon_ns_steps = 5
+muon_beta2 = 0.95
+
+# Schedules
+warmup_ratio = 0.0
+warmdown_ratio = 0.5
+final_lr_frac = 0.0
+muon_momentum_warmup_steps = 300
+muon_momentum_start = 0.85
+muon_momentum_end = 0.95
+weight_decay_decay = true
+---
+"""Load experiment defaults from research-loop/editable/config.toml."""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
+    tomllib = None
+
+CONFIG_PATH = Path(__file__).with_name("config.toml")
+
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    hf_hub_disable_progress_bars: str
+    seed: int
+    device: str
+    matmul_precision: str
+    autocast_dtype: str
+    h100_bf16_peak_flops: float
+    sequence_len: int
+    total_batch_size: int
+    device_batch_size: int
+    dataloader_buffer_size: int
+    tokenizer_batch_size: int
+    vocab_size_default: int
+    depth: int
+    aspect_ratio: int
+    head_dim: int
+    mlp_hidden_multiplier: int
+    rotary_seq_len_multiplier: int
+    rotary_base: float
+    softcap: float
+    ignore_index: int
+    init_wte_mean: float
+    init_wte_std: float
+    init_lm_head_mean: float
+    init_lm_head_std: float
+    init_matrix_scale: float
+    embedding_lr: float
+    unembedding_lr: float
+    matrix_lr: float
+    weight_decay: float
+    adam_beta1: float
+    adam_beta2: float
+    adam_eps: float
+    dmodel_lr_reference: int
+    muon_initial_momentum: float
+    muon_ns_steps: int
+    muon_beta2: float
+    warmup_ratio: float
+    warmdown_ratio: float
+    final_lr_frac: float
+    muon_momentum_warmup_steps: int
+    muon_momentum_start: float
+    muon_momentum_end: float
+    weight_decay_decay: bool
+
+    @property
+    def adam_betas(self) -> tuple[float, float]:
+        return self.adam_beta1, self.adam_beta2
+
+    def to_jsonable(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def parse_flat_toml(text: str) -> dict[str, Any]:
+    """Parse the flat key/value TOML subset used by research-loop/editable/config.toml."""
+    values: dict[str, Any] = {}
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        key, raw_value = [part.strip() for part in line.split("=", 1)]
+        if raw_value.startswith('"') and raw_value.endswith('"'):
+            values[key] = raw_value[1:-1]
+        elif raw_value.lower() in {"true", "false"}:
+            values[key] = raw_value.lower() == "true"
+        elif "." in raw_value or "e" in raw_value.lower():
+            values[key] = float(raw_value)
+        else:
+            values[key] = int(raw_value)
+    return values
+
+
+def load_config(path: Path = CONFIG_PATH) -> ExperimentConfig:
+    text = path.read_text(encoding="utf-8")
+    raw: dict[str, Any] = tomllib.loads(text) if tomllib else parse_flat_toml(text)
+    return ExperimentConfig(**raw)
+
+
+CONFIG = load_config()
+---
+commit	val_bpb	memory_gb	status	description
+6ef85a6	1.025695	41.1	keep	baseline
+61e9fc9	1.026419	41.1	discard	matrix_lr 0.035 plus warmup_ratio 0.05
+6a047bd	1.030323	41.1	discard	warmdown_ratio 0.3 and final_lr_frac 0.2
+96ecbb4	1.028307	41.1	discard	constant weight decay (no decay schedule)
+49228c0	1.026747	41.1	discard	small global lr warmup ratio 0.02
+d9e9045	1.026271	41.1	discard	raise muon_beta2 to 0.98
+5dae6cf	1.026093	41.1	discard	lower weight_decay to 0.15
+4d8f2e1	1.054426	41.1	discard	warmup 3pct, warmdown 40pct, final lr frac 0.1
+62ea316	1.027243	41.1	discard	muon momentum fixed at 0.95 from step 0
+
+codex
+I’ve loaded the training/config context and prior trials; next I’m targeting an untested optimizer angle by locating the exact LR/momentum/weight decay schedule code before making a focused config change.
+exec
+/bin/bash -lc "rg -n \"warmup|warmdown|final_lr_frac|muon_momentum|weight_decay_decay|set_lr|lr\" editable/train.py | sed -n '1,220p'" in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+226:    def setup_optimizer(self, unembedding_lr, embedding_lr, matrix_lr, weight_decay,
+227:                        adam_betas, adam_eps, dmodel_lr_reference,
+236:        dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+237:        print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+239:            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+240:            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+245:                kind='muon', params=group_params, lr=matrix_lr,
+250:            group["initial_lr"] = group["lr"]
+288:def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+289:    p.mul_(1 - lr_t * wd_t)
+295:    step_size = lr_t / bias1
+300:                    momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+332:    lr = lr_t.to(g.dtype)
+335:    stacked_params.sub_(lr * g + lr * wd * stacked_params * mask)
+345:        self._adamw_lr_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
+350:        self._muon_momentum_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
+351:        self._muon_lr_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
+367:            self._adamw_lr_t.fill_(group['lr'])
+373:                            self._adamw_step_t, self._adamw_lr_t, self._adamw_beta1_t,
+392:        self._muon_momentum_t.fill_(group["momentum"])
+394:        self._muon_lr_t.fill_(group["lr"] * max(1.0, shape[-2] / shape[-1])**0.5)
+398:                        self._muon_momentum_t, self._muon_lr_t, self._muon_wd_t,
+466:    unembedding_lr=CONFIG.unembedding_lr,
+467:    embedding_lr=CONFIG.embedding_lr,
+469:    matrix_lr=CONFIG.matrix_lr,
+472:    dmodel_lr_reference=CONFIG.dmodel_lr_reference,
+497:def get_lr_multiplier(progress):
+498:    if progress < CONFIG.warmup_ratio:
+499:        return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
+500:    elif progress < 1.0 - CONFIG.warmdown_ratio:
+503:        cooldown = (1.0 - progress) / CONFIG.warmdown_ratio
+504:        return cooldown * 1.0 + (1 - cooldown) * CONFIG.final_lr_frac
+506:def get_muon_momentum(step):
+507:    frac = min(step / CONFIG.muon_momentum_warmup_steps, 1)
+508:    return (1 - frac) * CONFIG.muon_momentum_start + frac * CONFIG.muon_momentum_end
+511:    return CONFIG.weight_decay * (1 - progress) if CONFIG.weight_decay_decay else CONFIG.weight_decay
+535:    lrm = get_lr_multiplier(progress)
+536:    muon_momentum = get_muon_momentum(step)
+539:        group["lr"] = group["initial_lr"] * lrm
+541:            group["momentum"] = muon_momentum
+569:    print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+581:    # Time's up — but only stop after warmup steps so we don't count compilation
+
+codex
+I’m applying a single targeted experiment: slightly higher `matrix_lr` plus a slower Muon momentum ramp, aiming for faster early progress without locking into high momentum too soon. I’ll commit this as one isolated change, run, and keep/discard strictly by `val_bpb`.
+apply patch
+patch: completed
+/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/editable/config.toml
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+exec
+/bin/bash -lc 'git -c color.ui=always diff -- editable/config.toml; git add editable/config.toml; git commit -m "tune muon: matrix_lr 0.045 and longer momentum warmup"; git rev-parse --short HEAD' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+[1mdiff --git a/editable/config.toml b/editable/config.toml[m
+[1mindex 21e947f..75ee914 100644[m
+[1m--- a/editable/config.toml[m
+[1m+++ b/editable/config.toml[m
+[36m@@ -34,7 +34,7 @@[m [minit_matrix_scale = 1.7320508075688772[m
+ # Optimization[m
+ embedding_lr = 0.6[m
+ unembedding_lr = 0.004[m
+[31m-matrix_lr = 0.042[m
+[32m+[m[32mmatrix_lr = 0.045[m
+ weight_decay = 0.2[m
+ adam_beta1 = 0.8[m
+ adam_beta2 = 0.95[m
+[36m@@ -48,7 +48,7 @@[m [mmuon_beta2 = 0.95[m
+ warmup_ratio = 0.0[m
+ warmdown_ratio = 0.5[m
+ final_lr_frac = 0.0[m
+[31m-muon_momentum_warmup_steps = 300[m
+[32m+[m[32mmuon_momentum_warmup_steps = 900[m
+ muon_momentum_start = 0.85[m
+ muon_momentum_end = 0.95[m
+ weight_decay_decay = true[m
+[research-loops/may13 5d86211] tune muon: matrix_lr 0.045 and longer momentum warmup
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+5d86211
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+The experiment commit is in place (`5d86211`). I’m running the 5-minute training job now with full log redirection, then I’ll read only `metrics.json`, append to `memory/results.tsv`, and decide keep vs reset.
+exec
+/bin/bash -lc 'timeout 610s uv run --extra research python editable/train.py > run.log 2>&1; echo EXIT:$?' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+Training is running under timeout control; I’m waiting for completion before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+Run is still in progress; I’m continuing to wait and will parse `metrics.json` immediately once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+Still running within expected window. I’m polling again and will proceed directly to keep/discard logic on completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+The job is still active; I’m continuing to wait rather than reading logs, per your constraints.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+I’m past the core training window and waiting for the process epilogue/exit, then I’ll parse `metrics.json` and record the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+ succeeded in 337378ms:
+EXIT:0
+
+exec
+/bin/bash -lc "python - <<'PY'
+import json, pathlib
+from decimal import Decimal, ROUND_HALF_UP
+root=pathlib.Path('.')
+metrics=json.loads((root/'metrics.json').read_text())
+val=float(metrics['val_bpb'])
+mem=float(metrics['peak_vram_mb'])/1024.0
+print(f\"val_bpb={val:.6f}\")
+print(f\"memory_gb={mem:.1f}\")
+# best keep so far
+best=None
+for line in (root/'memory/results.tsv').read_text().splitlines()[1:]:
+    if not line.strip():
+        continue
+    c,v,m,s,d=line.split('\\t',4)
+    if s=='keep':
+        vv=float(v)
+        best=vv if best is None or vv<best else best
+print(f\"best_keep={best:.6f}\" if best is not None else \"best_keep=None\")
+PY" in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ exited 127 in 0ms:
+/bin/bash: line 1: python: command not found
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+The run completed successfully; I hit a local shell limitation (`python` not on PATH), so I’m reading `metrics.json` with `uv run python` and then applying keep/discard.
+exec
+/bin/bash -lc "uv run python - <<'PY'
+import json, pathlib
+root=pathlib.Path('.')
+metrics=json.loads((root/'metrics.json').read_text())
+val=float(metrics['val_bpb'])
+mem=float(metrics['peak_vram_mb'])/1024.0
+print(f\"val_bpb={val:.6f}\")
+print(f\"memory_gb={mem:.1f}\")
+best=None
+for line in (root/'memory/results.tsv').read_text().splitlines()[1:]:
+    if not line.strip():
+        continue
+    c,v,m,s,d=line.split('\\t',4)
+    if s=='keep':
+        vv=float(v)
+        best=vv if best is None or vv<best else best
+print(f\"best_keep={best:.6f}\" if best is not None else \"best_keep=None\")
+PY" in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+val_bpb=1.028854
+memory_gb=41.1
+best_keep=1.025695
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+exec
+/bin/bash -lc 'prev_commit=$(git rev-parse --short HEAD)
+git reset --hard HEAD~1
+printf "%s'"\\t%.6f\\t%.1f\\t%s\\t%s\\n\" \""'$prev_commit" 1.028854 41.1 discard "matrix_lr 0.045 with muon momentum warmup 900" >> memory/results.tsv
+git rev-parse --short HEAD
+tail -n 3 memory/results.tsv' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+HEAD is now at 4f048e0 tune optimizer: raise matrix_lr to 0.042
+4f048e0
+4d8f2e1	1.054426	41.1	discard	warmup 3pct, warmdown 40pct, final lr frac 0.1
+62ea316	1.027243	41.1	discard	muon momentum fixed at 0.95 from step 0
+5d86211	1.028854	41.1	discard	matrix_lr 0.045 with muon momentum warmup 900
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..75ee914841371ff9c138621080f3e5b379c160ef
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+codex
+I discarded the trial and reset to the prior commit, with the discard logged in `memory/results.tsv`. I’m launching the next experiment now: reduce `embedding_lr` to test whether softer embedding updates improve 5-minute validation efficiency.
+apply patch
+patch: completed
+/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/editable/config.toml
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+exec
+/bin/bash -lc 'git -c color.ui=always diff -- editable/config.toml; git add editable/config.toml; git commit -m "tune adamw: lower embedding_lr to 0.5"; git rev-parse --short HEAD' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+[1mdiff --git a/editable/config.toml b/editable/config.toml[m
+[1mindex 21e947f..acd9048 100644[m
+[1m--- a/editable/config.toml[m
+[1m+++ b/editable/config.toml[m
+[36m@@ -32,7 +32,7 @@[m [minit_lm_head_std = 0.001[m
+ init_matrix_scale = 1.7320508075688772[m
+ [m
+ # Optimization[m
+[31m-embedding_lr = 0.6[m
+[32m+[m[32membedding_lr = 0.5[m
+ unembedding_lr = 0.004[m
+ matrix_lr = 0.042[m
+ weight_decay = 0.2[m
+[research-loops/may13 881abab] tune adamw: lower embedding_lr to 0.5
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+881abab
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+exec
+/bin/bash -lc 'timeout 610s uv run --extra research python editable/train.py > run.log 2>&1; echo EXIT:$?' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+codex
+Second experiment is running with log redirection and timeout guard. I’m waiting for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+codex
+Run is still in progress; continuing to wait until it exits so I can evaluate and either keep or discard this commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+codex
+I’m in the final waiting window for this run and will immediately parse metrics and update `memory/results.tsv` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+ succeeded in 337897ms:
+EXIT:0
+
+exec
+/bin/bash -lc "uv run python - <<'PY'
+import json, pathlib
+root=pathlib.Path('.')
+m=json.loads((root/'metrics.json').read_text())
+val=float(m['val_bpb'])
+mem=float(m['peak_vram_mb'])/1024
+best=None
+for line in (root/'memory/results.tsv').read_text().splitlines()[1:]:
+    if not line.strip():
+        continue
+    c,v,mg,s,d=line.split('\\t',4)
+    if s=='keep':
+        vv=float(v)
+        best=vv if best is None or vv<best else best
+print(f\"{val:.6f} {mem:.1f} {best:.6f}\")
+PY" in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+1.026145 41.1 1.025695
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+exec
+/bin/bash -lc 'trial=$(git rev-parse --short HEAD)
+git reset --hard HEAD~1
+printf "%s'"\\t%.6f\\t%.1f\\t%s\\t%s\\n\" \""'$trial" 1.026145 41.1 discard "lower embedding_lr to 0.5" >> memory/results.tsv
+git rev-parse --short HEAD
+tail -n 4 memory/results.tsv' in /home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop
+ succeeded in 0ms:
+HEAD is now at 4f048e0 tune optimizer: raise matrix_lr to 0.042
+4f048e0
+4d8f2e1	1.054426	41.1	discard	warmup 3pct, warmdown 40pct, final lr frac 0.1
+62ea316	1.027243	41.1	discard	muon momentum fixed at 0.95 from step 0
+5d86211	1.028854	41.1	discard	matrix_lr 0.045 with muon momentum warmup 900
+881abab	1.026145	41.1	discard	lower embedding_lr to 0.5
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+codex
+Completed two experiment iterations and followed keep/discard + reset rules.
+
+1. Experiment commit `5d86211`  
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..75ee914 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+Result from `metrics.json`: `val_bpb=1.028854`, `memory_gb=41.1`  
+Decision: `discard` (worse than best keep `1.025695`) and reset.
+
+2. Experiment commit `881abab`  
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..acd9048 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+```
+Result from `metrics.json`: `val_bpb=1.026145`, `memory_gb=41.1`  
+Decision: `discard` and reset.
+
+Updated [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/memory/results.tsv) with both runs.  
+Current HEAD is back to `4f048e0`. Best kept result remains `1.025695` (baseline).
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947ff52f1b04517c753881b7a404f81ad4e31..acd9048bb225c248cca07dd0268c49c20e2ae795
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+
+tokens used
+54,045
+Completed two experiment iterations and followed keep/discard + reset rules.
+
+1. Experiment commit `5d86211`  
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..75ee914 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.042
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 900
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+```
+Result from `metrics.json`: `val_bpb=1.028854`, `memory_gb=41.1`  
+Decision: `discard` (worse than best keep `1.025695`) and reset.
+
+2. Experiment commit `881abab`  
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 21e947f..acd9048 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.042
+ weight_decay = 0.2
+```
+Result from `metrics.json`: `val_bpb=1.026145`, `memory_gb=41.1`  
+Decision: `discard` and reset.
+
+Updated [results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/memory/results.tsv) with both runs.  
+Current HEAD is back to `4f048e0`. Best kept result remains `1.025695` (baseline).

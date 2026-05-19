@@ -1,0 +1,118 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or do full setup exactly as specified.
+
+I found an existing initialized run with history, so I’m resuming from the current branch and best result (`1.023880`). Next I’ll read all `editable/` files and propose a new targeted change.
+
+I’ve finished reviewing the training/config code and prior results. I’m going to run one isolated schedule experiment next: reduce `warmdown_ratio` from `0.5` to `0.4` while keeping the current best settings, then commit and benchmark it.
+
+I’ve applied the config change and will now capture the unified diff, commit it, and run the 5-minute training job.
+
+The run is in progress in the background; I’ll wait for completion, then read `metrics.json` only and decide keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..389e2e491d949317e0b61d372bd6654656a9be70
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Training passed the 5-minute budget window and is likely in eval/finalization; I’m polling again and will kill it only if it crosses the 10-minute hard limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..389e2e491d949317e0b61d372bd6654656a9be70
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.4
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+I hit an environment issue (`python` is not on PATH here), so I’ll read `metrics.json` and compute the best baseline using `uv run python` instead.
+
+The run completed successfully with `val_bpb=1.025562`, which is worse than the current best `1.023880`. I’ll log this as `discard` in `memory/results.tsv` and reset one commit to continue from the best branch tip.
+
+I’ve reverted to the best commit and will immediately run the next experiment: a small LR sweep by lowering `matrix_lr` from `0.03` to `0.029`.
+
+I’m committing this change and starting the next 5-minute training run now.
+
+The second run is still finishing up after the timed training window; I’m polling to completion and then I’ll record from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..93183e649d8bd8529074f1c838a30373a451842f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.03
++matrix_lr = 0.029
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m continuing the loop with a third experiment: decreasing `unembedding_lr` from `0.004` to `0.0035` to test whether a slightly gentler LM-head update improves validation bpb.
+
+This run is also in finalization after the timed training segment; I’m polling once more for completion and then logging via `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d777b30e224c45d02d603e5fb6a1061ac0efb6f1..57ab65eadc21d1414115f807fbb0372199dd2d35
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Completed and resumed from existing loop state on `research-loops/may5` (best remained `1.023880` at commit `4aaadb4`).
+
+New experiments run and logged to `memory/results.tsv`:
+
+1. `97e43e8`  
+`warmdown_ratio: 0.5 -> 0.4`  
+Result: `val_bpb=1.025562`, `memory_gb=41.1`, `discard` (reverted)
+
+2. `b3ea9b9`  
+`matrix_lr: 0.03 -> 0.029`  
+Result: `val_bpb=1.025191`, `memory_gb=41.1`, `discard` (reverted)
+
+3. `bbeba0a`  
+`unembedding_lr: 0.004 -> 0.0035`  
+Result: `val_bpb=1.025942`, `memory_gb=41.1`, `discard` (reverted)
+
+Current branch tip is back at best commit: `4aaadb4`.
+tokens used
+38,621
+Completed and resumed from existing loop state on `research-loops/may5` (best remained `1.023880` at commit `4aaadb4`).
+
+New experiments run and logged to `memory/results.tsv`:
+
+1. `97e43e8`  
+`warmdown_ratio: 0.5 -> 0.4`  
+Result: `val_bpb=1.025562`, `memory_gb=41.1`, `discard` (reverted)
+
+2. `b3ea9b9`  
+`matrix_lr: 0.03 -> 0.029`  
+Result: `val_bpb=1.025191`, `memory_gb=41.1`, `discard` (reverted)
+
+3. `bbeba0a`  
+`unembedding_lr: 0.004 -> 0.0035`  
+Result: `val_bpb=1.025942`, `memory_gb=41.1`, `discard` (reverted)
+
+Current branch tip is back at best commit: `4aaadb4`.

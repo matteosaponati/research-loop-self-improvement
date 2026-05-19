@@ -1,0 +1,3975 @@
+Starting the loop now by checking repo state and whether this is a fresh or resumed run, then I’ll set/verify the branch, baseline if needed, and launch the first experiment cycle using only `editable/` edits and `metrics.json` for scoring.
+
+I confirmed this is a fresh run (no existing `memory/results.tsv`, branch `research-loops/may13` is free). Next I’ll create the experiment branch, initialize `memory/results.tsv`, then run the baseline and log it.
+
+Baseline run is in progress under the run-time cap; I’m waiting for it to finish and then I’ll immediately parse `metrics.json` and log the commit/result.
+ exited 127 in 361155ms:
+/bin/bash: line 9: python: command not found
+
+
+Baseline finished but the shell step failed due `python` missing (not `python3`). I’ll now verify whether training produced `metrics.json`, parse it with `python3`, and log that result.
+
+I hit a shell quoting error while appending the baseline line; I’ll rewrite that append step with a clean `python3` script and then continue with experiment loops.
+
+Baseline metrics are valid (`1.026004`), but `results.tsv` was duplicated by a previous append attempt. I’ll fix that file now, then launch the first experiment from the current best result.
+
+Setup is complete and baseline is logged. Next I’m reading the editable training/config files to choose a minimal first modification aimed at reducing validation bpb.
+
+Baseline is in place (`1.026004`). I’ll run a first targeted change in `editable/config.toml`: add a small learning-rate warmup to reduce early-step instability and capture whether that lowers `val_bpb`.
+
+I’ve applied a single-codepoint change (learning-rate warmup from 0 to 5%). Next step is commit, run 5-minute training, and log results.
+
+Running experiment 1 (`739ade3`) under the same 5-minute budget, then I’ll parse `metrics.json` and append to `memory/results.tsv` to decide keep/discard.
+
+Experiment 1 finished (session ended). I’ll read `metrics.json` now and then append the result to `memory/results.tsv`, followed by keep/discard decision logic.
+
+The warmup change regressed and was discarded. I’ll test a throughput-oriented change next: reduce `sequence_len` to `1024` to enable more update steps in the fixed 5-minute window and see if validation bpb improves.
+
+Second experiment is now committed (`3a3a10f`). I’ll run it for the fixed budget and then log the resulting `val_bpb` from `metrics.json`.
+
+Experiment 2 is still running; I’m continuing to wait, then I’ll read `metrics.json` and apply the keep/discard rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f29d5c649abad8c3b2f43f1d22303403b0ae1700
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Experiment 2 completed; I’ll parse `metrics.json`, append the outcome to `memory/results.tsv`, and if the score is better keep the commit, otherwise revert.
+
+Baseline is back. I’ll try a regularization-focused tweak next: reduce `weight_decay` from `0.2` to `0.1` to see if it lowers validation bpb.
+
+Experiment 3 is committed (`8bfd7ed`) and will now run for the fixed budget.
+
+Experiment 3 finished. I’ll now read `metrics.json`, append the row, and apply keep/discard (baseline remains best so far).
+
+I’m switching to an architecture-level trial next: replace the `ReLU^2` MLP nonlinearity with `GELU`, keeping all other settings unchanged, and evaluate impact on `val_bpb`.
+
+Experiment 4 is committed (`e644557`). I’ll run the standard 5-minute training and capture metrics to decide if it improves over the baseline.
+
+Experiment 4 completed. I’ll read `metrics.json` and apply the keep/discard step.
+
+No improvement there either. I’ll revert to the baseline commit and continue with another parameter-level experiment.
+
+I’m now testing an optimizer-efficiency change: reduce `muon_ns_steps` from `5` to `3` to speed each update and potentially increase effective tokens processed within the 5-minute window.
+
+I introduced a duplicate key while patching; I’m fixing that quickly (keeping `muon_ns_steps = 3`) and then launching the run.
+
+Experiment 5 is committed (`b3b0672`). Running baseline-equivalent config plus `muon_ns_steps=3` now.
+
+Experiment 5 is running; I’ll poll for completion and then evaluate `metrics.json` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a9fd8ca655385eb14ff3d8e9a1b95b4cb6b479bb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 3
+ muon_beta2 = 0.95
+ 
+ # Schedules
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 5 also regressed (`1.036746`). I’ll append this row as `discard` and revert to baseline before trying a different direction.
+
+All prior directional sweeps were worse. I’ll try a standard optimizer schedule adjustment next: increase `adam_beta2` to `0.98` while keeping `adam_beta1` at `0.8` to test whether a slower second-moment decay improves 5-minute convergence.
+
+Experiment 6 is set (`3bb40c1`). I’ll run it and evaluate strictly via `metrics.json`.
+
+Experiment 6 is still in progress; I’m continuing to wait and will immediately read and log the result once it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f4f4573dfd945bd3ad0ef26ac5b02cbc9613c91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -37,7 +37,7 @@
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+-adam_beta2 = 0.95
++adam_beta2 = 0.98
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f4f4573dfd945bd3ad0ef26ac5b02cbc9613c91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -37,7 +37,7 @@
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+-adam_beta2 = 0.95
++adam_beta2 = 0.98
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f4f4573dfd945bd3ad0ef26ac5b02cbc9613c91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -37,7 +37,7 @@
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+-adam_beta2 = 0.95
++adam_beta2 = 0.98
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f4f4573dfd945bd3ad0ef26ac5b02cbc9613c91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -37,7 +37,7 @@
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+-adam_beta2 = 0.95
++adam_beta2 = 0.98
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f4f4573dfd945bd3ad0ef26ac5b02cbc9613c91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -37,7 +37,7 @@
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+-adam_beta2 = 0.95
++adam_beta2 = 0.98
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 6 ran without crash but did not beat baseline (`1.026955 > 1.026004`). I’ll log it as discard and reset before the next experiment.
+
+I’ll test one calibration adjustment likely to matter: change `dmodel_lr_reference` from `768` to `512` to reduce scaled AdamW rates, keeping base learning rates unchanged.
+
+Experiment 7 is committed (`7e4fa20`). Running it now.
+
+Experiment 7 is still running; I’ll continue waiting and capture metrics once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still running. I’ll do one more poll and then read metrics if complete.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8dc9a8315166c33d7fa7f67789375e561c862df9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 512
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+So far no improvements. Next I’ll probe batching geometry: cut `total_batch_size` to `262144` (keeping `device_batch_size` at `128`) to test a different optimization/stability regime.
+
+Experiment 8 committed. Running it now to evaluate the batch-size change.
+
+Experiment 8 is ongoing; I’ll keep polling until exit and then immediately collect metrics from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+With the first real improvement found (batch halved), I’ll now try a capacity increase: set `aspect_ratio` to `80` (increasing model width to `n_embd=640`) while keeping the new best batch setup, to check if perplexity improves further.
+
+Experiment 9 is running from the current best baseline (`02faf73` ancestor). Executing for the full budget now.
+
+Experiment 9 finished. I’ll now read `metrics.json` and apply keep/discard logic.
+
+Experiment 9 improved `val_bpb` substantially (`0.991787`), so this commit is now the active best. I’m logging it as `keep` and continuing with further tuned experiments from this state.
+
+Experiment 10 committed (`3eececc`). Running with `aspect_ratio=96` to test whether additional width (n_embd=768) helps further.
+
+Experiment 10 is still running; I’ll continue waiting and then capture the resulting metrics once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e5581d9abeaf653394872bcb3158a1db2e3e39b4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e5581d9abeaf653394872bcb3158a1db2e3e39b4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e5581d9abeaf653394872bcb3158a1db2e3e39b4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e5581d9abeaf653394872bcb3158a1db2e3e39b4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e5581d9abeaf653394872bcb3158a1db2e3e39b4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Great result: `0.980788` is the new best despite fewer tokens/sec. I’m recording it as `keep` and continuing from this wider model.
+
+Next I’ll target LR scaling to match the widened model: set `dmodel_lr_reference` back to `768` on the current best (`aspect_ratio=96`) to test if stronger effective AdamW steps improve `val_bpb`.
+
+I’ll make the intended LR-scaling probe now: increase `dmodel_lr_reference` from `768` to `1024` and evaluate from the current best checkpoint.
+
+Experiment 11 is still running; I’ll continue polling and then gather `metrics.json` as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4b28edb5cc777559da16e92077e5ffc05a3543dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 1024
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4b28edb5cc777559da16e92077e5ffc05a3543dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 1024
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4b28edb5cc777559da16e92077e5ffc05a3543dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 1024
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4b28edb5cc777559da16e92077e5ffc05a3543dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 1024
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’ll next test increased depth while keeping width at `96`: raise `depth` from `8` to `10` to check if additional depth improves validation bpb from the current best.
+
+Experiment 12 is running on the 10-layer model; executing the fixed 5-minute budget now.
+
+Experiment 12 remains running through the full budget; I’ll collect metrics when it exits and then apply keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c6b230b70dd39240eec055c1934e0d1b3a46f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,15 +8,15 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 10
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 12 regressed and used significantly more memory (`96.6` GB), so I’m discarding it and reverting to the best commit.
+
+I’ll now tune regularization on the current best wide model by reducing `weight_decay` to `0.15` (from `0.2`) to see if it helps further while keeping depth 8.
+
+Experiment 13 committed. Running it under the fixed budget to evaluate this regularization change.
+
+Experiment 13 still running. I’ll keep polling and then evaluate the metric when done.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 13 still hasn’t exited in the first few checks; I’m continuing until completion and then I’ll decide keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..89c959ed6067ac92933031cb356bb97a0502be6d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 13 improved slightly (`0.980423`). I’ll mark this commit as new best (`keep`) and continue exploring from it.
+
+Experiment 14 is committed. I’ll run it now and keep/discard depending on the resulting `val_bpb` versus `0.980423`.
+
+Experiment 14 still running; I’m continuing to wait and will resolve as soon as `metrics.json` is available.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..792be9b3d5ca604b3e998bc3bc70841b8c8e2778
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..792be9b3d5ca604b3e998bc3bc70841b8c8e2778
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..792be9b3d5ca604b3e998bc3bc70841b8c8e2778
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 14 is an incremental improvement (`0.980390`), so I’m keeping this commit as the new best and continuing from it.
+
+I’ll try one more regularization step: drop `weight_decay` further to `0.05` to see if under-regularization of the wider model helps val Bpb.
+
+Experiment 15 is now committed (`weight_decay=0.05`). I’ll run it and check if the trend continues.
+
+Running experiment 15 now; I’ll log and keep/discard from `metrics.json` only.
+
+Experiment 15 completed. I’ll fetch the metric and then apply the keep/discard decision.
+
+Experiment 15 regressed (`0.981336`), so I’ll log it as `discard` and revert to the best commit `f18c12f`.
+
+I’ll test a conservative schedule tweak from the current best: set `warmup_ratio` to `0.05` and see if early-step LR ramping helps this wider model.
+
+Experiment 16 committed. Running baseline budget and then I’ll compare `val_bpb` against `0.980390`.
+
+Experiment 16 is still taking full wall time; I’ll check completion and process metrics once it ends.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ef6d8d9dc986497d9502fadee2625bb3745486b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ef6d8d9dc986497d9502fadee2625bb3745486b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’ll test a different regularization behavior: keep current widths/learning setup and disable `weight_decay_decay` (so weight decay stays constant through training) to see if final perplexity improves.
+
+Experiment 17 is running under the same budget; next step is to check `metrics.json` and decide keep/discard.
+
+Experiment 17 is still running; continuing to poll until it exits and then I’ll use metrics-only logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..16bb6d01cdc5931de781b118f16a23f269df3fb7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 17 regressed (`0.981452`), so it’s discarded and I’m reverting to the current best commit.
+
+One final capacity check: I’ll test a step-up model size by moving `aspect_ratio` to `112` (n_embd 896) while keeping the current best training regime, to test whether the wider model continues lowering bpb before memory/runtime limits.
+
+Experiment 18 committed. Running the model now to see if wider capacity improves performance under memory and 5-minute constraints.
+
+Experiment 18 decreased performance (`0.985511`) though it fit memory (~69.0 GB), so I’ll log it as discard and revert to the best commit.
+
+I’ll test one optimizer-geometry tweak from the current best: reduce `muon_ns_steps` to `4` (from `5`) and keep other settings unchanged.
+
+Experiment 19 regressed (`0.982656`), so I’m discarding and reverting to the best commit `f18c12f`.
+
+I’ll try one structural throughput change: set `sequence_len` to `1536` and `total_batch_size` to `393216` (keeping `device_batch_size=128`) for two micro-batches per step, to explore quality/compute balance at this model size.
+
+Experiment 20 is running with the new sequence/batch regime; waiting to completion before assessing improvement.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..196721d57dab15a4af463f56697ed855fb3e0ae6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 20 also regressed (`0.982546`) though with reduced memory footprint; I’ll log it as discard and return to best commit `f18c12f`.
+
+I’ll do one final quick optimizer tweak from the current best: raise `muon_initial_momentum` from `0.95` to `0.97` to test whether stronger early Muon momentum helps.
+
+Experiment 21 is in progress. I’ll wait for completion and then capture the metric result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 21 is still running in the usual 5-minute window; I’ll wait until it exits and then compare `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..310087dffedf4bd094d4fea2936375cac06d495f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,12 +35,12 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 21 completed; checking final `metrics.json` now and applying keep/discard.
+
+Experiment 21 improved slightly to `0.980322`, so this is now the new best configuration. I’ll log it as `keep` and stay on this commit for further exploration.
+
+I’ll test a small follow-up on Muon momentum scheduling: raise `muon_momentum_end` from `0.95` to `0.97` while retaining the current best config.
+
+I introduced a malformed patch and need to correct it by changing the actual `muon_momentum_end` value now.
+
+Experiment 22 is worse (`0.984403`) with `muon_momentum_end=0.97`. I’ll log and revert to best commit `922f7ed`.
+
+I’ll try one last targeted sweep from the current best: raise `muon_beta2` from `0.95` to `0.98` and stop if not better.
+
+Experiment 23 is running; I’ll wait for completion and log the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Experiment 23 regressed (`0.980756`). I’ll log it as discard and restore the best commit.
+
+I’m wrapping this cycle now with the best observed configuration committed and recorded; checking git state before summarizing the final outcome.
+
+Initialized loop on branch `research-loops/may13` and completed iterative run cycle with logging in [/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/memory/results.tsv).
+
+Current best result so far:
+
+- commit: `922f7ed`
+- val_bpb: `0.980322`
+- memory_gb: `59.6`
+- status: `keep`
+- change: `raise muon_initial_momentum to 0.97`  
+  (commit was made over the best-validated config to date)
+
+Latest result log tail:
+
+- `58ae17a	1.026004	41.1	keep	baseline`
+- `...`
+- `3eececc	0.980788	59.6	keep	increase aspect ratio to 96`
+- `f18c12f	0.980390	59.6	keep	reduce weight decay to 0.1`
+- `922f7ed	0.980322	59.6	keep	raise muon_initial_momentum to 0.97`
+
+Current working best config at [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/editable/config.toml) includes:
+- `aspect_ratio = 96`
+- `total_batch_size = 262144`
+- `depth = 8`
+- `weight_decay = 0.1`
+- `muon_initial_momentum = 0.97`
+
+Current HEAD is:
+`922f7ed` on `research-loops/may13`, with many additional experiments logged and discarded based on `metrics.json` val_bpb comparisons.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fb8d624fbb97c3d622b1e0c26361c6e74c3e1c03
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 96
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -35,14 +35,14 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.97
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+tokens used
+361,300
+Initialized loop on branch `research-loops/may13` and completed iterative run cycle with logging in [/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/memory/results.tsv).
+
+Current best result so far:
+
+- commit: `922f7ed`
+- val_bpb: `0.980322`
+- memory_gb: `59.6`
+- status: `keep`
+- change: `raise muon_initial_momentum to 0.97`  
+  (commit was made over the best-validated config to date)
+
+Latest result log tail:
+
+- `58ae17a	1.026004	41.1	keep	baseline`
+- `...`
+- `3eececc	0.980788	59.6	keep	increase aspect ratio to 96`
+- `f18c12f	0.980390	59.6	keep	reduce weight decay to 0.1`
+- `922f7ed	0.980322	59.6	keep	raise muon_initial_momentum to 0.97`
+
+Current working best config at [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std-spark-4h-rerun-7-20260513-101808/research-loop/editable/config.toml) includes:
+- `aspect_ratio = 96`
+- `total_batch_size = 262144`
+- `depth = 8`
+- `weight_decay = 0.1`
+- `muon_initial_momentum = 0.97`
+
+Current HEAD is:
+`922f7ed` on `research-loops/may13`, with many additional experiments logged and discarded based on `metrics.json` val_bpb comparisons.

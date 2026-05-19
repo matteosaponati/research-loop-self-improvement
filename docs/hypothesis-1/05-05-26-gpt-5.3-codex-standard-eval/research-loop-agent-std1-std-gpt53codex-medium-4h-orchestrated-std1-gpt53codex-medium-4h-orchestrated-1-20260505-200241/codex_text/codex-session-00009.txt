@@ -1,0 +1,168 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume immediately or initialize a fresh branch/baseline per your rules.
+
+I found an existing branch and prior memory directory, so I’ll resume instead of reinitializing. Next I’m reading `memory/results.tsv` and the `editable/` files to pick the next experiment from current best.
+
+I’ve identified the current best as `1.022814` (`f4c1ef3`, `unembedding_lr=0.005`). I’m now confirming `HEAD`, then I’ll apply one targeted change around that setting, commit it, run a 5-minute trial, and keep/reset strictly by `val_bpb`.
+
+I’m making a single-parameter experiment: increasing `unembedding_lr` from `0.005` to `0.006` while leaving everything else fixed, to test whether the output head benefits from slightly faster adaptation.
+
+I’m committing this edit now, then launching the timed run with output redirected to `run.log`.
+
+The training run is in progress under the 5-minute budget. I’m waiting for completion, then I’ll read `metrics.json`, log the result, and keep or reset based on improvement.
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..8e6762fa849901420b2cd3cca1c4b71bc3ca246d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Run is still executing normally. I’m continuing to wait without reading `run.log`, and will collect only `metrics.json` at finish.
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..8e6762fa849901420b2cd3cca1c4b71bc3ca246d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..8e6762fa849901420b2cd3cca1c4b71bc3ca246d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+I’m in the final stretch of this run window; once the process exits I’ll parse metrics and update `memory/results.tsv` immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..8e6762fa849901420b2cd3cca1c4b71bc3ca246d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run finished successfully. I’m now reading `metrics.json`, appending the TSV row, and then resetting this commit if it didn’t beat `1.022814`.
+
+This slightly improved the best score (`1.022813`), so I’m advancing from this commit and immediately testing the next nearby point: `unembedding_lr=0.007`.
+
+I’ve committed the second experiment and started its 5-minute training run now. I’ll keep monitoring until it exits, then log and keep/reset accordingly.
+
+The second run is still in progress and within expected runtime. I’m waiting for completion before collecting metrics and deciding keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..d698ae0b9e49f6bade424a333d3edac8a82d63ae
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.007
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+I’m in the final wait window for this run, then I’ll immediately parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..d698ae0b9e49f6bade424a333d3edac8a82d63ae
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.007
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+This run regressed, so I’m recording it as `discard` and resetting to the previous best commit before continuing the loop.
+
+Completed two experiments and applied keep/revert logic correctly.
+
+Current best remains improved:
+
+- Best commit: `aac1a7e`
+- Best `val_bpb`: `1.022813` (raw: `1.022812603`)
+- Peak VRAM: `41.1 GB`
+
+Experiments run this turn:
+
+1. `aac1a7e` (`keep`)
+- Change: `unembedding_lr 0.005 -> 0.006`
+- Result: `val_bpb=1.022813`, `peak_vram_mb=42060.447`
+
+2. `dbe07c1` (`discard`)
+- Change: `unembedding_lr 0.006 -> 0.007`
+- Result: `val_bpb=1.023338`, `peak_vram_mb=42060.447`
+- Action: reset branch back to `aac1a7e`
+
+`memory/results.tsv` has been updated with both rows, and git HEAD is now back on the best commit (`aac1a7e`).
+diff --git a/editable/config.toml b/editable/config.toml
+index 519a6ab8d45a2f65d163c75770a048e8ba2796d4..8e6762fa849901420b2cd3cca1c4b71bc3ca246d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.005
++unembedding_lr = 0.006
+ matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+tokens used
+32,770
+Completed two experiments and applied keep/revert logic correctly.
+
+Current best remains improved:
+
+- Best commit: `aac1a7e`
+- Best `val_bpb`: `1.022813` (raw: `1.022812603`)
+- Peak VRAM: `41.1 GB`
+
+Experiments run this turn:
+
+1. `aac1a7e` (`keep`)
+- Change: `unembedding_lr 0.005 -> 0.006`
+- Result: `val_bpb=1.022813`, `peak_vram_mb=42060.447`
+
+2. `dbe07c1` (`discard`)
+- Change: `unembedding_lr 0.006 -> 0.007`
+- Result: `val_bpb=1.023338`, `peak_vram_mb=42060.447`
+- Action: reset branch back to `aac1a7e`
+
+`memory/results.tsv` has been updated with both rows, and git HEAD is now back on the best commit (`aac1a7e`).

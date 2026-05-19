@@ -1,0 +1,204 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or do the full setup sequence exactly as specified.
+
+I found an existing initialized loop with prior results on `research-loops/may13`, so I’m resuming from the current best and moving directly to the next experiment by reading the editable code and configs.
+
+I’ve loaded the current configuration and history; next I’m checking the remaining training-loop logic to choose a targeted hyperparameter change likely to improve `val_bpb` within the same 5-minute budget.
+
+I have enough context now; I’ll run one focused experiment by nudging `embedding_lr` upward from `0.40` to `0.42` (best so far was found by reducing from higher values, and the current optimum could be near this point), then commit, run, and keep/reset based on `val_bpb`.
+
+I’m applying a single-parameter edit in `editable/config.toml` (`embedding_lr = 0.42`), then I’ll commit and launch the 5-minute run with output redirected to `run.log`.
+
+The experiment commit is in place; I’m running training now and will only read `metrics.json` for result collection when it finishes.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it crosses the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..3ac27daee938319461b43d802584e46416c3bf0b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.42
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Run is still active; I’m continuing to wait and monitoring elapsed time without inspecting `run.log`.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..3ac27daee938319461b43d802584e46416c3bf0b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.42
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+I’m still waiting on the training process; next step is to parse `metrics.json` and then keep or reset this commit based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..3ac27daee938319461b43d802584e46416c3bf0b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.42
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..3ac27daee938319461b43d802584e46416c3bf0b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.42
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The run completed successfully; I’m now reading `metrics.json`, appending to `memory/results.tsv`, and comparing against the current best to decide whether to keep this commit or reset it.
+
+The shell doesn’t have bare `python` available, so I’m re-running the metric parsing with `uv run` and continuing the keep/discard decision path.
+
+This run improved over the previous best (`1.024269` vs `1.024988`), so I’m keeping the commit and logging it as `keep` in `memory/results.tsv`.
+
+I’m immediately starting the next iteration from this new best by testing a small increase to `unembedding_lr` (`0.006` → `0.0065`) while keeping `embedding_lr=0.42`.
+
+I’m committing this second experiment now, then running another full 5-minute train/eval cycle and collecting metrics from `metrics.json`.
+
+The second run is active; I’m waiting for completion and will apply the same keep/discard gate against the current best `1.024269`.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..a82df38441b5812d689f8635f10137686f09bab8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
+-unembedding_lr = 0.006
++embedding_lr = 0.42
++unembedding_lr = 0.0065
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Training is still in progress, so I’m continuing to wait; once it exits I’ll read `metrics.json`, log to TSV, and keep or reset this commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..a82df38441b5812d689f8635f10137686f09bab8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,8 +32,8 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
+-unembedding_lr = 0.006
++embedding_lr = 0.42
++unembedding_lr = 0.0065
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run finished; I’m now reading `metrics.json`, recording this experiment, and deciding whether to keep the commit or reset to the previous best state.
+
+This candidate is worse than the best, so I’m reverting the branch tip to the prior best commit as required by the loop.
+
+I’m proceeding to the next iteration from the restored best commit, now testing `embedding_lr = 0.43` to probe whether the new optimum is slightly above `0.42`.
+
+The third experiment is running now; after it exits I’ll collect `metrics.json`, log into TSV, and keep/reset relative to `1.024269`.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..f12f49fb5e2976aca54f790b69ce125145aedc8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.43
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still in progress, so I’m continuing to wait for completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..f12f49fb5e2976aca54f790b69ce125145aedc8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.43
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Run completed; I’m recording the result and applying keep/discard logic now.
+
+This one is worse, so I’m resetting back to the current best commit and ending this cycle at the best-known state.
+
+Current loop state is active and up to date on branch `research-loops/may13`, with best commit kept at `9b69163`.
+
+Experiments run this cycle:
+1. `9b69163` (`embedding_lr: 0.40 -> 0.42`)  
+`val_bpb=1.024269`, `memory_gb=41.1`, `status=keep` (new best)
+2. `17d6e1c` (`unembedding_lr: 0.006 -> 0.0065`)  
+`val_bpb=1.024422`, `memory_gb=41.1`, `status=discard` (reset done)
+3. `8c17996` (`embedding_lr: 0.42 -> 0.43`)  
+`val_bpb=1.024831`, `memory_gb=41.1`, `status=discard` (reset done)
+
+`memory/results.tsv` has been appended for all runs, and the working tree is reset to the best-known state:
+- `HEAD = 9b69163`
+- best `val_bpb = 1.024269`
+diff --git a/editable/config.toml b/editable/config.toml
+index acd08b125fde149093f005eee493a7436cb43d36..f12f49fb5e2976aca54f790b69ce125145aedc8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.40
++embedding_lr = 0.43
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+tokens used
+40,978
+Current loop state is active and up to date on branch `research-loops/may13`, with best commit kept at `9b69163`.
+
+Experiments run this cycle:
+1. `9b69163` (`embedding_lr: 0.40 -> 0.42`)  
+`val_bpb=1.024269`, `memory_gb=41.1`, `status=keep` (new best)
+2. `17d6e1c` (`unembedding_lr: 0.006 -> 0.0065`)  
+`val_bpb=1.024422`, `memory_gb=41.1`, `status=discard` (reset done)
+3. `8c17996` (`embedding_lr: 0.42 -> 0.43`)  
+`val_bpb=1.024831`, `memory_gb=41.1`, `status=discard` (reset done)
+
+`memory/results.tsv` has been appended for all runs, and the working tree is reset to the best-known state:
+- `HEAD = 9b69163`
+- best `val_bpb = 1.024269`

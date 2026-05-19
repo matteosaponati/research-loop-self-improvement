@@ -1,0 +1,23 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized loop (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and now reading `editable/` plus prior results to choose the next experiment.
+
+I’ve identified the current best as `1.024269` (`9b69163`). Next I’m scanning the remaining training loop sections for high-impact knobs not yet tried, then I’ll make one targeted change and run it.
+
+I’m testing a higher logit softcap (`15 -> 30`) to reduce saturation during training and potentially improve final bpb at equal compute. I’ll patch `editable/config.toml`, commit, run, then keep or reset based on `metrics.json`.
+
+The experiment commit is in place. I’m running the 5-minute training job now with output redirected to `run.log`, then I’ll collect only `metrics.json` for evaluation.
+
+Training is still running in the background session; I’m monitoring it non-intrusively and will only read `metrics.json` once it exits.
+
+Run is still active and within the allowed window; I’m continuing to wait for completion before extracting metrics.
+
+No crash signal so far. I’ll keep waiting until the process exits or hits the timeout ceiling.
+
+The run completed successfully. I’m now reading `metrics.json`, appending this trial to `memory/results.tsv`, and deciding keep vs discard against the best `1.024269`.
+
+I got the new metrics (`val_bpb` is worse at `1.028748`). I’m finishing the best-value read and then I’ll log this as `discard` and reset the commit.
+
+I reverted to the best commit and recorded the discarded trial. I’m launching the next experiment now: reduce `muon_ns_steps` from `5` to `4` to trade a bit of orthogonalization for potentially better update noise/throughput.
+
+The harness is currently blocking new commits due a soft deadline gate, so this next trial cannot be started safely in the required commit-run-reset workflow. I’m reverting the uncommitted config edit and reporting the exact stop point.

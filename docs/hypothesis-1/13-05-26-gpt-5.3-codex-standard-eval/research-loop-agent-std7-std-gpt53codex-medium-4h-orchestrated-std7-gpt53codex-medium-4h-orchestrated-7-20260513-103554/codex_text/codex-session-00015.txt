@@ -1,0 +1,102 @@
+I’m starting the research loop by checking git state, prior memory, and the editable training/config files so I can either resume or initialize exactly as required.
+
+I found an existing branch and populated `memory/results.tsv`, so I’m resuming from current state and now reading `editable/train.py`, config files, and prior results to choose the next experiment.
+
+I’ve identified the current best (`1.024071`) and now I’m inspecting the scheduler/optimizer sections in `train.py` to make a targeted next change instead of blind sweeps.
+
+I’m going to run a focused config-only experiment next: introduce a tiny LR warmup (`warmup_ratio=0.01`) while keeping the current best schedule floor (`final_lr_frac=0.03`). Then I’ll commit, run, log metrics, and keep or reset based on `val_bpb`.
+
+I confirmed `memory/results.tsv` is not tracked by git, so a discard reset won’t erase the experiment log. I’m now applying the warmup tweak in `editable/config.toml` and committing it.
+
+The experiment commit is in place (`f0f5b8f`). I’m running the 5-minute training job now and will read only `metrics.json` for result collection.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it ever crosses the 10-minute safety limit.
+
+Still running normally. I’m continuing to wait for process exit, then I’ll parse `metrics.json` and update the results table.
+
+Run is still active within expected wall time. I’m waiting for it to finish before collecting metrics.
+
+I’m still waiting on completion; once it exits I’ll immediately compute keep/discard against the current best `1.024071`.
+
+The process is taking longer than expected startup-wise but remains under the 10-minute cap; I’m continuing to monitor and will enforce the cutoff if needed.
+
+I’m still blocked on this run finishing; once it exits I’ll proceed directly to metrics-only readout and branch decision.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then keeping or discarding this commit based on improvement.
+
+The warmup experiment was worse and has been discarded; branch is back at `e03aa13`. I’m launching the next experiment by increasing `muon_momentum_end` from `0.95` to `0.97` to test stronger late-training momentum.
+
+Second run is in progress for the momentum-end change; I’m monitoring it and will enforce the 10-minute failure cutoff if necessary.
+
+I’m still waiting on completion. After exit I’ll read `metrics.json`, log to TSV, and keep/reset automatically based on `val_bpb`.
+
+Run continues within expected duration; I’m monitoring until process exit before doing result collection.
+
+Still in-flight. I’ll continue polling and then apply the keep/discard rule immediately once metrics are written.
+
+The run is near expected completion time; I’m waiting for final exit and then collecting `metrics.json` only.
+
+This experiment regressed (`1.027201`), so I’m recording it as discard and resetting to the prior best commit to continue the loop from the strongest known state.
+
+Completed 2 new experiments and kept the branch on the current best commit.
+
+- Current branch/head: `research-loops/may13` @ `e03aa13`
+- Best `val_bpb` so far: `1.024071` (commit `e03aa13`)
+
+New experiments executed:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+```
+
+- Commit: `f0f5b8f`
+- Result: `val_bpb=1.024907`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Decision: `discard` (worse than best), reset to previous best
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+```
+
+- Commit: `0e7689a`
+- Result: `val_bpb=1.027201`, `peak_vram_mb≈41.1 GB`
+- Decision: `discard` (worse than best), reset to previous best
+
+`memory/results.tsv` has been updated with both discard rows.
+tokens used
+48,677
+Completed 2 new experiments and kept the branch on the current best commit.
+
+- Current branch/head: `research-loops/may13` @ `e03aa13`
+- Best `val_bpb` so far: `1.024071` (commit `e03aa13`)
+
+New experiments executed:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+```
+
+- Commit: `f0f5b8f`
+- Result: `val_bpb=1.024907`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Decision: `discard` (worse than best), reset to previous best
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+```
+
+- Commit: `0e7689a`
+- Result: `val_bpb=1.027201`, `peak_vram_mb≈41.1 GB`
+- Decision: `discard` (worse than best), reset to previous best
+
+`memory/results.tsv` has been updated with both discard rows.

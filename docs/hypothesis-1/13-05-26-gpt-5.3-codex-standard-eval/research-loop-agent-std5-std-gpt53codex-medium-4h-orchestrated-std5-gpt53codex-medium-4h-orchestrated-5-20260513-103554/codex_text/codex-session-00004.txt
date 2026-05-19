@@ -1,0 +1,64 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize branch/memory and run the baseline before proposing the next edit.
+
+I found an existing initialized run (`memory/results.tsv` already has results), so I’m resuming from current branch and reading `editable/` plus prior experiment history to choose the next mutation.
+
+I have the prior curve and current hyperparameters; next I’m quickly checking the optimizer/scheduler section in `train.py` to pick the most leverageable single change for the next run.
+
+I’m making a minimal next-step tuning move from the current best (`matrix_lr=0.025`): keep LR decay shape but stop at a small floor (`final_lr_frac=0.1`) so late training doesn’t collapse to near-zero updates.
+
+The shell doesn’t have plain `python` on PATH here, so I’ll apply the same config edit with `sed`, then commit and run.
+
+I committed the experiment (`a8c3dc5`) and I’m running the 5-minute training job now with full output redirected to `run.log`; after completion I’ll read only `metrics.json` and decide keep/discard.
+
+The run is in progress; I’m waiting for it to finish, then I’ll parse `metrics.json`, append the result row, and reset if it did not beat the best `1.023785`.
+
+Still running within budget. I’m continuing to wait for completion and will only inspect `run.log` if `metrics.json` is missing or invalid.
+
+I’m still waiting on the training process; once it exits I’ll immediately collect metrics and update `memory/results.tsv`.
+
+The process is still active and hasn’t hit the failure timeout; I’ll keep polling until it exits.
+
+The run completed successfully but regressed badly (`val_bpb` much worse than best), so I’m logging it as `discard` and resetting the branch to the previous best commit before starting the next idea.
+
+I noticed the reset landed on an older commit (`matrix_lr=0.0275`) rather than the best-known setting from the results table, so I’m checking commit history and returning to the best keep commit before continuing.
+
+I’ve restored the branch to the actual best commit (`df7a565`). Next experiment is a local sweep upward to `matrix_lr=0.026` to test whether the optimum is slightly above 0.025.
+
+I committed `c3cba35` and started the next timed run; once it exits, I’ll read `metrics.json`, append to `memory/results.tsv`, and keep or reset automatically.
+
+The second run is still active and within expected timing; I’m continuing to wait for completion before collecting metrics.
+
+I’m still waiting on the training process and will finalize this iteration as soon as it exits.
+
+Loop is running and resumed correctly from existing history.
+
+Completed this cycle:
+1. Ran experiment `a8c3dc5`: `final_lr_frac = 0.1` in [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml).  
+Result: `val_bpb=1.062338`, `memory_gb=41.1` → logged as `discard`, then reverted.
+
+2. Restored branch head to best known keep commit `df7a565` (`matrix_lr=0.025`).
+
+3. Ran experiment `c3cba35`: changed `matrix_lr` to `0.026` in [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml).  
+Result: `val_bpb=1.023690070007916`, `memory_gb=41.1` → improved vs previous best `1.023785`, logged as `keep`.
+
+Current best:
+- Commit: `c3cba35`
+- `val_bpb`: `1.023690`
+- Logged in [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/memory/results.tsv)
+tokens used
+29,836
+Loop is running and resumed correctly from existing history.
+
+Completed this cycle:
+1. Ran experiment `a8c3dc5`: `final_lr_frac = 0.1` in [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml).  
+Result: `val_bpb=1.062338`, `memory_gb=41.1` → logged as `discard`, then reverted.
+
+2. Restored branch head to best known keep commit `df7a565` (`matrix_lr=0.025`).
+
+3. Ran experiment `c3cba35`: changed `matrix_lr` to `0.026` in [editable/config.toml](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/editable/config.toml).  
+Result: `val_bpb=1.023690070007916`, `memory_gb=41.1` → improved vs previous best `1.023785`, logged as `keep`.
+
+Current best:
+- Commit: `c3cba35`
+- `val_bpb`: `1.023690`
+- Logged in [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std5-gpt53codex-medium-4h-orchestrated-5-20260513-103554/research-loop/memory/results.tsv)

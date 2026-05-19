@@ -1,0 +1,492 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can resume correctly or initialize a fresh branch/baseline.
+
+I found an existing `memory/` directory, so next I’m verifying whether `memory/results.tsv` already contains prior experiment rows to resume from the current branch without reinitializing.
+
+`memory/results.tsv` is missing, so I’ll initialize a fresh run: create a date-tagged research branch (with collision handling), verify data/tokenizer artifacts, initialize results TSV, then run the baseline.
+
+The data/tokenizer symlinks exist but showed no files at shallow depth, so I’m verifying whether targets are populated before deciding whether to run `immutable/prepare.py`.
+
+Data artifacts are present, so I’m creating `research-loops/may5`, initializing `memory/results.tsv`, and then starting the 5-minute baseline run.
+
+Baseline training is running in the background session; I’ll wait for completion, then read only `metrics.json` and record the baseline in `memory/results.tsv`.
+
+Still running. I’m continuing to wait and will collect metrics as soon as the process exits.
+
+Training is still in progress; I’m keeping the run alive and checking again for completion.
+
+No completion yet. I’ll keep polling until the run exits, then immediately parse `metrics.json`.
+
+Run is still active; continuing to wait for the final metrics writeout.
+
+Still running. I’ll keep polling and then log the baseline result once complete.
+
+The baseline job hasn’t exited yet; I’m continuing to wait.
+
+Still in progress. I’ll keep monitoring until process termination and then capture the JSON metrics.
+
+Approaching completion window now; I’m polling for exit and will record baseline immediately once done.
+
+The process is still active after the 5-minute training window, likely finishing shutdown/reporting; I’m waiting for clean exit and will enforce failure handling if it crosses 10 minutes total.
+
+Baseline finished successfully. I’m reading `metrics.json` and logging the baseline row in `memory/results.tsv`, then I’ll inspect `editable/` files to choose the first experiment.
+
+I’ve logged the baseline (`val_bpb=1.026432`). Next I’m reading `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and the results log to pick a targeted first optimization.
+
+I have enough context on config and optimizer, but I still need the remainder of the training loop in `train.py` to choose a safe high-impact tweak, so I’m reading that section now.
+
+I’m running a low-risk optimizer schedule experiment first: add a short warmup and slightly reduce embedding LR to stabilize early updates without changing throughput-critical code paths. I’ll patch `editable/config.toml`, show the unified diff, commit, then run.
+
+The experiment commit is in place (`6103e0b`). I’m launching the 5-minute run now and will evaluate strictly from `metrics.json` when it exits.
+
+Run is still active. I’m waiting for completion before reading and logging metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Training continues; I’ll keep polling and handle it as failure if it exceeds the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Still running normally. I’m continuing to wait for process exit and then parse `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Run is still in progress; I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Approaching completion window; I’m waiting for the final exit now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Still active after training budget; likely in finalization/eval. I’m continuing until clean exit and then recording the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..00266277f71ebcf4def2885db2cbdc1ed3735534
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+The run has exited cleanly. I’m comparing its `val_bpb` against the current best, appending a results row, and resetting to the prior commit if it didn’t improve.
+
+This experiment was worse, so I’m resetting the branch back to the previous kept commit and then I’ll continue with a different hypothesis.
+
+I reset to the kept code commit; now I’m verifying `memory/results.tsv` still contains the baseline and discard history after the reset so the loop state is preserved.
+
+I’m continuing with a second experiment: keep learning rates higher later in training by shortening warmdown and leaving a nonzero final LR floor, which often helps in short fixed-budget runs.
+
+Commit `64c9ac8` is ready; I’m running this experiment now and will record/keep-or-discard from `metrics.json` only.
+
+Second experiment is still training; I’m continuing to monitor until completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run remains active and within limits. I’ll keep polling and then log immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running; continuing to wait for clean completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training is still in progress near the end of budget; I’m waiting for finalization/eval to complete.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still active after budget, likely in shutdown/eval; I’m monitoring for exit and will apply keep/discard logic immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a3828b7c29b0e431f826ff13d4ac8565dc89a3a1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run has completed. I’m now recording the result, comparing against best `val_bpb`, and resetting if not improved.
+
+This experiment also regressed, so I’m resetting back to the best kept commit and preparing the next idea.
+
+Completed setup plus two experiments and applied keep/discard logic correctly.
+
+Current best remains baseline on commit `cfc6730`:
+- `val_bpb=1.026432`
+- `peak_vram_mb=42060.4` (`41.1 GB`)
+
+I ran and logged:
+- `6103e0b` `embedding_lr 0.45 + warmup_ratio 0.02` → `1.028127` (`discard`)
+- `64c9ac8` `warmdown_ratio 0.3 + final_lr_frac 0.2` → `1.030964` (`discard`)
+
+I reset back to `cfc6730` after each discard.  
+`memory/results.tsv` is up to date with all runs.
+tokens used
+64,882
+Completed setup plus two experiments and applied keep/discard logic correctly.
+
+Current best remains baseline on commit `cfc6730`:
+- `val_bpb=1.026432`
+- `peak_vram_mb=42060.4` (`41.1 GB`)
+
+I ran and logged:
+- `6103e0b` `embedding_lr 0.45 + warmup_ratio 0.02` → `1.028127` (`discard`)
+- `64c9ac8` `warmdown_ratio 0.3 + final_lr_frac 0.2` → `1.030964` (`discard`)
+
+I reset back to `cfc6730` after each discard.  
+`memory/results.tsv` is up to date with all runs.

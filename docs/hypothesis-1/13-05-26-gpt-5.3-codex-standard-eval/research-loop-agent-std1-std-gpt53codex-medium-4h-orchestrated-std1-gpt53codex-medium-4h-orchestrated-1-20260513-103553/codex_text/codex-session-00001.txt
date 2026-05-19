@@ -1,0 +1,108 @@
+I’m starting the research loop now by checking git state, whether `memory/results.tsv` already exists with prior runs, and the current branch so I can either resume or initialize correctly.
+
+No prior experiment ledger exists, so I’ll initialize a fresh loop: create a dated research branch, verify `.local` artifacts, initialize `memory/results.tsv`, then run and log baseline.
+
+Data and tokenizer artifacts are present. I’m creating `research-loops/may13`, initializing `memory/results.tsv` with header, and then launching the 5-minute baseline run.
+
+Baseline run is starting now; once it completes I’ll read only `metrics.json`, append the baseline row, and then move to the first experiment edit.
+
+The baseline process is still running past the first 5-minute window, likely including startup/compile overhead; I’m polling once more and will enforce the 10-minute timeout rule.
+
+The run completed successfully; I hit a local shell constraint (`python` not on PATH), so I’m reading `metrics.json` via `uv run python` and recording the baseline now.
+
+Baseline is logged (`1.024954`). I’m now reading `editable/` files and prior results to pick the highest-leverage first experiment before editing and committing.
+
+I’ve loaded config and most of `train.py`; next I’m scanning the remaining training loop and scheduler sections to choose a targeted change with highest chance to lower `val_bpb` in the fixed 5-minute budget.
+
+I’m making a focused first change in `editable/config.toml`: reduce `warmdown_ratio` so LR stays higher longer in this short 5-minute regime, then I’ll commit and run.
+
+Experiment commit is in place (`8bc950b`) and I’m launching the run now; after completion I’ll read `metrics.json`, log to TSV, and keep or reset based on `val_bpb`.
+
+Training is still active; I’m polling again and will terminate if it crosses the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+This trial regressed (`1.030233` vs best `1.024954`), so I’m discarding it by resetting to the previous commit and then I’ll continue with the next idea.
+
+I’m proceeding immediately with the next experiment from baseline: add a small LR warmup (`warmup_ratio = 0.02`) to reduce early-step instability without changing model size or throughput.
+
+Second experiment is committed (`e6e18c3`). I’m running it now and will log/keep-or-revert based on `metrics.json` once it finishes.
+
+The run is in progress; I’m waiting for completion and will apply the same metrics-only evaluation path.
+
+Research loop initialized and running correctly on `research-loops/may13`.
+
+Completed so far:
+- Baseline run logged:
+  - commit `54a313d`
+  - `val_bpb=1.024954`
+  - `memory_gb=41.1`
+  - status `keep`
+- Experiment 1:
+  - change: `warmdown_ratio 0.5 -> 0.2`
+  - commit `8bc950b`
+  - result `val_bpb=1.030233` (worse)
+  - logged as `discard`
+  - branch reset back to baseline commit `54a313d`
+- Experiment 2:
+  - change: `warmup_ratio 0.0 -> 0.02`
+  - commit `e6e18c3`
+  - run is currently in progress (`session_id=61335`)
+
+Current `memory/results.tsv` contains:
+- baseline keep
+- first experiment discard
+
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+tokens used
+28,984
+Research loop initialized and running correctly on `research-loops/may13`.
+
+Completed so far:
+- Baseline run logged:
+  - commit `54a313d`
+  - `val_bpb=1.024954`
+  - `memory_gb=41.1`
+  - status `keep`
+- Experiment 1:
+  - change: `warmdown_ratio 0.5 -> 0.2`
+  - commit `8bc950b`
+  - result `val_bpb=1.030233` (worse)
+  - logged as `discard`
+  - branch reset back to baseline commit `54a313d`
+- Experiment 2:
+  - change: `warmup_ratio 0.0 -> 0.02`
+  - commit `e6e18c3`
+  - run is currently in progress (`session_id=61335`)
+
+Current `memory/results.tsv` contains:
+- baseline keep
+- first experiment discard
+
+

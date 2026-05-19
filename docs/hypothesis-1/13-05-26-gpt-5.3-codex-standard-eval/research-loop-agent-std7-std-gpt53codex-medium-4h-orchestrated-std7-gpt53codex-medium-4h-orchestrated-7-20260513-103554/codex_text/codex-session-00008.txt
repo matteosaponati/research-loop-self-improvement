@@ -1,0 +1,116 @@
+I’m starting the research loop now: first I’ll detect whether this workspace is already initialized (`memory/results.tsv` with prior rows), then either resume or do fresh setup and baseline exactly as specified.
+
+This run is already initialized (existing `memory/results.tsv` with prior experiments), so I’m resuming directly from step 2 and selecting the next experiment from current best history.
+
+I’ve reviewed the full editable context and prior results. Next experiment will be a small adjacent LR sweep around the current best by lowering `matrix_lr` from `0.038` to `0.037` to test whether we can keep the same stability but reduce validation bpb slightly.
+
+I committed the experiment and I’m running the 5-minute training job now with output redirected to `run.log`; after completion I’ll read only `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+Training is in progress. I’m waiting for completion and will only parse `metrics.json` unless the run fails.
+
+Still running within budget window; I’m continuing to wait for the process to finish before collecting metrics.
+
+Run is still active; once it exits I’ll immediately read and record `metrics.json` and apply keep/discard via git.
+
+I’m still waiting on the training process; no crash signals so far. I’ll finalize this trial as soon as the command exits.
+
+The run completed successfully. I hit a small environment detail (`python` not on PATH) and switched to `uv run python` for metric parsing; now I’m extracting the final metrics and deciding keep/discard.
+
+This experiment improved `val_bpb` to `1.024978` (better than `1.025633`), so I’m keeping the commit and logging it in `memory/results.tsv` before launching the next iteration.
+
+I’m continuing immediately with a follow-up local sweep to `matrix_lr = 0.036` from the new best checkpoint to test whether the downward trend continues.
+
+Second run is now training; I’ll wait for completion, then record metrics and keep/reset according to `val_bpb`.
+
+Run is still active and healthy. I’ll continue waiting and then immediately collect `metrics.json` once it exits.
+
+Still running within expected wall-clock; I’m continuing to wait until completion before making keep/discard decision.
+
+The run just finished. I’m now reading `metrics.json`, appending the trial to `memory/results.tsv`, and reverting if it did not beat `1.024978`.
+
+Completed two experiment iterations and applied keep/discard logic.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index df9e0d6..7c4ce02 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.037
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 7c4ce02..7fc3e97 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.037
++matrix_lr = 0.036
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Experiment outcomes logged to [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/memory/results.tsv):
+- `dcb7a7c` -> `val_bpb=1.024978`, `memory_gb=41.1`, `keep` (`matrix_lr 0.037`)  
+- `52e656b` -> `val_bpb=1.025562`, `memory_gb=41.1`, `discard` (`matrix_lr 0.036`)
+
+Branch state after discard reset:
+- `HEAD` is `dcb7a7c` (current best)
+- Best `val_bpb` so far: **1.024978**
+tokens used
+56,953
+Completed two experiment iterations and applied keep/discard logic.
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index df9e0d6..7c4ce02 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.037
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 7c4ce02..7fc3e97 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.037
++matrix_lr = 0.036
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Experiment outcomes logged to [memory/results.tsv](/home/matteosaponati/worktrees/research-loops/hypothesis-1-first-batch/.local/harness/std7-gpt53codex-medium-4h-orchestrated-7-20260513-103554/research-loop/memory/results.tsv):
+- `dcb7a7c` -> `val_bpb=1.024978`, `memory_gb=41.1`, `keep` (`matrix_lr 0.037`)  
+- `52e656b` -> `val_bpb=1.025562`, `memory_gb=41.1`, `discard` (`matrix_lr 0.036`)
+
+Branch state after discard reset:
+- `HEAD` is `dcb7a7c` (current best)
+- Best `val_bpb` so far: **1.024978**

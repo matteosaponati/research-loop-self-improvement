@@ -1,0 +1,141 @@
+Starting the loop now: I’ll initialize branch/log state, check whether we’re already partway through experiments, run the required baseline only if needed, then begin proposal→edit→run→log cycles inside `editable/` and keep only improved commits.
+
+I confirmed this is already an initialized run with prior results, so I’ll skip setup/rebaseline and continue from this branch. Next I’m checking the current editable code and best-known config baseline from the latest kept commit context before proposing the next tweak.
+
+I’m going to start with one targeted schedule change first (`warmup_ratio`), since this often improves short-budget runs without altering compute/memory profile. I’ll do a single config edit, commit, run 5 minutes, then keep/discard based on `metrics.json`.
+
+Edit applied. Next I’ll run one full experiment from this commit, then read `metrics.json` only and append it to `memory/results.tsv`.
+
+The experiment run is still active. I’m waiting for completion and will then parse `metrics.json` directly.
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Run completed. I’ll pull the JSON metrics via the compact `metrics.json` output and then record it in `memory/results.tsv`.
+
+This experiment regressed (`val_bpb 0.982493` vs best 0.980415), so it’s logged as `discard`, and I’m resetting to the previous best commit before trying the next idea.
+
+Next I’ll try a learning-rate tail change: shorten warmdown from 0.50→0.35 so more steps stay at full LR before cooldown, which sometimes helps short fixed-time runs.
+
+The previous patch failed to apply due context mismatch; I’ll reapply the same change with a precise one-line edit and continue.
+
+Experiment is running. I’ll wait for it to finish, then read metrics and update the results table.
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Run finished; next I’m reading `metrics.json` for the new commit and will append it to the log with `discard`/`keep` depending on comparison to best.
+
+I’ll try one optimizer-physics change now: reduce `muon_initial_momentum` from 0.95 to 0.92 to test a gentler Muon start.
+
+This run is done; I’ll extract the compact metrics and record the outcome, then branch back because this one also appears non-improving.
+
+I’ll do one more small learning-rate probe around the already good `matrix_lr=0.035`, setting it to `0.0365` to see if this narrow-width change helps.
+
+Run completed. I’ll capture the run’s `val_bpb` and record this attempt before reverting if needed.
+
+I’ll probe another architecture point: lower aspect ratio slightly from `84` to `82` while keeping all tuned settings fixed, to see if we can shave below 0.9804.
+
+This was another full run; I’ll log the value and revert if it doesn’t beat the current best score of 0.980415.
+
+I’m trying one final schedule-side tweak: shorten `muon_momentum_warmup_steps` from 300→150 so momentum ramps sooner, which can improve utilization in this fixed 5‑minute regime.
+
+I’m waiting on this run and will log/rollback immediately after it completes and `metrics.json` is parsed.
+diff --git a/editable/config.toml b/editable/config.toml
+index f1d2ee3ad6cf8575c9c38e393c101f75ae5b4fe1..7c0223f64f569f6e9e8081e96e153f3e0f7d357d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+I’m testing one structural hypothesis: reduce `head_dim` to 96 (and `n_head` stays auto-derived) while keeping width/depth fixed, to see if attention packing changes help.
+
+This run finished; next I’ll read `metrics.json`, append it, and continue from the kept commit since we’re still searching.
+
+I’ll do one more optimizer-scale test by increasing `embedding_lr` slightly (`0.6`→`0.7`) to check whether the embedding path is under-trained in this configuration.
+
+Another run completed. I’ll collect the compact metrics, append to results, and return to the best-commit baseline.
+
+I’ll make one more low-risk learning-rate scaling probe: set `dmodel_lr_reference` to `900` to nudge embedding/unembedding LRs upward without changing overall architecture.
+
+Run complete, pulling metrics now and logging this attempt. Since no clear win appeared so far, I’m still following the strict keep/discard rule.
+
+I’m checking the updated `memory/results.tsv` and branch state so I can give you a compact status with the best-known result and each tested variant.
+
+I’ll do one last quick schedule sweep variant (`warmdown_ratio` to `0.6`) before pausing here, since one additional probe may still find a marginal gain.
+
+The environment hit its soft runtime guard (`574s remain; refusing git commit`), so the last planned edit wasn’t committed or run. I’m restoring `editable/config.toml` to the current best commit state and summarizing completed experiments.
+
+I’m checking whether that leftover config change is staged or only temporary, then I’ll clean it so the branch remains at the best known kept state.

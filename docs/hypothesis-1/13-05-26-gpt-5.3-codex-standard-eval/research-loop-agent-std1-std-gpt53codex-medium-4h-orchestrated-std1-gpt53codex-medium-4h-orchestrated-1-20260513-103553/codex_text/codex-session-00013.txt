@@ -1,0 +1,118 @@
+I’m starting the research loop now by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume or perform the required branch/setup/baseline sequence before proposing the next experiment.
+
+I found an existing initialized loop on branch `research-loops/may13` with prior results, so I’m resuming directly from step (2). Next I’m reading `editable/` and past results to choose the next targeted change.
+
+I’ve loaded prior experiments; current best is `1.022921` with `warmdown_ratio=0.6` and `unembedding_lr=0.0075`. I’m scanning the rest of `train.py` now for high-leverage knobs that haven’t been tried yet.
+
+I’m running one focused experiment next: increase `warmdown_ratio` slightly from `0.6` to `0.65` (the best so far was at `0.6`, while `0.7` was worse), to test whether a slightly longer LR tail helps. I’ll patch `editable/config.toml`, show the diff, commit, run, and record/decide keep vs revert.
+
+The change is committed as `9db0d46`; I’m launching the 5-minute training run now and will collect only `metrics.json` for evaluation.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it exceeds the timeout window.
+
+Run is still active and within budget; I’m continuing to wait for it to finish before reading `metrics.json`.
+
+I’m still waiting on the training process; no crash signal yet, so I’ll keep polling until it exits.
+
+The run remains in progress and within the `timeout 610s` guard; continuing to wait for termination and exit code.
+
+Waiting for final completion; once it exits I’ll parse `metrics.json`, append `memory/results.tsv`, and either keep or reset this commit.
+
+The process is taking longer than the pure 5-minute training window due to startup/eval overhead, but still under the hard 10-minute failure limit; I’m continuing to wait.
+
+The run finished successfully, but `python` isn’t on PATH in this shell; I’m re-running the metrics parsing with `uv run python` and then applying keep/discard logic.
+
+I’ve discarded that trial and reset to the best commit `5bb02aa`. Next experiment will target optimizer adaptation speed by lowering `muon_beta2` from `0.95` to `0.90`, which may help within the short 5-minute horizon.
+
+I committed `f5a814e` and started the next timed run; after completion I’ll read `metrics.json`, append to `memory/results.tsv`, and keep or discard accordingly.
+
+The second run is still executing normally; I’m continuing to wait and will enforce the timeout if needed.
+
+Training remains in progress within limits; I’ll keep polling until it exits and then record the metrics.
+
+Still running; startup plus evaluation can extend wall time beyond the 300s training window, so I’m waiting for normal completion.
+
+I’m at the tail end of this run window and still waiting for the process to exit cleanly before extracting metrics.
+
+Both recent trials were worse and have been reverted. I’m launching a third experiment by slightly increasing `warmup_ratio` from `0.01` to `0.015` to test smoother early optimization without changing the late schedule.
+
+The warmup-ratio run is now active; I’m waiting for completion, then I’ll log metrics and keep/discard automatically.
+
+Run is still in progress and healthy; continuing to wait for process exit.
+
+I’m near the expected end of this timed run; waiting for final exit so I can capture `metrics.json`.
+
+Still running under the timeout guard; I’ll keep waiting and then apply the same result logging/reset logic immediately on completion.
+
+Completed 3 new experiments and logged all of them to `memory/results.tsv`. All were worse than current best, so each was discarded and branch was reset after each run.
+
+Current branch head: `5bb02aa`  
+Current best `val_bpb`: `1.022921` (unchanged)
+
+Experiments run:
+
+```diff
+commit 9db0d46
+--- a/editable/config.toml
++++ b/editable/config.toml
+-warmdown_ratio = 0.6
++warmdown_ratio = 0.65
+```
+Result: `val_bpb=1.025068`, `memory_gb=41.1`, `status=discard` (reset)
+
+```diff
+commit f5a814e
+--- a/editable/config.toml
++++ b/editable/config.toml
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+```
+Result: `val_bpb=1.023882`, `memory_gb=41.1`, `status=discard` (reset)
+
+```diff
+commit 7870a67
+--- a/editable/config.toml
++++ b/editable/config.toml
+-warmup_ratio = 0.01
++warmup_ratio = 0.015
+```
+Result: `val_bpb=1.024470`, `memory_gb=41.1`, `status=discard` (reset)
+
+`memory/results.tsv` has been updated with these three rows.
+tokens used
+68,197
+Completed 3 new experiments and logged all of them to `memory/results.tsv`. All were worse than current best, so each was discarded and branch was reset after each run.
+
+Current branch head: `5bb02aa`  
+Current best `val_bpb`: `1.022921` (unchanged)
+
+Experiments run:
+
+```diff
+commit 9db0d46
+--- a/editable/config.toml
++++ b/editable/config.toml
+-warmdown_ratio = 0.6
++warmdown_ratio = 0.65
+```
+Result: `val_bpb=1.025068`, `memory_gb=41.1`, `status=discard` (reset)
+
+```diff
+commit f5a814e
+--- a/editable/config.toml
++++ b/editable/config.toml
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+```
+Result: `val_bpb=1.023882`, `memory_gb=41.1`, `status=discard` (reset)
+
+```diff
+commit 7870a67
+--- a/editable/config.toml
++++ b/editable/config.toml
+-warmup_ratio = 0.01
++warmup_ratio = 0.015
+```
+Result: `val_bpb=1.024470`, `memory_gb=41.1`, `status=discard` (reset)
+
+`memory/results.tsv` has been updated with these three rows.

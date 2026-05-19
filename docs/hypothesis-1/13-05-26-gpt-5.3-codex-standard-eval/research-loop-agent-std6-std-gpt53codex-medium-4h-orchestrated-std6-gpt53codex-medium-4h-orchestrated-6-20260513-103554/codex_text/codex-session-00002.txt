@@ -1,0 +1,92 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your setup rules.
+
+The workspace is already initialized with prior results, so I’m resuming from the current branch and moving directly to proposing the next experiment by reading `editable/` and `memory/results.tsv`.
+
+I’ve loaded the prior history and current hyperparameters; next I’m checking the remaining parts of `editable/train.py` for schedule details so I can make a targeted change likely to improve `val_bpb`.
+
+I found a likely lever in the schedule: LR currently decays to zero over the last 50% of timed training, which can under-train in a short 5-minute budget. I’m testing a less aggressive decay by shortening warmdown and keeping a nonzero final LR.
+
+The experiment commit is ready; I’m running the 5-minute training job now and will read `metrics.json` only when it finishes.
+
+Training is in progress under a timeout guard; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+Still running cleanly. I’m continuing to wait on the process and will capture the metric snapshot as soon as it exits.
+
+Run is still active. I’m polling until completion, then I’ll decide keep vs discard against the current best `1.025232`.
+
+I’m still waiting on the training process; once it exits I’ll immediately extract `val_bpb` and memory from `metrics.json` and log the result.
+
+The job is taking expected wall-clock time with compile/startup overhead. I’m continuing to wait and will treat it as failure only if it crosses the 10-minute cap.
+
+I’m on the final waiting window now; next step is result extraction and branch decision as soon as the process exits.
+
+Training completed successfully. I’m now reading `metrics.json`, logging the row in `memory/results.tsv`, and applying keep/discard by comparing against the best prior `val_bpb`.
+
+This run regressed (`1.029937` vs best `1.025232`), so I’m discarding the experiment commit, resetting to the previous kept commit, and then recording the discarded result in `memory/results.tsv`.
+
+I’m continuing the loop with a new experiment from the restored best commit: probing a slightly lower `matrix_lr` to see if the improvement trend continues beyond `0.035`.
+
+Commit is in place; I’m running this experiment now and will evaluate it strictly from `metrics.json` when the run exits.
+
+Second run is in progress under the same timeout cap. I’ll keep polling and then log/keep-or-discard immediately on completion.
+
+Still running normally; continuing to wait for the training process to finish.
+
+Run is still active; I’m waiting on completion before extracting metrics and making the branch decision.
+
+I’m still waiting; once the process exits, I’ll parse `metrics.json`, append to TSV, and either keep this commit or reset it.
+
+Waiting on the final stretch of this run now; next action is immediate metrics-based keep/discard.
+
+Process is still alive within limits. I’ll continue polling until it exits or hits the timeout cap.
+
+This one improved the best metric, so I’m keeping the commit and appending it to `memory/results.tsv` as the new branch tip.
+
+Completed two autonomous experiments and updated the loop state.
+
+Current branch head: `4c71541`  
+Current best `val_bpb`: `1.024655` (improved from `1.025232`)
+
+Experiments run:
+1. `281ad12`  
+   - Change: `warmdown_ratio 0.5 -> 0.3`, `final_lr_frac 0.0 -> 0.2`  
+   - Result: `val_bpb=1.029937`, `memory_gb=41.1`  
+   - Decision: `discard` (reset to previous best)
+
+2. `4c71541`  
+   - Change: `matrix_lr 0.035 -> 0.032`  
+   - Result: `val_bpb=1.024655`, `memory_gb=41.1`  
+   - Decision: `keep` (new best)
+
+`memory/results.tsv` has been appended accordingly and is now:
+
+- `6ef85a6	1.025893	41.1	keep	baseline`
+- `b61c402	1.027068	41.1	discard	add 8% LR warmup`
+- `5f8d38e	1.025232	41.1	keep	reduce matrix_lr to 0.035`
+- `281ad12	1.029937	41.1	discard	shorten LR warmdown to 30% and keep 20% LR floor`
+- `4c71541	1.024655	41.1	keep	lower matrix_lr to 0.032`
+tokens used
+39,361
+Completed two autonomous experiments and updated the loop state.
+
+Current branch head: `4c71541`  
+Current best `val_bpb`: `1.024655` (improved from `1.025232`)
+
+Experiments run:
+1. `281ad12`  
+   - Change: `warmdown_ratio 0.5 -> 0.3`, `final_lr_frac 0.0 -> 0.2`  
+   - Result: `val_bpb=1.029937`, `memory_gb=41.1`  
+   - Decision: `discard` (reset to previous best)
+
+2. `4c71541`  
+   - Change: `matrix_lr 0.035 -> 0.032`  
+   - Result: `val_bpb=1.024655`, `memory_gb=41.1`  
+   - Decision: `keep` (new best)
+
+`memory/results.tsv` has been appended accordingly and is now:
+
+- `6ef85a6	1.025893	41.1	keep	baseline`
+- `b61c402	1.027068	41.1	discard	add 8% LR warmup`
+- `5f8d38e	1.025232	41.1	keep	reduce matrix_lr to 0.035`
+- `281ad12	1.029937	41.1	discard	shorten LR warmdown to 30% and keep 20% LR floor`
+- `4c71541	1.024655	41.1	keep	lower matrix_lr to 0.032`

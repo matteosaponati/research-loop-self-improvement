@@ -1,0 +1,215 @@
+I’ll first check whether this is a fresh or resumed run, set up the research branch if needed, verify data/tokenizer presence, inspect the editable scope files once, and then run the baseline from `editable/train.py` before proposing the first change.
+
+I confirmed this is a fresh run (`memory/results.tsv` missing), so I’m creating a dated research branch and then checking data/tokenizer presence before initializing the experiment log and running the baseline.
+
+I’ve loaded the core training and config files and confirmed the branch/setup is ready. Next step is baseline logging, then I’ll start first experimental change with versioned commits.
+
+Baseline run finished without interactive output. I’m now reading `metrics.json` and logging that first result row, then I’ll try a conservative architecture/training tweak.
+
+Baseline is recorded at commit `58ae17a` with `val_bpb=1.025795`, `41.1 GB`, and status `keep`. Next I’m proposing a targeted edit in `editable/train.py` to improve throughput/stability and then running an A/B experiment.
+
+I made the first experimental change (halved effective global batch to `262144`) and committed it as `2f334fd`. I’ll now run training and log the result comparison against baseline.
+
+Baseline done, first experiment is finished. I’m reading `metrics.json` now and will append its result to `memory/results.tsv`, then compare and either keep or revert.
+
+Current best moved to `1.010907` after doubling update frequency. Next trial will target throughput efficiency by halving context length to increase update count while keeping batch constant (`sequence_len: 1024`).
+
+This run completed; I’ll collect its `metrics.json` and decide keep/discard versus the current best `1.010907`.
+
+That experiment worsened `val_bpb`, so I’ll discard it with `git reset --hard 2f334fd`, restore the best-performing state, and continue with a new single-parameter learning-rate tweak.
+
+First LR-floor experiment is in; I’m reading the metrics now and logging it before keep/discard decision.
+
+This change did not beat best (`1.010907`), so I’m recording it as `discard`, then resetting back to the current best commit before the next trial.
+
+Next I’ll test a short learning-rate warmup (`warmup_ratio = 0.05`) from the best checkpoint, then evaluate if it improves over `1.010907`.
+
+Warmup run has finished. I’ll capture metrics and then either keep it as new best or revert.
+
+I’m moving to a throughput-oriented batch-size topology: keep sequence length at 2048 but halve both `total_batch_size` and `device_batch_size` (`262144 -> 131072`, `128 -> 64`) to increase update cadence and test whether that improves validation bits-per-byte.
+
+The smaller-batch variant did not improve. I’m now testing a regularization adjustment only (`weight_decay = 0.1`) from the current best state.
+
+This one improved `val_bpb`, so it becomes the new best. I’ve logged it with status `keep` and will continue experiments from this checkpoint.
+
+Next hypothesis: with the lower batch regime, decay may still be too strong. I’ll test `weight_decay = 0.05` as a one-variable follow-up from the current best.
+
+`weight_decay = 0.05` regressed, so I’m marking it as `discard` and reverting to `bf26105` (`weight_decay = 0.1`).
+
+I’ll keep exploring optimizer space now and test a single change to the matrix learning rate (`matrix_lr = 0.05`) while retaining the current best decay/geometry settings.
+
+`matrix_lr=0.05` didn’t improve. I’ll log it as `discard` and reset again to `bf26105` for the next run.
+
+I’ll now test a controlled output-head learning-rate adjustment (`unembedding_lr = 0.005`) to see if the slightly faster head adaptation helps `val_bpb`.
+
+This is a new improvement (`1.009579`), so this configuration is kept as the new baseline for subsequent tests. I’ll record it and continue with a nearby LR sweep.
+
+Next I’ll probe the same direction with `unembedding_lr = 0.006` to test for further gains while preserving all other best settings.
+
+`unembedding_lr = 0.006` got worse, so I’m logging it as `discard` and rolling back to `d9d03fc`.
+
+Current best is `1.009579` (`d9d03fc`). I’ll now test one adjacent change: reduce embedding optimizer LR to `0.5` to rebalance head vs embedding updates.
+
+`embedding_lr = 0.5` is a regression, so I’ll log/discard it and reset to `d9d03fc`.
+
+I’ll try a small architectural-regularization tweak now: lower `softcap` from `15.0` to `10.0` while keeping the current best learning-rate settings.
+
+Softcap adjustment improved metrics (`1.009360`), so I’m keeping this as the new best and proceeding with it.
+
+This is the best so far. I’ll probe one nearby point (`softcap = 8.0`) to see if this trend continues.
+
+`softcap = 8.0` was worse; I’ll test a nearby upward value (`softcap = 12.0`) while staying on the best `softcap=10` commit.
+
+This improved again (`1.009012`), so `softcap = 12.0` is now the leading result. I’ll keep this commit and continue exploring other one-step changes for further gains.
+
+I’ll test the next plausible neighboring point (`softcap = 13.0`) from the current best to check whether the optimum lies above 12.0.
+
+I’ll try a tokenizer/positional-side change next: reduce `rotary_seq_len_multiplier` from `10` to `8` to see if shorter precomputed positional span helps quality/perf at fixed budget.
+
+This setting improved `val_bpb` again to `1.008937`, so it becomes the new best configuration. I’ll log it and keep running more trials from here.
+
+I’ll test `rotary_seq_len_multiplier = 9` as a nearby point to check if the benefit is monotonic around the new optimum.
+
+`rotary_seq_len_multiplier = 9` is worse, so I’ll test the next point (`7`) to see if shorter rotary scaling continues to help versus `8`.
+
+I’ll now probe Muon optimizer dynamics by testing a small increase in `muon_initial_momentum` (`0.95 -> 0.96`) to see if the best score can be pushed lower.
+
+I’ve completed another trial run; I’m polling for completion and then reading `metrics.json` to determine keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m testing a symmetric direction now by lowering `muon_initial_momentum` to `0.9`; if this worsens, it reinforces the default 0.95 choice.
+
+Running the second momentum sweep now; I’ll collect the result when this run exits and update the experiment log immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’ll test one scale-control parameter next: `dmodel_lr_reference = 1024` (instead of 768), which increases LR scaling for this smaller model and may further improve convergence in the 5-minute regime.
+
+I’m testing the opposite LR-scaling point now (`dmodel_lr_reference = 512`), which lowers the effective learning rates for this 512-dim model.
+
+I’ll test a mild capacity bump next: increase depth from `8 -> 9` while keeping the current tuned settings, to see if extra layer capacity helps 5-minute perplexity.
+
+Running this depth-up experiment now.
+
+Depth experiment has completed; I’m reading `metrics.json` now and applying keep/discard based on `val_bpb`.
+
+Depth `9` produced a major improvement (`0.987636`, despite higher VRAM). Marking this as new best and continuing with depth-based experiments.
+
+Now on the new best (`0.987636`), I’ll test `depth = 10` to check if the accuracy trend continues with one more Transformer layer.
+
+Since `depth=9` is leading, I’ll probe representational shape next by reducing `head_dim` to `64` (keeping `depth=9`, `sequence_len=2048`, and tuned scalar settings) to test a higher-head-count attention variant.
+
+I’m waiting for the head-dimension experiment to finish, then I’ll record the result and either keep or revert immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’ll test if the rotary span still benefits depth9 by switching `rotary_seq_len_multiplier` to `9` from the current best `8` and checking for further gains.
+
+This improved slightly (`0.987573`), so `rotary_seq_len_multiplier = 9` with depth9 is now the new best. I’ll continue probing nearby values from here.
+
+I’m checking the immediate next point (`rotary_seq_len_multiplier = 10`) to verify whether the improvement is still trending upward for depth9.
+
+This is another improvement (`0.987346`). I’ll keep this as the best and continue with nearby sweeps.
+
+I’ll run one more nearby step at `rotary_seq_len_multiplier = 11` to see if this improvement trend continues.
+
+I’ll do one more point, `rotary_seq_len_multiplier = 12`, to map whether this trend is still improving or starting to reverse.
+
+`rotary_seq_len_multiplier = 12` regressed, and I’m now explicitly resetting to the best-performing `e38af31` commit (`rotary_seq_len_multiplier = 11`, depth 9) before more experiments.
+
+Continuing from best commit `e38af31`, I’ll retest `unembedding_lr = 0.006` in this depth-9 setup to see if further head-speedups appear at the improved capacity.
+
+I’ll test `unembedding_lr = 0.007` next to check if the improvement with larger head LR continues beyond 0.006.
+
+Running `unembedding_lr=0.007` now.
+
+I’m waiting for that run; then I’ll compare and decide whether to keep or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’ll probe one neighboring scalar now: set `softcap = 13.0` with the current best configuration (`depth=9`, `rotary=11`, `unembedding_lr=0.006`) to map optimum around the logit cap.
+
+`softcap=13` run completed; I’m fetching metrics and updating `memory/results.tsv`.
+
+`softcap=13` improved further to `0.986865`. This becomes the new best; I’ll keep it and continue nearby exploration.
+
+`softcap = 14.0` improved again (`0.986617`). I’ll keep this and continue one more incremental step.
+
+I’ll try `softcap = 15.0` (back up one step from the new best) to ensure we haven’t passed the optimum.
+
+`softcap = 15` is slightly worse; I’m logging it as discarded and resetting back to `154c93f` (the `0.986617` best).
+
+I’m testing one optimizer-scale tweak on the current best: increase `matrix_lr` from `0.04` to `0.045` while holding the depth9/rotary11/softcap14 setup.
+
+I’m testing the opposite direction for matrix updates: `matrix_lr = 0.035` while keeping the current best architecture/hyperparameters.
+
+I’ll test a small decay tweak from the best point: `weight_decay = 0.08` with `depth=9`, `rotary=11`, `softcap=14`, `unembedding_lr=0.006`.
+
+I’ll try the opposite decay direction with `weight_decay = 0.12` to check if we’re on a local optimum and whether slightly stronger regularization helps.
+
+A commit attempt was blocked by the harness soft-deadline safeguard, so I’m reverting the in-progress edit and keeping the current best state as final unless you want me to continue once more resources are available.
+
+I need to confirm workspace state now; I’ll quickly re-check status and ensure only the expected `metrics.json` remains untracked.
