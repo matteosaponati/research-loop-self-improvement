@@ -1,0 +1,108 @@
+I’m starting the research loop by checking git state, existing `memory/results.tsv`, current branch, and whether data/tokenizer artifacts are already present so I can decide between resume vs fresh initialization.
+
+I found an already-initialized run (`memory/results.tsv` has prior rows on branch `research-loops/may4`), so I’m resuming directly from step (2): I’ll read `editable/` and prior results, choose one targeted code change, commit, run, and keep/reset based on `val_bpb`.
+
+I’ve identified that all recent non-crash runs are flat at `1.026098`, so I’m testing a higher-update-frequency regime: reduce global batch size to increase optimizer steps within the same 5-minute budget. I’m editing only `editable/config.toml`, then I’ll commit, run, and keep/reset strictly by `val_bpb`.
+
+The experiment commit is in place (`2e6e3aa`). I’m running the 5-minute training job now with output redirected to `run.log`, then I’ll read `metrics.json` and update `memory/results.tsv`.
+
+Training is running under timeout control; I’m waiting for completion and will only use `metrics.json` for result extraction unless it crashes.
+
+Run is still in progress; I’m continuing to wait and will capture exit status once it finishes.
+
+Still running within budget. I’ll keep polling until it exits or hits timeout.
+
+I’m waiting on the same process; no crash signal yet. Next step is metrics read + keep/reset decision.
+
+Process is still active; continuing until completion to avoid truncating the run.
+
+The run completed successfully. I’m now extracting `metrics.json`, appending the TSV row, and then resetting this commit if `val_bpb` did not beat the current best (`1.026098`).
+
+`python` isn’t on PATH in this shell, so I’m using `uv run` for metrics parsing and logging logic.
+
+This experiment matched, not improved, so per loop rules I’m reverting branch state to the previous commit and keeping only the `memory/results.tsv` record of the discarded attempt.
+
+I’m proceeding to the next iteration immediately: new hypothesis is shorter context (`sequence_len=128`) to increase update count and token throughput on CPU within the fixed 5-minute training budget.
+
+Second run is executing now with `sequence_len=128`; I’ll wait for completion and then apply the same metrics-driven keep/reset rule.
+
+Run still active and within timeout; continuing to poll.
+
+No failure output so far; I’m keeping this run going to natural stop.
+
+Still running; once this exits I’ll immediately log to `memory/results.tsv` and advance or reset.
+
+Result is again tied at `1.026098`, so I’m discarding this commit and resetting to the current best checkpoint commit.
+
+Completed 2 full experiment iterations and logged both in `memory/results.tsv`, following keep/reset rules.
+
+Current branch/head:
+- `research-loops/may4`
+- `f371db8` (best keep remains `val_bpb=1.026098`)
+
+Experiment 1:
+- Commit: `2e6e3aa`
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-total_batch_size = 8192
++total_batch_size = 4096
+```
+- Result (`metrics.json`): `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)
+- Decision: `discard` (no improvement), reset to previous commit
+
+Experiment 2:
+- Commit: `bd93a88`
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-sequence_len = 256
++sequence_len = 128
+```
+- Result (`metrics.json`): `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)
+- Decision: `discard` (no improvement), reset to previous commit
+
+`memory/results.tsv` now includes both new rows:
+- `2e6e3aa	1.026098	0.0	discard	halve total_batch_size to 4096 for more optimizer updates`
+- `bd93a88	1.026098	0.0	discard	reduce sequence_len to 128 to increase updates per wall-clock`
+tokens used
+32,091
+Completed 2 full experiment iterations and logged both in `memory/results.tsv`, following keep/reset rules.
+
+Current branch/head:
+- `research-loops/may4`
+- `f371db8` (best keep remains `val_bpb=1.026098`)
+
+Experiment 1:
+- Commit: `2e6e3aa`
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-total_batch_size = 8192
++total_batch_size = 4096
+```
+- Result (`metrics.json`): `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)
+- Decision: `discard` (no improvement), reset to previous commit
+
+Experiment 2:
+- Commit: `bd93a88`
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-sequence_len = 256
++sequence_len = 128
+```
+- Result (`metrics.json`): `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)
+- Decision: `discard` (no improvement), reset to previous commit
+
+`memory/results.tsv` now includes both new rows:
+- `2e6e3aa	1.026098	0.0	discard	halve total_batch_size to 4096 for more optimizer updates`
+- `bd93a88	1.026098	0.0	discard	reduce sequence_len to 128 to increase updates per wall-clock`

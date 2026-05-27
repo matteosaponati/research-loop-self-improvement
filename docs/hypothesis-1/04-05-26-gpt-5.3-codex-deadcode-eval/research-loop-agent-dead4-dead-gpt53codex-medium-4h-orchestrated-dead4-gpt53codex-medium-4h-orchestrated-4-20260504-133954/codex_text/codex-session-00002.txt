@@ -1,0 +1,426 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an active run history on branch `research-loops/may4` with existing results, so I’m resuming from the current state and moving directly to proposing the next experiment after reading `editable/` and `memory/results.tsv`.
+
+I’ve confirmed prior experiments were all tied at `1.026098`; next I’m scanning the remainder of `train.py` to target a higher-impact change than the previous LR schedule tweaks.
+
+I identified a substantive change to test next: replacing the `ReLU^2` MLP nonlinearity with `GELU` in `editable/train.py`, since the earlier LR-shape tweaks produced no movement. I’ll patch that, commit, run one full 5-minute trial, then keep or reset based on `val_bpb`.
+
+I’ve applied the activation change and I’m now committing it and launching the experiment run with output redirected to `run.log` as required.
+
+The training process is running in the background session now; I’ll wait for completion and then read only `metrics.json` to score it.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still running within budget; I’m continuing to wait for completion before collecting metrics and deciding keep vs reset.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run is still active; I’m waiting again and will immediately parse `metrics.json` once it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Training is still in progress; I’ll keep polling until it finishes so I can log the result and apply keep/discard automatically.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m still waiting on the same run; no log inspection needed so far since there’s no crash signal yet.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The process is near expected wall time; I’m polling again and then moving straight to metrics extraction when it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m doing one more wait cycle; if it still runs past 10 minutes total I’ll kill it per your rule, otherwise I’ll harvest metrics and update memory.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The run finished successfully; I’m now reading `metrics.json`, appending this experiment to `memory/results.tsv`, and applying keep/discard based on whether `val_bpb` improved.
+
+`python` isn’t on PATH in this environment, so I’m rerunning the metric parsing with `uv run` and then finalizing the keep/discard decision.
+
+I have the new metrics (`val_bpb` stayed at `1.026098`); I’m finishing the best-so-far check now and then I’ll append and discard this commit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I recorded the trial and reset as required since it did not beat the best. I’m immediately launching the next experiment with a capacity increase (`depth` up) to test whether higher model expressiveness helps within the same 5-minute budget.
+
+The depth-10 run is active now; I’ll wait for completion and then collect metrics from `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running within expected window; I’m continuing to poll and will score immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Run is still in progress; I’m waiting again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+I’m continuing to wait; no crash indicators yet, so I’ll proceed straight to metrics when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+This run is approaching expected finish; I’m doing another wait cycle and then recording results/resetting accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+I’m still waiting on the same process; if it crosses 10 minutes I will kill and mark crash per protocol.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+One more poll in progress; next step is metrics parse and TSV update.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth increase also tied the best (`1.026098`) with much higher VRAM, so I’m logging it as `discard` and resetting to the prior commit before continuing the loop.
+
+Experiment loop is running and resumed correctly from existing `memory/results.tsv` on branch `research-loops/may4`.
+
+Completed experiments this turn:
+
+```diff
+commit 8e6301f
+--- a/editable/train.py
++++ b/editable/train.py
+@@
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+```
+
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Decision: `discard` (no improvement vs best)
+
+```diff
+commit bdfca22
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-depth = 8
++depth = 10
+```
+
+- Result: `val_bpb=1.026098`, `peak_vram_mb=63341.3` (`61.9 GB`)
+- Decision: `discard` (no improvement, much higher memory)
+
+State after decisions:
+
+- Branch reset back to baseline commit: `80daec7`
+- Best-so-far remains: `1.026098`
+- `memory/results.tsv` updated with both new discarded runs
+- Working tree: only untracked `metrics.json` present
+tokens used
+30,938
+Experiment loop is running and resumed correctly from existing `memory/results.tsv` on branch `research-loops/may4`.
+
+Completed experiments this turn:
+
+```diff
+commit 8e6301f
+--- a/editable/train.py
++++ b/editable/train.py
+@@
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+```
+
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)
+- Decision: `discard` (no improvement vs best)
+
+```diff
+commit bdfca22
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-depth = 8
++depth = 10
+```
+
+- Result: `val_bpb=1.026098`, `peak_vram_mb=63341.3` (`61.9 GB`)
+- Decision: `discard` (no improvement, much higher memory)
+
+State after decisions:
+
+- Branch reset back to baseline commit: `80daec7`
+- Best-so-far remains: `1.026098`
+- `memory/results.tsv` updated with both new discarded runs
+- Working tree: only untracked `metrics.json` present

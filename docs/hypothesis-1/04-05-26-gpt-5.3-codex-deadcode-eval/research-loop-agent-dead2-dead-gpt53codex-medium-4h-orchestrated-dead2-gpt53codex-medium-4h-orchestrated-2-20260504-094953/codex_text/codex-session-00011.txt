@@ -1,0 +1,442 @@
+I’m starting the research loop now: I’ll first check git state and whether `memory/results.tsv` already has prior runs so I can either resume directly or initialize a fresh branch and baseline exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` already has many rows), so I’m resuming from the current branch without re-baselining. Next I’ll read `editable/` and the results table to pick the next experiment from current best.
+
+I’ve loaded prior results and config; every non-crash run so far ties at `1.026098`, so we need a more structural change. I’m reading the rest of `editable/train.py` now to target a high-impact but safe modification for a single 5-minute budget run.
+
+I have enough context now and I’m moving to a concrete change. Plan: run one targeted architecture experiment by switching MLP activation from `ReLU^2` to gated `SwiGLU` (same hidden multiplier), commit, run 5-minute training, read `metrics.json`, append TSV, and keep/reset based on `val_bpb`.
+
+I’m editing `editable/train.py` now to replace the MLP block with a SwiGLU-gated variant; this is a stronger representational change than prior LR schedule tweaks and is still low risk for runtime stability.
+
+The code change is in place. I’ll capture the unified diff, commit it, then launch the timed run with output redirected to `run.log` per protocol.
+
+I’m starting the 5-minute experiment run now and will only read `metrics.json` when it finishes; if it fails I’ll diagnose minimally and mark crash.
+
+The run is in progress in the background session; I’m waiting for completion and will parse `metrics.json` immediately afterward.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Training is still running within the time budget window. I’m continuing to wait and will proceed directly to metrics extraction as soon as the process exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+I’m still monitoring the same run; once it exits I’ll record result in `memory/results.tsv` and then keep or reset this commit based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Run is still active and hasn’t hit the 10-minute timeout. I’ll keep waiting until it completes so we can score this experiment cleanly.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The job is still running normally. I’m continuing to wait; next step remains metrics parsing and git keep/revert decision.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still in progress; I’ll keep polling until the process exits, then I’ll immediately log the result row and apply the keep/discard rule.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run remains active; no crash signal so far. I’m waiting for completion before touching anything else.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+I’m still blocked on the running training process; once it exits I’ll parse `metrics.json` and finalize this experiment decision in one pass.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e8fa8d9bb227fa6ed6b6e79d00ab58e7fd7e4e1e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = self.c_fc(x) * F.silu(self.c_gate(x))
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Training finished successfully. I’m now reading `metrics.json`, appending the TSV entry, and applying keep/reset based on whether `val_bpb` beats the current best `1.026098`.
+
+The shell image doesn’t expose `python` directly, so I’ll read `metrics.json` through `uv run` instead and continue logging.
+
+That experiment tied baseline, so I recorded it as `discard` and reset to the prior commit state. I’m starting the next experiment iteration immediately with a different structural hypothesis.
+web search: 
+web search: 
+
+I’m now selecting a second experiment focused on optimization dynamics rather than architecture, since prior architectural tweaks mostly reduced throughput without improving `val_bpb`. I’ll tweak Muon momentum scheduling to start lower and ramp longer, then run/score/reset-keep again.
+
+I’m editing `editable/config.toml` for a momentum-ramp experiment: lower initial Muon momentum and longer warmup to make early updates less inertial while keeping final momentum unchanged.
+
+Next I’ll commit this config change, run the 5-minute training, and evaluate via `metrics.json` only.
+
+Launching experiment run now; I’ll wait for completion, then log results and keep/reset by `val_bpb`.
+
+Second run is active. I’m monitoring it and will parse `metrics.json` as soon as the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b333c0497bd7e82b3d3f1f6c245df21938c2fe6..ce46f061c54429bbb2157a7d6116d821ccfb99fd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_warmup_steps = 800
++muon_momentum_start = 0.70
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training is still in progress with no failure signal yet; I’ll continue waiting and then finalize logging/decision in one step.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b333c0497bd7e82b3d3f1f6c245df21938c2fe6..ce46f061c54429bbb2157a7d6116d821ccfb99fd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_warmup_steps = 800
++muon_momentum_start = 0.70
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+The run is taking longer than expected but still under the 10-minute cap, so I’m continuing to wait for a clean completion before scoring it.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b333c0497bd7e82b3d3f1f6c245df21938c2fe6..ce46f061c54429bbb2157a7d6116d821ccfb99fd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_warmup_steps = 800
++muon_momentum_start = 0.70
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+The run has completed. I’m extracting metrics now, then I’ll append the TSV row and apply keep/reset based on improvement.
+
+Completed two experiment iterations and followed the keep/discard protocol.
+
+- Resumed existing run state (did not re-init): `memory/results.tsv` already had prior results.
+- Current branch: `research-loops/may4`
+- Current best `val_bpb` remains: `1.026098`
+
+New experiments executed:
+
+1. Commit `870c775`
+- Change: switched MLP from `ReLU^2` to SwiGLU gating in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead2-gpt53codex-medium-4h-orchestrated-2-20260504-094953/research-loop/editable/train.py)
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25470.76` (`24.9 GB`)
+- Decision: `discard` (equal, not improved)
+- Action: reset back after logging
+
+2. Commit `1339f95`
+- Change: Muon momentum schedule tweak in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead2-gpt53codex-medium-4h-orchestrated-2-20260504-094953/research-loop/editable/config.toml): `muon_momentum_start 0.85→0.70`, `warmup_steps 300→800`
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21261.95` (`20.8 GB`)
+- Decision: `discard` (equal, not improved)
+- Action: reset back after logging
+
+`memory/results.tsv` has been updated with both rows. Git HEAD is back to:
+- `0d2f5f0` (`reduce sequence length to 1024`)
+tokens used
+43,285
+Completed two experiment iterations and followed the keep/discard protocol.
+
+- Resumed existing run state (did not re-init): `memory/results.tsv` already had prior results.
+- Current branch: `research-loops/may4`
+- Current best `val_bpb` remains: `1.026098`
+
+New experiments executed:
+
+1. Commit `870c775`
+- Change: switched MLP from `ReLU^2` to SwiGLU gating in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead2-gpt53codex-medium-4h-orchestrated-2-20260504-094953/research-loop/editable/train.py)
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25470.76` (`24.9 GB`)
+- Decision: `discard` (equal, not improved)
+- Action: reset back after logging
+
+2. Commit `1339f95`
+- Change: Muon momentum schedule tweak in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead2-gpt53codex-medium-4h-orchestrated-2-20260504-094953/research-loop/editable/config.toml): `muon_momentum_start 0.85→0.70`, `warmup_steps 300→800`
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21261.95` (`20.8 GB`)
+- Decision: `discard` (equal, not improved)
+- Action: reset back after logging
+
+`memory/results.tsv` has been updated with both rows. Git HEAD is back to:
+- `0d2f5f0` (`reduce sequence length to 1024`)

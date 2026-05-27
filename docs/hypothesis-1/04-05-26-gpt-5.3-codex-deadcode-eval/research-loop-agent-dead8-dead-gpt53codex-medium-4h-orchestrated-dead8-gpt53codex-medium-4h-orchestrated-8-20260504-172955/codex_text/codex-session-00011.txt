@@ -1,0 +1,780 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or do the required branch/baseline setup exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving directly to proposing the next experiment after reading the editable files and prior metrics history.
+
+I’ve loaded prior experiments and the core training/config files; next I’m checking the remaining sections of `train.py` for tunable behaviors not yet explored, then I’ll make one targeted change and run it.
+
+I’m now inspecting the training/eval section around optimizer scheduling and final evaluation, because the repeated identical `val_bpb` suggests either deterministic plateauing or a logic issue that can be exploited for improvement.
+
+I identified a likely bottleneck: the script clamps `runtime_total_batch_size` down to a single microbatch on CPU, effectively disabling gradient accumulation and nullifying most batch-size experiments. I’m patching this so accumulation actually works, and reducing `total_batch_size` to a manageable accumulated batch (`16` microsteps) for the 5-minute budget.
+
+I’ve made the edit and now I’m capturing the unified diff and committing it before launching the training run.
+
+Running the experiment now with output redirected to `run.log`; once complete I’ll read only `metrics.json`, append to `memory/results.tsv`, then keep or reset based on `val_bpb`.
+
+The run is in progress under a timed wrapper (`610s` max). I’m waiting for completion, then I’ll parse `metrics.json` and record the outcome.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Training is still running normally with no terminal exit yet; I’ll keep waiting and then finalize result collection immediately when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still waiting on the timed run completion. As soon as it returns I’ll read `metrics.json` (without touching `run.log`) and apply keep/discard logic.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The process is still active and within the allowed time window; I’m continuing to wait for a clean exit and then I’ll record metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run is still in-flight; I’m polling until it finishes or timeout triggers, then I’ll classify it as keep/discard/crash accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still running. I’ll keep polling; if this crosses the 10-minute limit the `timeout` wrapper will terminate it and I’ll log it as a failure.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Polling again now; once the process exits I’ll immediately parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run has not exited yet; I’m continuing to wait rather than inspecting logs, per your metrics-only collection rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still active. I’ll keep the same flow: wait for exit, read `metrics.json`, append result row, then keep/reset commit based on whether `val_bpb` improves.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The process remains running and may be slower due increased accumulation; if it exceeds the cap, timeout will mark it failed and I’ll revert the commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still waiting on termination; no additional actions until exit to stay within the metrics-only rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run is still in progress and approaching the outer timeout window; I’ll capture final status as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+I’m continuing to poll until the timeout wrapper returns; if it exits with timeout code, I’ll log this as crash/discard and reset immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..4a6ddcdfc9432908603c042592269685ff422f2e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..37f5e90be56afe4e160970e67fbf1f56d4c66370
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run exceeded the allowed runtime (`timeout` exit code `124`), so I’m recording it as a crash in `memory/results.tsv` and resetting the branch to the previous commit per loop policy.
+
+`python` isn’t on PATH in this harness, so the append step failed; I’ve already reset successfully, and now I’m appending the crash row with shell-safe TSV output.
+
+I’m continuing the loop with a safer runtime experiment: reducing `sequence_len` to `512` to increase update frequency without triggering the long per-step runtime that caused timeout.
+
+I’ve applied the change; next I’m committing this diff and launching a new 5-minute run with the same timeout guard.
+
+Starting this run now; after it exits I’ll read `metrics.json`, log to TSV, and keep/reset based on `val_bpb` vs best `1.026098`.
+
+Run is in progress under timeout control; I’m waiting for completion and will collect results strictly from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+Training is still running. I’ll keep polling and then apply keep/discard logic immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+Still active and within allowed runtime; continuing to wait for process exit before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+No exit yet. I’ll continue polling until completion or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+The process is still in-flight; once it exits I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+Still running normally under the timeout wrapper; I’m continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+Waiting for exit; next step remains metrics parse and TSV logging only.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..ca82900295d5340ae0e828626ad157c759d35a1c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+
+
+The run finished successfully. I’m now reading `metrics.json`, logging the result row, and applying keep/reset based on whether `val_bpb` beats `1.026098`.
+
+Experiment loop executed and branch state is consistent.
+
+- Resumed existing run history on `research-loops/may4` (did not reinitialize baseline).
+- Ran experiment `381bdd5`:
+  - Change: enabled true grad accumulation on CPU fallback + set `total_batch_size=65536`.
+  - Result: timed out (`EXIT_CODE:124`), logged as crash.
+  - Action: reset commit.
+- Ran experiment `78c15f5`:
+  - Change: `sequence_len=512`.
+  - Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`).
+  - Compared to best prior (`1.026098`): no improvement, logged as `discard`.
+  - Action: reset commit.
+
+`memory/results.tsv` updated with both rows:
+- `381bdd5	0.000000	0.0	crash	enable grad accumulation on cpu fallback; timed out >10m`
+- `78c15f5	1.026098	0.0	discard	reduce sequence_len to 512 for faster updates`
+
+Current HEAD:
+- Branch: `research-loops/may4`
+- Commit: `4d2231c`
+tokens used
+46,620
+Experiment loop executed and branch state is consistent.
+
+- Resumed existing run history on `research-loops/may4` (did not reinitialize baseline).
+- Ran experiment `381bdd5`:
+  - Change: enabled true grad accumulation on CPU fallback + set `total_batch_size=65536`.
+  - Result: timed out (`EXIT_CODE:124`), logged as crash.
+  - Action: reset commit.
+- Ran experiment `78c15f5`:
+  - Change: `sequence_len=512`.
+  - Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`).
+  - Compared to best prior (`1.026098`): no improvement, logged as `discard`.
+  - Action: reset commit.
+
+`memory/results.tsv` updated with both rows:
+- `381bdd5	0.000000	0.0	crash	enable grad accumulation on cpu fallback; timed out >10m`
+- `78c15f5	1.026098	0.0	discard	reduce sequence_len to 512 for faster updates`
+
+Current HEAD:
+- Branch: `research-loops/may4`
+- Commit: `4d2231c`

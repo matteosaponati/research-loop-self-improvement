@@ -1,0 +1,136 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your rules.
+
+I found an active branch with an existing `memory/results.tsv` (33 experiment rows), so I’m resuming from current state without reinitializing or rerunning baseline. Next I’ll read `editable/` and pick the next experiment from observed trends.
+
+I’ve loaded the current config and experiment history; every non-crash run is stuck at exactly `1.026098`, which suggests the model may be effectively not improving under current CPU-fallback dynamics. I’ll inspect the remaining training loop code for a lever that changes optimization behavior materially within 5 minutes.
+
+I found a critical constraint: `runtime_device` is hard-forced to CPU and `runtime_total_batch_size` is clamped to `device_batch_size * sequence_len` (currently 16,384 tokens), so many batch-size experiments were no-ops. I’ll inspect the final metrics writing section, then run a high-impact change on optimization scheduling that actually affects this CPU path.
+
+I’m proceeding with a targeted speed-quality tradeoff experiment: reduce `muon_ns_steps` (orthogonalization iterations) to cut optimizer overhead and potentially increase useful training progress within the fixed 5-minute budget. I’ll commit, run, and keep only if `val_bpb` improves.
+
+I confirmed current best `val_bpb` is `1.026098` at commit `4d2231c`. I’m now editing `editable/config.toml` to lower `muon_ns_steps` from 5 to 2 and will show the exact diff before running.
+
+The config edit is committed (`1710270`) and diff-verified. I’m launching the 5-minute run now, then I’ll read only `metrics.json`, append `memory/results.tsv`, and auto-revert if there’s no improvement.
+
+Training is running in the background session now; I’m waiting for completion and will only parse `metrics.json` unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..333dc783517cc5b5baf9c29a19164d19a21b07da
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 2
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+
+The run is still active after 5 minutes of waiting; I’m polling again and will terminate it if total runtime exceeds 10 minutes per your rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..333dc783517cc5b5baf9c29a19164d19a21b07da
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 2
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+
+The run finished successfully. I’m now reading `metrics.json`, logging the result row, and deciding keep/discard against the best `1.026098`.
+
+`val_bpb` is unchanged (`1.026098`), so this experiment is a discard. I’m resetting to the pre-experiment commit and then appending a discard row to `memory/results.tsv`.
+
+I’m continuing with the next iteration. The strongest structural issue is the hidden clamp that forces `runtime_total_batch_size` to microbatch size, nullifying batch-size experiments; I’ll remove that clamp so config batch size actually takes effect, then run and score it.
+
+The batch-size clamp fix is committed (`46d84b7`) with a one-line diff. I’m starting the run now to measure whether true large-batch accumulation helps or hurts `val_bpb` in the fixed budget.
+
+This second experiment is running; I’m waiting for completion and will enforce the 10-minute hard cutoff if needed.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..059b624582f6196cd9b39879a1fbfb97ebb8d66f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,7 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The process is still active after 5 minutes of wait time, so I’m polling again and will kill it if it crosses 10 minutes total runtime.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..059b624582f6196cd9b39879a1fbfb97ebb8d66f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,7 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..059b624582f6196cd9b39879a1fbfb97ebb8d66f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,7 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+This run has become slow with the larger effective batch and is near the failure threshold; I’m checking once more now and will terminate immediately if it exceeds 10 minutes.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..059b624582f6196cd9b39879a1fbfb97ebb8d66f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,7 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..059b624582f6196cd9b39879a1fbfb97ebb8d66f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,7 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run exceeded the 10-minute limit, so I’m marking it as failure and terminating the training process now before recording it as a crash/discard per your rule.

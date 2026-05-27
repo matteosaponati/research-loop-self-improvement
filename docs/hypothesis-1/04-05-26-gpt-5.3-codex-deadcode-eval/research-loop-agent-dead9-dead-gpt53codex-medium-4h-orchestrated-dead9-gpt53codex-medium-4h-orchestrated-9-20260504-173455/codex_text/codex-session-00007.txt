@@ -1,0 +1,68 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize correctly, then I’ll run/record the next experiment.
+
+I found an initialized run history on branch `research-loops/may4`, so I’m resuming directly from step (2). Next I’ll read the editable files and design a new code-level experiment.
+
+I’ve loaded the config and core model code; I’m now inspecting the remaining training loop sections in `editable/train.py` to pick a high-leverage change likely to move `val_bpb`.
+
+I identified an untried optimizer regime: turning off Muon weight decay to reduce early-time underfitting in this 5-minute budget. I’m editing `editable/config.toml`, committing, then running one full experiment and recording the outcome.
+
+The change is committed as `0d2a649`; I’m launching the timed training run now and will only read `metrics.json` for result collection when it completes.
+
+Training is running under a 610s safety timeout. I’ll poll for completion and then parse `metrics.json` directly.
+
+Run is still in progress; I’m continuing to wait and will collect only the final metrics file once it exits.
+
+Still running within the expected window. I’ll keep waiting and then move straight to metrics parsing and keep/discard decision.
+
+I’m still waiting on the same run; no crash signal yet. Once it exits, I’ll immediately log and revert/keep based on `val_bpb`.
+
+The process is taking longer than typical but still under the 10-minute cutoff; I’m continuing to monitor until completion or timeout.
+
+The run completed successfully. I’m parsing `metrics.json`, appending this trial to `memory/results.tsv`, then applying the keep/discard git decision against the best prior `val_bpb`.
+
+The shell doesn’t expose `python` directly in PATH here, so I’m re-running those reads via `uv run python` and proceeding with logging/reset logic.
+
+Result is exactly tied with the best (`1.026098`), so per loop rules I’m recording it as `discard` and resetting one commit to continue from the previous best state.
+
+I’ve advanced the loop and started the next trial from the restored base commit. I’m now testing a more aggressive embedding update (`embedding_lr` increase) to push faster short-horizon learning.
+
+Committed `18ec9a9`. I’m launching this run now and will evaluate strictly from `metrics.json` when the job exits.
+
+The second experiment is in flight under timeout supervision; I’ll poll until completion and then log keep/discard automatically.
+
+Run is still active and healthy. I’m continuing to wait for completion before recording this trial.
+
+I’m still waiting on the same run; once it exits I’ll parse `metrics.json`, append `memory/results.tsv`, and reset if not improved.
+
+No completion yet, still within allowed runtime. Continuing to monitor.
+
+This trial also tied the incumbent best. I’m recording it as `discard` and resetting to continue the search from the current best checkpoint.
+
+Loop is active and I completed two new experiments end-to-end (commit, run, metrics read, log, reset decision):
+
+- `0d2a649` (`weight_decay = 0.0`)  
+  - `val_bpb`: `1.026098`  
+  - `peak_vram_mb`: `42060.45` (`41.1 GB`)  
+  - Decision: `discard` (no improvement)
+
+- `18ec9a9` (`embedding_lr = 0.8`)  
+  - `val_bpb`: `1.026098`  
+  - `peak_vram_mb`: `42060.45` (`41.1 GB`)  
+  - Decision: `discard` (no improvement)
+
+I appended both rows to `memory/results.tsv` and reset the branch back to `0d20b2e` after each discard, as required. Current best remains `1.026098`.
+tokens used
+57,812
+Loop is active and I completed two new experiments end-to-end (commit, run, metrics read, log, reset decision):
+
+- `0d2a649` (`weight_decay = 0.0`)  
+  - `val_bpb`: `1.026098`  
+  - `peak_vram_mb`: `42060.45` (`41.1 GB`)  
+  - Decision: `discard` (no improvement)
+
+- `18ec9a9` (`embedding_lr = 0.8`)  
+  - `val_bpb`: `1.026098`  
+  - `peak_vram_mb`: `42060.45` (`41.1 GB`)  
+  - Decision: `discard` (no improvement)
+
+I appended both rows to `memory/results.tsv` and reset the branch back to `0d20b2e` after each discard, as required. Current best remains `1.026098`.

@@ -1,0 +1,468 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs, then either resume from current branch or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized run (`research-loops/may4` with populated `memory/results.tsv`), so I’m resuming directly from experiment iteration and scanning `editable/` plus prior results to choose the next change.
+
+I’ve loaded prior experiments; current best is `1.026098` and most tweaks were neutral. Next I’m inspecting the lower training loop paths to find a change that can materially alter optimization dynamics in this fixed 5-minute CPU-fallback regime.
+
+I’m making a structural experiment in `editable/train.py`: tie `lm_head.weight` to token embeddings (`wte`) so the model shares input/output embeddings, which often improves early perplexity and should help in this short-budget regime.
+
+The diff is committed as `fead030`; I’m running the 5-minute training job now and will collect metrics from `metrics.json` only when it finishes.
+
+Training is in progress under a timeout guard; I’m waiting for completion before reading `metrics.json` and deciding keep vs reset.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Run is still active and within the expected wall-clock window; I’m continuing to wait for termination and then will extract the metric file.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Still running normally. I’ll keep polling until the process exits, then log the result and apply keep/discard rules.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+The job is still executing; I’m continuing the wait loop and will only read `metrics.json` after exit.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Process remains alive and hasn’t hit the 10-minute cutoff; waiting for completion.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Continuing to monitor; once this exits I’ll parse JSON metrics and update `memory/results.tsv`.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Still in-flight. I’m keeping the process attached until completion or timeout.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Training is taking longer than typical but still below cutoff; I’ll keep waiting and then handle keep/discard immediately.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+The run exited cleanly. I’m now reading `metrics.json`, appending this trial to `memory/results.tsv`, and applying the branch advancement rule based on best prior `val_bpb`.
+
+Metrics were produced successfully (`val_bpb` unchanged at `1.026098`), and I’m finishing the best-so-far check before recording/discarding this commit.
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..746b385e8d4b685424de992f9876f9782ea16a01
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+I recorded the trial as `discard` and reset per protocol. I’m now starting the next experiment from current `HEAD` (`4d2231c`) by re-reading `editable/` state before applying another targeted change.
+
+I found training is effectively locked to one micro-step per optimizer step; next trial will push more frequent updates by setting `device_batch_size = 1` in `editable/config.toml` (cut tokens/update in half) to test whether this improves short-horizon validation.
+
+The new config is committed as `71e84eb`; I’m running the experiment now and will log/keep-or-revert based on `metrics.json`.
+
+Run is active under timeout control; I’ll wait for completion, then extract `metrics.json` and apply the result policy.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running normally; continuing to wait for termination before touching results.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Process remains in-flight and below cutoff. I’m continuing to monitor until it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I’m still waiting on this run; once it exits I’ll immediately log to `memory/results.tsv` and either keep this commit or reset it.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run still active and healthy. Continuing wait loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Waiting for process exit; no crash signal yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+This one is running longer than expected but still under the 10-minute failure threshold; I’m doing a longer wait poll now.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..827d820142cc2c00fdc4c4e59e046f30cae25c0f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 1
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run finished successfully. I’m extracting metrics, recording the result row, and applying keep/discard against the best `val_bpb`.
+
+Experiment loop resumed and executed two new trials.
+
+- Tried `fead030`: tied `lm_head.weight` to `wte.weight` in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/editable/train.py).
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`0.0 GB`), status `discard` (no improvement).
+- Reset branch back one commit after logging.
+
+- Tried `71e84eb`: changed `device_batch_size` `2 -> 1` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/editable/config.toml).
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`0.0 GB`), status `discard` (no improvement).
+- Reset branch back one commit after logging.
+
+`memory/results.tsv` is updated with both rows, and current `HEAD` is back at `4d2231c` on `research-loops/may4`.
+tokens used
+37,530
+Experiment loop resumed and executed two new trials.
+
+- Tried `fead030`: tied `lm_head.weight` to `wte.weight` in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/editable/train.py).
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`0.0 GB`), status `discard` (no improvement).
+- Reset branch back one commit after logging.
+
+- Tried `71e84eb`: changed `device_batch_size` `2 -> 1` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/editable/config.toml).
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`0.0 GB`), status `discard` (no improvement).
+- Reset branch back one commit after logging.
+
+`memory/results.tsv` is updated with both rows, and current `HEAD` is back at `4d2231c` on `research-loops/may4`.

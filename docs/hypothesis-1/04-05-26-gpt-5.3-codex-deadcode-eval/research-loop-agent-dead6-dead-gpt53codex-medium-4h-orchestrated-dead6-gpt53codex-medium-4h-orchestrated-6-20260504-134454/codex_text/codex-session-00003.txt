@@ -1,0 +1,622 @@
+I’m starting the research loop by checking git state, whether prior results already exist, and the current best `val_bpb` so I can either resume or initialize exactly per your rules.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from current branch without re-baselining and now reading `editable/` plus prior experiment history to choose the next change.
+
+I’ve identified that all prior attempts crashed, so I’m making a stability-first experiment in `editable/config.toml` to shrink compute and memory pressure on CPU and force a complete 5-minute run that produces the first valid `val_bpb`.
+
+I’ve applied the config-only experiment edit; next I’ll commit it, run training with output redirected, then collect only `metrics.json` and log the result to `memory/results.tsv`.
+
+The experiment commit is in place (`0da5bb2`), and I’m launching the 5-minute run now; after completion I’ll read only `metrics.json`, update `memory/results.tsv`, and decide keep/discard by `val_bpb`.
+
+Training is running in the background session; I’m waiting for completion and will only collect structured metrics unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run is still active and within budget; I’m continuing to wait for process exit before parsing `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m still waiting on the training process; once it exits I’ll immediately record commit hash, `val_bpb`, and memory to the TSV log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The process is still running; no crash signal yet, so I’m continuing to wait for normal completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m at the tail end of the wait window and will stop it only if it breaches the 10-minute hard limit; otherwise I’ll let it finish naturally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running and under the 10-minute cutoff; I’m continuing to wait for completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Waiting for process exit; after this I’ll parse `metrics.json` and update `memory/results.tsv` in one shot.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run completed successfully, but my first metrics parsing command used `python` directly (not available here); I’m rerunning the exact same parsing/logging step via `uv run` now.
+
+I now have the first successful baseline-like result logged (`val_bpb=1.026098`). I’m launching a second experiment to try improving step throughput by enabling `torch.compile` on CPU as well, which may increase effective training updates within the same 5-minute budget.
+
+I’m committing this compile-path change and running the next 5-minute experiment; afterward I’ll log metrics and automatically revert if it does not beat `1.026098`.
+
+Second experiment is running now; I’m waiting for process exit and will classify it as keep/discard strictly by `val_bpb` from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..5d1e8dd3b0eff1b185acaec8d6aab027279a7c6f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.4
++unembedding_lr = 0.003
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..c6644f1a81eb809a0b0186ab8f3c5d1e8dc8360b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -490,7 +490,7 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL and device.type == "cuda":
++if COMPILE_MODEL:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ if device.type == "cpu":
+
+ exited 1 in 11253ms:
+
+This run exited early with a non-zero code, so I’m checking `metrics.json` first; if it’s missing/invalid, I’ll inspect `run.log` only to capture crash cause and then revert this commit.
+
+`metrics.json` is missing, and crash diagnostics show a CUDA `AcceleratorError` triggered in the compile path. I’m logging this as a crash and resetting to the last kept commit (`0da5bb2`).
+
+I’m continuing the loop with a safer hyperparameter-only experiment from the kept commit: reduce learning rates to stabilize optimization for this small CPU profile and attempt a lower `val_bpb`.
+
+Commit `e73da43` is ready, and I’m running it now as the next 5-minute trial. I’ll log the outcome and keep/reset automatically based on whether it beats `1.026098`.
+
+The new run is active in session `7149`; I’m waiting for completion and then will immediately append metrics and branch decision.
+
+Progress update from the autonomous loop:
+
+- Resumed existing branch/work (`research-loops/may4`) because `memory/results.tsv` already had prior rows.
+- Read all in-scope files in `editable/` and prior results.
+- Ran experiment `0da5bb2`:
+  - Change: CPU stability profile (`sequence_len/batch/model` downsized, slightly reduced LRs).
+  - Result from `metrics.json`: `val_bpb=1.026098`, `training_seconds=300.022`, `peak_vram_mb=0.0`.
+  - Logged to TSV as `keep` (first successful non-crash run).
+
+- Ran experiment `a5e5dda`:
+  - Change: enabled `torch.compile` on CPU path.
+  - Result: crash (no `metrics.json`); diagnosed from `run.log` as CUDA `AcceleratorError`.
+  - Logged to TSV as `crash`.
+  - Reset branch back to kept commit `0da5bb2`.
+
+- Started experiment `e73da43`:
+  - Change: lower LRs on compact CPU profile (`embedding_lr=0.25`, `unembedding_lr=0.002`, `matrix_lr=0.02`).
+  - Training is currently running (session `7149`).
+diff --git a/editable/config.toml b/editable/config.toml
+index 948cf55e4536e72ada2597ad9ad0816f5d2ec438..cda837fbf3411eea5e22c518fe7ea3ab68408f39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,17 +7,17 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 512
+-total_batch_size = 8192
+-device_batch_size = 8
+-dataloader_buffer_size = 128
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 1024
++device_batch_size = 4
++dataloader_buffer_size = 16
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 32
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.25
++unembedding_lr = 0.002
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+36,257
+Progress update from the autonomous loop:
+
+- Resumed existing branch/work (`research-loops/may4`) because `memory/results.tsv` already had prior rows.
+- Read all in-scope files in `editable/` and prior results.
+- Ran experiment `0da5bb2`:
+  - Change: CPU stability profile (`sequence_len/batch/model` downsized, slightly reduced LRs).
+  - Result from `metrics.json`: `val_bpb=1.026098`, `training_seconds=300.022`, `peak_vram_mb=0.0`.
+  - Logged to TSV as `keep` (first successful non-crash run).
+
+- Ran experiment `a5e5dda`:
+  - Change: enabled `torch.compile` on CPU path.
+  - Result: crash (no `metrics.json`); diagnosed from `run.log` as CUDA `AcceleratorError`.
+  - Logged to TSV as `crash`.
+  - Reset branch back to kept commit `0da5bb2`.
+
+- Started experiment `e73da43`:
+  - Change: lower LRs on compact CPU profile (`embedding_lr=0.25`, `unembedding_lr=0.002`, `matrix_lr=0.02`).
+  - Training is currently running (session `7149`).

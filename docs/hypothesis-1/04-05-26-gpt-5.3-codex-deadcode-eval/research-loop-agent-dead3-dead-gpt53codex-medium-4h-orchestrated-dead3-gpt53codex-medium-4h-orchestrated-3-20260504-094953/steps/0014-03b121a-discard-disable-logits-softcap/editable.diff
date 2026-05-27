@@ -1,0 +1,39 @@
+commit 03b121a0b8cdfbf5f7cecadda106412bf5fe4f8a
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 11:24:09 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 11:24:09 2026 +0200
+
+    disable logits softcap
+---
+ editable/config.toml | 2 +-
+ editable/train.py    | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..349bc9a 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 0.0
+ ignore_index = -1
+ 
+ # Initialization
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..a6f4fc3 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -264,7 +264,8 @@ class GPT(nn.Module):
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        if softcap > 0:
++            logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),

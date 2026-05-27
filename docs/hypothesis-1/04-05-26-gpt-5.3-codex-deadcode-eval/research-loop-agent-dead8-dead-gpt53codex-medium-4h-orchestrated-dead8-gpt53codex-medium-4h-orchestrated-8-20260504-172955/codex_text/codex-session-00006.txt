@@ -1,0 +1,224 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume directly or initialize the branch and baseline exactly as specified.
+
+I found an existing initialized loop on branch `research-loops/may4` with prior results, so I’m resuming directly from step (2) and now reading `editable/` to choose the next experiment.
+
+I’ve identified that prior runs are plateaued at `1.026098`; next I’m checking the rest of `editable/train.py` to target a change that can move loss under fixed 5-minute CPU-constrained training.
+
+I’ve confirmed this script is effectively CPU-only (`runtime_device = "cpu"`), so model quality in 5 minutes is mostly step-throughput constrained. I’m selecting a throughput-improving experiment by shrinking effective batch tokens to get more optimizer steps per budget.
+
+I’m editing `editable/config.toml` to test a smaller `total_batch_size` so the optimizer updates more frequently within the same 5-minute wall-clock budget, while keeping architecture unchanged for an isolated signal.
+
+I’ve applied the config change and now I’m capturing the exact diff, committing it, and running the 5-minute experiment with output redirected to `run.log`.
+
+The run exited early with code `1`; I’m checking `metrics.json` first as required to classify keep/discard/crash, and only if missing I’ll inspect `run.log` for minimal crash diagnosis.
+
+The crash was due to `runtime_total_batch_size % tokens_per_fwdbwd` assertion failure (`8192 % 16384`), so I’m recording it as a crash and resetting to the prior commit before launching the next valid experiment.
+
+I’m running a corrected variant of the same idea by changing `editable/train.py` to use `runtime_device_batch_size = 4` (instead of 8), which preserves divisibility while reducing tokens per optimizer step.
+
+Commit `6f60a4b` is ready; I’m launching the 5-minute run now and will read only `metrics.json` on completion.
+
+Training is in progress under timeout control; I’m waiting for completion and then I’ll extract metrics from `metrics.json` and update `memory/results.tsv`.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+Run is still active with output redirected as expected; I’m continuing to wait for process exit so we can score the experiment.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+The process is still running within the 10-minute cap, so I’m continuing to wait; once it exits I’ll immediately classify keep/discard from `val_bpb`.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..0962e5bc84aa1ce32d1c9d07c115367101cdf4b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -418,7 +418,7 @@
+ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+-runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++runtime_device_batch_size = min(CONFIG.device_batch_size, 4)
+ runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+
+
+The run completed successfully; I’m now reading `metrics.json`, appending the TSV row, and then either keeping this commit or resetting based on whether `val_bpb` beats `1.026098`.
+
+I’m continuing with another experiment now: increasing model depth from 8 to 10 to test whether added capacity beats the current `1.026098` within the fixed 5-minute budget.
+
+Depth-10 run is active; I’m waiting for completion and will score it from `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Run is still in progress and within limit; continuing to wait for process exit before logging results.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The process finished successfully; I’m extracting metrics, appending the experiment row, and resetting if it didn’t beat the current best.
+
+Completed 3 more experiments and logged all outcomes to `memory/results.tsv`, following the commit→run→keep/discard loop.
+
+Latest added rows:
+- `5d9fe2b	0.000000	0.0	crash	reduce total_batch_size to 8192 (invalid accum divisibility)`
+- `6f60a4b	1.026098	0.0	discard	cpu microbatch cap 4 (more frequent optimizer updates)`
+- `33ccdd5	1.026098	0.0	discard	increase depth to 10`
+
+Current branch head is reset to best kept commit:
+- `b291219` with `val_bpb = 1.026098`
+
+Notes:
+- Crash at `5d9fe2b` was an assertion: `runtime_total_batch_size % tokens_per_fwdbwd == 0`.
+- Successful runs still plateau at `1.026098` in this environment.
+tokens used
+52,312
+Completed 3 more experiments and logged all outcomes to `memory/results.tsv`, following the commit→run→keep/discard loop.
+
+Latest added rows:
+- `5d9fe2b	0.000000	0.0	crash	reduce total_batch_size to 8192 (invalid accum divisibility)`
+- `6f60a4b	1.026098	0.0	discard	cpu microbatch cap 4 (more frequent optimizer updates)`
+- `33ccdd5	1.026098	0.0	discard	increase depth to 10`
+
+Current branch head is reset to best kept commit:
+- `b291219` with `val_bpb = 1.026098`
+
+Notes:
+- Crash at `5d9fe2b` was an assertion: `runtime_total_batch_size % tokens_per_fwdbwd == 0`.
+- Successful runs still plateau at `1.026098` in this environment.

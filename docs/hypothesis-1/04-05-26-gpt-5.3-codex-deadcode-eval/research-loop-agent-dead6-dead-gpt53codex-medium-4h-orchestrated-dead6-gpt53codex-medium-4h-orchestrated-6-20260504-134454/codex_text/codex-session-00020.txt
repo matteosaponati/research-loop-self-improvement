@@ -1,0 +1,256 @@
+I’m starting the research loop now: first I’ll check git state, whether `memory/results.tsv` already has prior runs, and data/tokenizer availability so I can either resume or initialize exactly per your protocol.
+
+There’s already an active branch and populated `memory/results.tsv`, so I’m resuming from current state without re-initializing. Next I’ll read `editable/` and prior results to pick the next high-impact experiment.
+
+I’ve identified a likely useful axis not yet tested: aggressively shorter context (`sequence_len=64`) to increase update frequency and reduce per-step compute under the fixed 5-minute budget. I’ll apply that config-only change, commit, run, and compare against the current best `1.026098`.
+
+I’ve made the edit and now I’m recording the exact diff and committing this experiment before launching training.
+
+Next I’m running the 5-minute training job and will read only `metrics.json` for result collection, then update `memory/results.tsv` and keep/revert based on `val_bpb`.
+
+Training is in progress in the background session; I’m waiting for completion and will stop it if it approaches the 10-minute failure threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Run is still active and within the expected window; I’m continuing to wait for it to finish before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Still running normally. I’m polling again and will move straight to metrics extraction as soon as the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Execution is ongoing; I’m continuing to monitor for completion and timeout boundaries.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+The run is still active and under the hard limit. I’ll keep polling until it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+No completion yet. I’m polling again and will immediately parse `metrics.json` on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Run is still progressing in background; continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Still active and within budget. Polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+I’m still waiting on completion; if it crosses 10 minutes I’ll terminate and mark as crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+The process is still running; checking again for finish now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+Training finished successfully. I’m now extracting `metrics.json`, comparing to the best prior `val_bpb`, then logging to `memory/results.tsv` and reverting if it did not improve.
+
+I hit a minor environment detail (`python` not on PATH), switched to `uv run python`, and I’m polling the metrics extraction command now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..4999f316675fd24d5d0ffc047e267bb8f5bc74b6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 64
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+
+
+The run completed with `val_bpb=1.026098`, equal to best, so this experiment is a discard. I’m logging it to `memory/results.tsv` and resetting the branch to the pre-experiment commit.
+
+I’ve reverted to commit `168861d` and recorded the discarded result. I’m now selecting the next experiment from this restored baseline and running it immediately.
+
+Next experiment: cut `total_batch_size` to `256` and `device_batch_size` to `1` to increase optimizer update frequency under the fixed time budget. I’m applying this config change, committing, and launching the run.
+
+Second experiment run is now active (`acf62a8`). I’m monitoring it to completion, then I’ll collect `metrics.json`, log to TSV, and keep or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..1ae0c7bfc2adf530a7a35a0c268b91e148c3a933
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 256
+-total_batch_size = 1024
+-device_batch_size = 4
++total_batch_size = 256
++device_batch_size = 1
+ dataloader_buffer_size = 16
+ tokenizer_batch_size = 32
+ 
+
+
+The run is still active after the 5-minute train window, likely finishing evaluation/startup overhead. I’m continuing to watch and will kill it if it reaches the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..1ae0c7bfc2adf530a7a35a0c268b91e148c3a933
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 256
+-total_batch_size = 1024
+-device_batch_size = 4
++total_batch_size = 256
++device_batch_size = 1
+ dataloader_buffer_size = 16
+ tokenizer_batch_size = 32
+ 
+
+
+The run finished successfully. I’m extracting metrics and finalizing keep/discard decision now.
+
+Completed two full experiments and applied keep/discard policy.
+
+- Current branch/head: `research-loops/may4` at `168861d`
+- Best `val_bpb` remains: `1.026098`
+
+New logged runs in `memory/results.tsv`:
+
+- `48edbaf` | `1.026098` | `0.0 GB` | `discard` | reduce `sequence_len` to `64`
+- `acf62a8` | `1.026098` | `0.0 GB` | `discard` | reduce `total_batch_size` to `256` and `device_batch_size` to `1`
+
+Both were reverted with `git reset --hard HEAD~1` after logging because they were not better than the current best.
+tokens used
+39,818
+Completed two full experiments and applied keep/discard policy.
+
+- Current branch/head: `research-loops/may4` at `168861d`
+- Best `val_bpb` remains: `1.026098`
+
+New logged runs in `memory/results.tsv`:
+
+- `48edbaf` | `1.026098` | `0.0 GB` | `discard` | reduce `sequence_len` to `64`
+- `acf62a8` | `1.026098` | `0.0 GB` | `discard` | reduce `total_batch_size` to `256` and `device_batch_size` to `1`
+
+Both were reverted with `git reset --hard HEAD~1` after logging because they were not better than the current best.

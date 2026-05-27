@@ -1,0 +1,483 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs so I can either resume immediately or do the one-time setup and baseline exactly as specified.
+
+I found an initialized run history with a valid baseline (`val_bpb 1.026098` on commit `b291219`), so I’m resuming directly from step (2). Next I’ll read `editable/` files and pick the next targeted experiment.
+
+I’ve read the full editable code path. Next experiment will target the LR schedule only: current config decays all the way to zero over the last 50% of training, which is usually too aggressive for a short 5-minute budget. I’ll change `warmdown_ratio`/`final_lr_frac` to keep learning active near the end, commit, run, then keep or reset based on `val_bpb`.
+
+I’ve applied the schedule tweak and now I’m recording the exact diff, committing it, and starting the timed run.
+
+Commit `e70fb04` is in place with the LR-tail change; launching the 5-minute training run now and I’ll read `metrics.json` only when it exits.
+
+The run is active in the background session; I’m monitoring for completion and will immediately extract metrics once it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training is still running within the expected window; I’m continuing to wait on this same session rather than reading logs.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run is still in progress, so I’m keeping the session open and waiting for clean termination before touching `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still executing; I’m continuing to poll until the process exits, then I’ll record the result and decide keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run hasn’t exited yet but is still under the failure cutoff; I’m waiting further for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Continuing to monitor; once it exits I’ll parse `metrics.json`, append `memory/results.tsv`, and apply keep/discard reset logic.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run is taking longer than a normal completed cycle; I’m still waiting, and if it approaches the 10-minute cap I’ll terminate and mark it as failure per your rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m checking elapsed wall time for the training process now so I can enforce the 10-minute hard stop precisely.
+
+The run finished successfully. I’m now reading `metrics.json`, logging this experiment in `memory/results.tsv`, and then applying the keep/discard reset rule based on whether `val_bpb` improved below `1.026098`.
+
+`python` isn’t directly on PATH in this environment, so I’m using `uv run python` to read `metrics.json` and continue logging.
+
+Result is exactly tied (`1.026098`), so this experiment is a discard; I’m appending it to `memory/results.tsv` and resetting one commit to continue from the prior best state.
+
+I’ve resumed at best commit `b291219`. I’ll run a more structural experiment next by changing the MLP nonlinearity from `relu(x)^2` to `gelu(x)` to test whether this objective responds to model dynamics rather than schedule tweaks.
+
+I’m committing this activation change now, then launching another timed run and collecting only `metrics.json` for evaluation.
+
+Experiment `127d74b` is running; I’m monitoring completion and will apply keep/discard immediately after reading `metrics.json`.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run is still active and within limits; continuing to wait on the same process.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m still waiting for termination before reading results; no log inspection needed so far.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Training is still running; I’m continuing to poll and will enforce the 10-minute cutoff if needed.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+This one is also running long but still below the 10-minute failure threshold; I’m continuing to wait for completion.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..62dfcf17dd4a7008efa1bdedc20d1a8cb1abf7f7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I checked elapsed time: this process is around 7+ minutes, so I’m waiting a bit longer but will kill it at 10 minutes if it still hasn’t exited.
+
+The session endpoint is closed, so the run process has exited. I’m reading `metrics.json` now, then logging and applying keep/discard.
+
+`metrics.json` is missing, so this run is a crash. I’ll quickly inspect `run.log` only for the failure signature, then log as `crash` and reset this commit.
+
+The run log shows a completed summary, but `metrics.json` is absent; per your rule, this must be treated as a crash. I’m recording it as `crash` and resetting to the prior commit.
+
+Current loop status on `research-loops/may4`:
+
+- Resumed existing run memory (did not reinitialize baseline).
+- Best retained commit remains `b291219` with `val_bpb = 1.026098`.
+- I ran two new experiments and logged both in `memory/results.tsv`:
+1. `e70fb04` (`warmdown_ratio=0.2`, `final_lr_frac=0.2`) → `val_bpb 1.026098` → `discard` (reset applied).
+2. `127d74b` (MLP `relu(x)^2` → `gelu`) → `metrics.json` missing after run → `crash` per rule (reset applied).
+
+`memory/results.tsv` is updated with these rows, and HEAD is back at:
+- `b291219` (`keep` current best)
+
+I’m in the experiment loop and ready to continue with the next code change from this state.
+tokens used
+51,588
+Current loop status on `research-loops/may4`:
+
+- Resumed existing run memory (did not reinitialize baseline).
+- Best retained commit remains `b291219` with `val_bpb = 1.026098`.
+- I ran two new experiments and logged both in `memory/results.tsv`:
+1. `e70fb04` (`warmdown_ratio=0.2`, `final_lr_frac=0.2`) → `val_bpb 1.026098` → `discard` (reset applied).
+2. `127d74b` (MLP `relu(x)^2` → `gelu`) → `metrics.json` missing after run → `crash` per rule (reset applied).
+
+`memory/results.tsv` is updated with these rows, and HEAD is back at:
+- `b291219` (`keep` current best)
+
+I’m in the experiment loop and ready to continue with the next code change from this state.

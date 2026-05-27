@@ -1,0 +1,40 @@
+commit 0db2bb94c0efbf966082edc8e94a3648bb13b195
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:01:43 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:01:43 2026 +0200
+
+    cpu fp32 stability: disable cpu autocast and bf16 embeddings
+---
+ editable/train.py | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a..5823d8c 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@ class GPT(nn.Module):
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@ is_cuda = device.type == "cuda"
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()

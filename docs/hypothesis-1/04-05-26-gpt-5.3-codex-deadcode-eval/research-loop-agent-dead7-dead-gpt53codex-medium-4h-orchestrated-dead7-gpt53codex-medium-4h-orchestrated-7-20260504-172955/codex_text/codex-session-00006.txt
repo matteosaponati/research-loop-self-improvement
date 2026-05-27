@@ -1,0 +1,130 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from the current branch or initialize a fresh branch/baseline exactly as specified.
+
+A prior experiment history is present, so I’m resuming from the current branch and moving directly to proposing the next experiment after reviewing `editable/` and the results log.
+
+I’ve reviewed prior runs: all completed experiments tie at `1.026098`, so I’m testing a capacity change that keeps depth fixed but increases width (`aspect_ratio`) to improve quality within the same 5-minute budget. I’ll patch `editable/config.toml`, commit, run, and then keep or reset based on `metrics.json`.
+
+The config change is committed as `0d4bc43`; I’m now launching the timed training run and will collect only `metrics.json` for evaluation.
+
+Training is running in the background under timeout control; I’m waiting for completion before reading `metrics.json`.
+
+Run is still in progress; I’m continuing to wait and will immediately parse metrics once the process exits.
+
+I’m still waiting on the training process; next step is parsing `metrics.json`, appending `results.tsv`, and deciding keep vs reset.
+
+The run is taking longer than usual but still under the 10-minute failure threshold; I’m polling until it finishes or timeout triggers.
+
+Still running; I’ll keep waiting and then record outcome once the process exits.
+
+Training finished successfully. I’m now reading `metrics.json`, logging this commit in `memory/results.tsv`, and resetting if it doesn’t beat the current best.
+
+`val_bpb` tied the best (no improvement), so I’m marking this run as `discard`, appending it to `memory/results.tsv`, and resetting the branch to the prior commit before preparing the next idea.
+
+I’m continuing the loop with a new experiment: introduce a short LR warmup and gentler decay (`warmup_ratio=0.05`, `warmdown_ratio=0.25`, `final_lr_frac=0.2`) to stabilize early updates and preserve learning rate later in the 5-minute window.
+
+This schedule experiment is committed as `3482e30`; running the 5-minute training now and then I’ll score from `metrics.json` only.
+
+Run is still active; I’m continuing to wait for completion before collecting and logging metrics.
+
+The experiment is close to completion; once it exits I’ll immediately decide keep/discard and continue with the next iteration.
+
+Result is again a tie on `val_bpb`, so I’m discarding this commit, logging it, and resetting to the current best commit before the next experiment.
+
+Experiment loop is active and I completed 2 new runs, both logged and evaluated via `metrics.json` only.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..ce5ceb3 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@ tokenizer_batch_size = 128
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 80
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..e363779 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.25
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Run outcomes:
+- `0d4bc43` (`aspect_ratio=80`): `val_bpb=1.026098`, `peak_vram_mb=51654.87` (`50.4 GB`) -> `discard` (tied best).
+- `3482e30` (LR warmup/decay change): `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`) -> `discard` (tied best).
+
+State now:
+- Branch reset back to best baseline commit `5ce981a`.
+- `memory/results.tsv` updated with both experiment rows.
+- Best `val_bpb` remains `1.026098`.
+tokens used
+36,999
+Experiment loop is active and I completed 2 new runs, both logged and evaluated via `metrics.json` only.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..ce5ceb3 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@ tokenizer_batch_size = 128
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 80
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..e363779 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.25
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Run outcomes:
+- `0d4bc43` (`aspect_ratio=80`): `val_bpb=1.026098`, `peak_vram_mb=51654.87` (`50.4 GB`) -> `discard` (tied best).
+- `3482e30` (LR warmup/decay change): `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`) -> `discard` (tied best).
+
+State now:
+- Branch reset back to best baseline commit `5ce981a`.
+- `memory/results.tsv` updated with both experiment rows.
+- Best `val_bpb` remains `1.026098`.

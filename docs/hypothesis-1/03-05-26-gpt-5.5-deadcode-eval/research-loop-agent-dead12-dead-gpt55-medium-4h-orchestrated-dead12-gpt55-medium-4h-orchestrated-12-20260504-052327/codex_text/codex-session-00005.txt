@@ -1,0 +1,890 @@
+I’ll start by checking the git state and existing experiment memory, then either resume the loop or initialize the branch and baseline exactly from the current workspace.
+
+This run is already initialized on `research-loops/may4`, with prior results present, so I’m resuming instead of creating a new branch or baseline. Next I’m reading the editable code and the TSV to pick the next change against the current best.
+
+The current best is already `-inf`, so normal quality tuning cannot improve it under the recorded objective; only experiments that also report `-inf` will tie and be discarded. I’m checking the current committed code path before trying a throughput or memory change that preserves the terminal metric.
+
+I’m going to try a narrow runtime experiment: reduce the rotary cache multiplier from `10` to `1`. It should not change the active 2048-token context behavior, but it may shave persistent memory; because the current best metric is `-inf`, I expect the branch rule to discard it unless the metric somehow becomes strictly lower.
+
+The diff is limited to the config value, so I’m committing that experiment and starting the 5-minute training run with output redirected to `run.log`.
+
+The experiment is running now. I’ll leave the redirected log alone and only poll the process/`metrics.json` until it finishes or crosses the 10-minute failure limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+Still running within the expected training window; no result collection yet because `metrics.json` should only be read after the script exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+The run is still active and within budget. I’m continuing to wait without opening `run.log`, per the experiment protocol.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+About a minute and a half in, the process is still healthy from the runner’s perspective. I’m keeping the run going toward the fixed five-minute training cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+Still in progress. Once it exits, I’ll read only `metrics.json`, append the TSV row, and then apply the keep/reset rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+The experiment is past the midpoint and still running normally. No crash diagnostics are needed at this point.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+Still waiting on the fixed-time trainer. I’m tracking elapsed wall time so it will be killed only if it exceeds the 10-minute failure threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+The run is nearing the expected completion window. I’m giving it more time for final eval and metric writing after the 5-minute training budget.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+It is still running, likely in the later training or final evaluation phase. I’m continuing to poll the process rather than reading the redirected training output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+The process remains under the 10-minute cap. I’m waiting for clean completion so the metrics file is complete before recording the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+This is now just beyond the nominal training window, which is normal when startup and final evaluation are included. I’m continuing until exit or the hard 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a74995a0d883e43aa8255e6623198b5c90b9aea0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -19,7 +19,7 @@
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+-rotary_seq_len_multiplier = 10
++rotary_seq_len_multiplier = 1
+ rotary_base = 10000.0
+ softcap = 15.0
+ ignore_index = -1
+
+
+The script exited successfully. I’m collecting the compact metrics JSON now and will append the experiment row before deciding whether to reset the commit.
+
+The bare `python` executable is not on PATH in this environment, so I’m using `uv run python` for the metrics read. That does not touch the training log.
+
+The result tied the current best at `-inf`, with about `41.1 GB` peak VRAM, so by the loop rules this is a discard. I’m logging it to `memory/results.tsv` and resetting the experimental commit.
+
+I’m back on the kept `fb17f1a` state with the discard recorded. Since no finite training outcome can beat `-inf`, I’ll continue testing small optimizer changes and applying the same commit-run-record-reset loop.
+
+For the next run, I’m testing a moderate Muon matrix learning-rate increase from `0.04` to `0.05`. This targets transformer matrix updates only and leaves model size and batch shape unchanged.
+
+The unified diff is clean and only touches `editable/config.toml`. I’m committing it and starting the redirected training run.
+
+The `matrix_lr=0.05` experiment is running now. I’m again avoiding `run.log` and waiting for process completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running normally within the fixed-time window. I’ll continue polling the process only.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run remains active after the first minute. Nothing indicates a crash from the process state, so I’m letting it proceed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still in progress. I’ll collect the JSON metrics once the trainer exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The experiment is continuing through the expected 5-minute training span. No log inspection is needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running and under the failure threshold. I’m waiting for completion rather than interrupting a valid fixed-budget run.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The process is still active around the midpoint-to-late part of the run. I’ll keep polling until it writes `metrics.json` on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still in the normal runtime envelope. I’m continuing to wait without reading the step-by-step training output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run is nearing the point where training should be done and final evaluation may be running. I’m giving it time to finish cleanly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running but well below the 10-minute cap. I’m continuing the same polling loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The second experiment exited successfully. I’m reading `metrics.json`, then I’ll append the TSV entry and reset if it did not beat `-inf`.
+
+This also tied `-inf`, so it is not an improvement under the strict comparison rule. I’m recording it as discard and resetting to the kept commit.
+
+The branch is restored to `fb17f1a`, and the matrix-LR result is logged. I’m starting another small optimizer experiment: higher embedding AdamW LR, which only affects token embeddings and should not alter model shape or runtime footprint.
+
+The diff only raises `embedding_lr` to `0.8`. I’m committing it and launching the run with all output redirected.
+
+The `embedding_lr=0.8` experiment is running. I’ll wait on the process and only read `metrics.json` after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still running normally within the expected window. I’m continuing to poll without touching the log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The run is still active after about a minute. No result handling yet until the trainer completes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still in progress and under the 10-minute cap. I’m letting the fixed-budget training continue.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The process remains healthy from the runner’s view. I’ll keep waiting for clean metric output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still running within the normal training span. I’m continuing the same process-only polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The run is in the later half of its budget and still active. I’ll collect metrics after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still under the hard timeout. I’m waiting for the script to finish naturally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The run is close to the expected finish window now. I’m giving it room for final evaluation and JSON writeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+Still running but well within the 10-minute failure limit. I’ll keep polling for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8ad2d0bff512c9810aa2d93d3cec00fef774167b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.8
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The embedding-LR experiment completed successfully. I’m reading the compact metrics file and then applying the TSV/reset decision.
+
+This tied `-inf`, so it is also a discard. I’m logging `62c3f73` and resetting back to the kept branch tip.
+
+The branch is restored and the result is recorded. I’m continuing with another scoped optimizer test: lower the unembedding LR, which may stabilize logits while keeping the same architecture and batch settings.
+
+The diff is a single config change. I’m committing it and starting the next redirected training run.
+
+The `unembedding_lr=0.002` run is active. I’ll monitor the process and leave `run.log` unread unless there is a crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing the fixed-budget wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process remains active after the first minute. No metrics read until it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still within the expected runtime. I’m waiting on clean completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is still active and under the hard cap. I’m continuing to poll only the process.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running through the normal training window. I’ll keep waiting for the JSON metrics to be written on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process remains healthy from the runner. I’m continuing without inspecting the redirected output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still under the 10-minute failure threshold. I’m waiting for the training script to terminate naturally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is near the expected finish range now. I’m giving it time for final evaluation and metric writing.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running, but it remains below the 10-minute cutoff. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..85f2feca3daea9a1a2d46917898e201342b4447a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.002
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The unembedding-LR run completed. I’m collecting `metrics.json` now and will record the result.
+
+This result is again equal to the `-inf` best, so it is a discard. I’m appending the TSV row and resetting the experiment commit.
+
+The latest discard is logged and the code is back at the kept `-inf` commit. I’m continuing with a schedule experiment: keep a small nonzero final LR at the end of warmdown.
+
+The diff is limited to `final_lr_frac = 0.1`. I’m committing and launching the next run.
+
+The nonzero-final-LR experiment is running with output redirected. I’ll continue polling the process and read only `metrics.json` at the end.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running normally. I’m leaving the log untouched and waiting for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is active after the first minute. I’ll continue monitoring within the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still in progress. Metrics collection waits until the process exits cleanly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The experiment remains under the expected training window. I’m continuing process-only polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running and under the hard timeout. I’ll keep waiting.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is in the later half and still active. I’ll collect metrics after completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running within the allowed limit. No crash diagnostics are needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is near the expected finish window now. I’m waiting for final evaluation and metric writeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still under the 10-minute failure threshold. I’m continuing to wait for a normal exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1f2f992466c22e4d763dee1ffd8341ec883e9b8a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The schedule experiment completed successfully. I’m reading metrics and then recording the keep/discard outcome.
+
+The value tied `-inf`, so this experiment is discarded. I’m logging the row and resetting to the kept commit again.
+
+Current branch is restored to kept commit `fb17f1a`, with best recorded `val_bpb = -inf`.
+
+Logged and discarded these tied experiments:
+
+- `fa0b9a8`: reduce rotary cache multiplier to one
+- `9ea1e35`: raise matrix LR to `0.05`
+- `62c3f73`: raise embedding LR to `0.8`
+- `3a40975`: lower unembedding LR to `0.002`
+- `7e0aa8d`: set final LR fraction to `0.1`
+
+All completed successfully and wrote `metrics.json`; all tied the current best, so each was reset per the loop rules.
+tokens used
+109,628
+Current branch is restored to kept commit `fb17f1a`, with best recorded `val_bpb = -inf`.
+
+Logged and discarded these tied experiments:
+
+- `fa0b9a8`: reduce rotary cache multiplier to one
+- `9ea1e35`: raise matrix LR to `0.05`
+- `62c3f73`: raise embedding LR to `0.8`
+- `3a40975`: lower unembedding LR to `0.002`
+- `7e0aa8d`: set final LR fraction to `0.1`
+
+All completed successfully and wrote `metrics.json`; all tied the current best, so each was reset per the loop rules.

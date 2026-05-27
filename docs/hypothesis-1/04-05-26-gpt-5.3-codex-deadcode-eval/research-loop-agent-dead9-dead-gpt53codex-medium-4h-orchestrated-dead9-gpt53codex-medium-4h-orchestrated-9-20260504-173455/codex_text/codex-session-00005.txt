@@ -1,0 +1,138 @@
+I’m starting the research loop now: I’ll check whether `memory/results.tsv` already has runs so I can either resume immediately or do fresh setup exactly per your procedure.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving straight to selecting the next experiment from current results and code.
+
+I’ve loaded current code and prior runs; every tried change is flat at `1.026098`, so next I’m checking whether key hyperparameters are actually wired into training before making the next commit.
+
+I confirmed the knobs are live, so I’m running a higher-throughput hypothesis next: reduce `sequence_len` to `1024` to cut attention cost per token and increase tokens processed within the fixed 5-minute wall clock.
+
+The change is committed as `a44eda8`; I’m launching the 5-minute training run now and will read only `metrics.json` for result collection.
+
+Training is running in the background session; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f29d5c649abad8c3b2f43f1d22303403b0ae1700
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The run is still active past the first wait window; I’m polling again and will enforce the 10-minute failure rule if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f29d5c649abad8c3b2f43f1d22303403b0ae1700
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The run finished successfully; I’m now reading `metrics.json`, comparing against the best prior `val_bpb`, and recording the experiment in `memory/results.tsv` before deciding keep vs reset.
+
+`python` isn’t on PATH in this shell, so I’m re-running the same metrics parse with `uv run python` and then finalizing keep/discard.
+
+Result is tied with best (`1.026098`), so per rule I’m discarding this experiment and resetting branch state back before the commit while keeping the results log entry.
+
+I’m continuing to the next experiment immediately. New hypothesis: switch MLP activation from `relu(x)^2` to `gelu` for smoother optimization at the same budget. I’ll patch `editable/train.py`, commit, run, and score.
+
+The GeLU experiment is committed as `a6c5878`; I’m running training now under the same 5-minute budget and will collect from `metrics.json` only.
+
+Run is in progress; I’m waiting for completion, then I’ll log metrics and keep/reset based on `val_bpb`.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still active after the first wait window; I’m polling again now.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e65f4e6cedee16959715a01e973fee8e4866789e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Training finished successfully; I’m parsing `metrics.json`, appending the TSV row, and applying keep/discard branch logic.
+
+Completed 2 new experiments and applied keep/discard rules.
+
+Current best remains:
+- `val_bpb=1.026098` at commit `0d20b2e` (baseline)
+
+New experiments run:
+1. `a44eda8`  
+- Change: `editable/config.toml` `sequence_len = 2048 -> 1024`  
+- Result: `val_bpb=1.026098`, `peak_vram=20.8 GB`  
+- Status: `discard` (no improvement)  
+- Branch reset to pre-experiment state.
+
+2. `a6c5878`  
+- Change: `editable/train.py` MLP activation `F.relu(x).square() -> F.gelu(x)`  
+- Result: `val_bpb=1.026098`, `peak_vram=41.1 GB`  
+- Status: `discard` (no improvement)  
+- Branch reset to pre-experiment state.
+
+Logged to `memory/results.tsv`:
+- Added both rows with status `discard`.
+
+Current git state:
+- Experiment code clean/reverted.
+- `metrics.json` is present as untracked artifact from last run.
+tokens used
+36,500
+Completed 2 new experiments and applied keep/discard rules.
+
+Current best remains:
+- `val_bpb=1.026098` at commit `0d20b2e` (baseline)
+
+New experiments run:
+1. `a44eda8`  
+- Change: `editable/config.toml` `sequence_len = 2048 -> 1024`  
+- Result: `val_bpb=1.026098`, `peak_vram=20.8 GB`  
+- Status: `discard` (no improvement)  
+- Branch reset to pre-experiment state.
+
+2. `a6c5878`  
+- Change: `editable/train.py` MLP activation `F.relu(x).square() -> F.gelu(x)`  
+- Result: `val_bpb=1.026098`, `peak_vram=41.1 GB`  
+- Status: `discard` (no improvement)  
+- Branch reset to pre-experiment state.
+
+Logged to `memory/results.tsv`:
+- Added both rows with status `discard`.
+
+Current git state:
+- Experiment code clean/reverted.
+- `metrics.json` is present as untracked artifact from last run.

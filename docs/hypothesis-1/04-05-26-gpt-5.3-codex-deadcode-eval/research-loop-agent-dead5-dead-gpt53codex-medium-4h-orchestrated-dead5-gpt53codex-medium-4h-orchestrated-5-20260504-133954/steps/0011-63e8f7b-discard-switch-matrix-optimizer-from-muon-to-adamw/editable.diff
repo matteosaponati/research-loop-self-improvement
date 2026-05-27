@@ -1,0 +1,27 @@
+commit 63e8f7bc38cba54e0fc3e2cbe4a77668563e127e
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 14:56:16 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 14:56:16 2026 +0200
+
+    optimizer: switch matrix params from muon to adamw
+---
+ editable/train.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..634641a 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@ class GPT(nn.Module):
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:

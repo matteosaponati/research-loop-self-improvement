@@ -1,0 +1,350 @@
+I’m starting the research loop now: first I’ll detect whether `memory/results.tsv` already has prior runs so I can either resume immediately or do the one-time branch/baseline setup exactly per your protocol.
+
+I found an existing initialized run history, so I’m resuming from the current branch/state and moving directly to experiment iteration: read `editable/` + `memory/results.tsv`, choose next hypothesis, patch, commit, run, and score from `metrics.json`.
+
+I’m inspecting the rest of `editable/train.py` to find a lever that can change learning dynamics within the 5-minute budget, since prior config-only tweaks were flat at exactly `1.026098`.
+
+I identified a concrete lever: reduce `total_batch_size` to cut gradient accumulation from 2 to 1, increasing optimizer update frequency within the fixed 5-minute window; I’m applying that single change now, then committing and running.
+
+The patch is committed as `aca9c72`; next I’m running the 5-minute training run with full log redirection, then I’ll read only `metrics.json` and decide keep vs revert.
+
+The run is in progress in the background session; I’m waiting for completion and then will score from `metrics.json` without reading the training log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Training is still running; I’m continuing to wait on the same session and will immediately parse `metrics.json` when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m still blocked on GPU execution; once this finishes I’ll append the TSV row and either keep this commit or hard-reset to the previous best per your rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Execution is taking longer than expected but still within the 10-minute cap; I’m continuing to monitor and will treat timeout as failure if it reaches that limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still waiting on the same run session; as soon as it exits I’ll parse `metrics.json` and finalize keep/discard state in git and `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run completed successfully; I hit a local shell constraint (`python` not on PATH), so I’m extracting metrics via `uv run python` and then applying the keep/discard decision.
+
+I’ve recorded and reverted that non-improving run. I’m launching the next experiment with a different hypothesis: relax logits soft-capping (`softcap 15 -> 30`) to reduce saturation and potentially improve optimization signal.
+
+The second experiment is running now under the same 10-minute safety cap; after it exits I’ll pull `metrics.json`, append to `memory/results.tsv`, and keep or reset accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+I’m still waiting on GPU completion; no log inspection needed unless this run fails to produce a valid `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Run is still active and within the allowed wall-clock cap; I’ll finalize this trial as soon as the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+This one is unusually long but still not beyond the 10-minute failure threshold; I’m continuing to monitor the same process.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Completed and continued the loop from existing state (`memory/results.tsv` already initialized, branch `research-loops/may4`).
+
+Ran 2 new experiments end-to-end (commit → run → metrics.json → log → keep/discard):
+
+1. `aca9c72`  
+- Change: `total_batch_size 524288 -> 262144` (1x grad accumulation)  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=41940.4` (`41.0 GB`)  
+- Decision: `discard` (equal to best)  
+- Action: reset to previous commit
+
+2. `07f1b28`  
+- Change: `softcap 15.0 -> 30.0`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+- Decision: `discard` (equal to best)  
+- Action: reset to previous commit
+
+`memory/results.tsv` has been updated with both rows.  
+Current HEAD is back at `9a8eff4` (best remains `1.026098`).
+tokens used
+32,189
+Completed and continued the loop from existing state (`memory/results.tsv` already initialized, branch `research-loops/may4`).
+
+Ran 2 new experiments end-to-end (commit → run → metrics.json → log → keep/discard):
+
+1. `aca9c72`  
+- Change: `total_batch_size 524288 -> 262144` (1x grad accumulation)  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=41940.4` (`41.0 GB`)  
+- Decision: `discard` (equal to best)  
+- Action: reset to previous commit
+
+2. `07f1b28`  
+- Change: `softcap 15.0 -> 30.0`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+- Decision: `discard` (equal to best)  
+- Action: reset to previous commit
+
+`memory/results.tsv` has been updated with both rows.  
+Current HEAD is back at `9a8eff4` (best remains `1.026098`).

@@ -1,0 +1,33 @@
+commit 2d9c566b91346dcc4a4e2e0f30d8e56367554f17
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 16:14:01 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 16:14:01 2026 +0200
+
+    use adamw for transformer matrices instead of muon
+---
+ editable/train.py | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45f..0647813 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@ class GPT(nn.Module):
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]

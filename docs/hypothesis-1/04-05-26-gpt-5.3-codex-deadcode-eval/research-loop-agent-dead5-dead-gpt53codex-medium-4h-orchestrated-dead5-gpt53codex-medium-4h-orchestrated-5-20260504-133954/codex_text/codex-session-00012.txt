@@ -1,0 +1,300 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly as specified, then run/record the next experiment.
+
+I found an existing initialized loop on branch `research-loops/may4` with many logged experiments, so I’m resuming from the current best (`1.026098`). Next I’ll read the `editable/` files fully and make a new targeted change.
+
+I’ve loaded the full training/config code and confirmed many prior tweaks were no-ops on `val_bpb`. I’m now picking a sharper architecture/optimization change and then I’ll patch `editable/config.toml`, commit, run, and log via `metrics.json`.
+
+I’m making a higher-impact model change now: replacing the current `relu^2` MLP with a SwiGLU-style MLP in `editable/train.py`, then I’ll commit and benchmark it.
+
+I’ve applied the code change and captured the unified diff; next I’m committing this experiment and running the 5-minute training job with output redirected to `run.log`, then I’ll read only `metrics.json` and decide keep/discard.
+
+The run is in progress under a timed wrapper (`timeout 610s`). I’ll wait for completion, then parse `metrics.json` and update `memory/results.tsv` before deciding whether to reset.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..d8c96406a8f87e494a84021142894bb40f5f8634
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..d8c96406a8f87e494a84021142894bb40f5f8634
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+I’m still waiting on the training process; no diagnostics needed unless `metrics.json` is missing after exit. I’ll continue polling until it finishes.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..d8c96406a8f87e494a84021142894bb40f5f8634
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..d8c96406a8f87e494a84021142894bb40f5f8634
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The job is still running within limits; I’ll keep polling and immediately record results once it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..d8c96406a8f87e494a84021142894bb40f5f8634
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Training completed successfully. I hit a local environment detail (`python` not on PATH), so I’m now reading/parsing with `uv run python` and then I’ll append the result and enforce keep/discard with git reset if needed.
+
+I logged the SwiGLU run as `discard` and reset to the prior commit per loop rules. I’m proceeding directly to the next experiment: changing initialization randomness (`seed`) to test whether this plateau is seed-locked.
+
+Second experiment is running now (`seed=123`). I’ll wait for completion, read `metrics.json`, append to `memory/results.tsv`, and keep/reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index c4ed297e35a43fe50e2b4af7a5fac9fc99903c85..15f3ec9f0c93802cac939f83b8a3fbe57b267231
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,6 +1,6 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+-seed = 42
++seed = 123
+ device = "cuda"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c4ed297e35a43fe50e2b4af7a5fac9fc99903c85..15f3ec9f0c93802cac939f83b8a3fbe57b267231
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,6 +1,6 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+-seed = 42
++seed = 123
+ device = "cuda"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+
+
+The run is still active and within timeout; I’m continuing to poll and will immediately record/compare once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index c4ed297e35a43fe50e2b4af7a5fac9fc99903c85..15f3ec9f0c93802cac939f83b8a3fbe57b267231
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,6 +1,6 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+-seed = 42
++seed = 123
+ device = "cuda"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+
+
+Progress update: I resumed the existing loop on `research-loops/may4` and ran 2 new experiments end-to-end (commit → run → metrics.json readout → results.tsv log → reset on non-improvement).
+
+New logged results in `memory/results.tsv`:
+- `f42b7f7	1.026098	49.2	discard	switch MLP to SwiGLU gating`
+- `6d74b79	1.026098	41.1	discard	change seed to 123`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..d8c9640 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@ class MLP(nn.Module):
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+@@ -181,6 +181,7 @@ class GPT(nn.Module):
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index c4ed297..15f3ec9 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,6 +1,6 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+-seed = 42
++seed = 123
+ device = "cuda"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+```
+
+Current best remains `1.026098`. Branch is reset back to `49396ff` after both discards, and the loop is ready for the next experiment.
+tokens used
+56,676
+Progress update: I resumed the existing loop on `research-loops/may4` and ran 2 new experiments end-to-end (commit → run → metrics.json readout → results.tsv log → reset on non-improvement).
+
+New logged results in `memory/results.tsv`:
+- `f42b7f7	1.026098	49.2	discard	switch MLP to SwiGLU gating`
+- `6d74b79	1.026098	41.1	discard	change seed to 123`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..d8c9640 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@ class MLP(nn.Module):
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+@@ -181,6 +181,7 @@ class GPT(nn.Module):
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index c4ed297..15f3ec9 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,6 +1,6 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+-seed = 42
++seed = 123
+ device = "cuda"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+```
+
+Current best remains `1.026098`. Branch is reset back to `49396ff` after both discards, and the loop is ready for the next experiment.

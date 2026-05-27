@@ -1,0 +1,23 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly as specified.
+
+I found an existing initialized run history on branch `research-loops/may4`, so I’m resuming from there and moving straight into a new experiment by reading `editable/` code and prior results.
+
+I’ve loaded config and the top of `train.py`; next I’m checking the rest of `train.py` to pick a high-impact change that can improve `val_bpb` within the fixed 5-minute budget.
+
+I’m proceeding with a throughput/optimization experiment: reduce `total_batch_size` to `262144` to increase optimizer update frequency within the same 5-minute wall-clock budget, then I’ll commit, run, and compare `metrics.json` against best `val_bpb`.
+
+The config change is committed as `2cb3088`; I’m running the 5-minute training job now and will collect only `metrics.json` for result logging.
+
+Training is in progress in the background session; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+The run exceeded 5 minutes of wait but is still active, so I’m polling once more to confirm completion before treating it as failed.
+
+`python` isn’t on PATH in this harness, so I’m using `uv run` for metrics parsing and logging now.
+
+This experiment matched baseline (`val_bpb` unchanged), so I’m reverting the commit to keep the branch at the current best as required by the loop.
+
+I’m continuing the loop with a second experiment: increasing `softcap` from `15.0` to `30.0` to reduce logits saturation and potentially improve optimization signal early in training.
+
+I’ve committed `4fa5c24` and I’m launching the next 5-minute run; after it finishes I’ll log the metrics and keep or discard automatically.
+
+The second run is active; I’m waiting for completion and will read only `metrics.json` unless there’s a crash.

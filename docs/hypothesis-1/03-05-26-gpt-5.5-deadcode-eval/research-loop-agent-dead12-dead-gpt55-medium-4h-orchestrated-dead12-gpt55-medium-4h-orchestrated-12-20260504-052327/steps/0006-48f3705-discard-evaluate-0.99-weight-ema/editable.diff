@@ -1,0 +1,50 @@
+commit 48f3705b51d7a40bce16210b48b2083a926ca5a8
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 06:01:16 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 06:01:16 2026 +0200
+
+    evaluate ema weights
+---
+ editable/train.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..f7307cd 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -31,6 +31,7 @@ TIME_BUDGET_SECONDS = 300
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
++WEIGHT_EMA_BETA = 0.99
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
+ 
+@@ -449,6 +450,8 @@ with torch.device("meta"):
+     model = GPT(config)
+ model.to_empty(device=device)
+ model.init_weights()
++ema_source_params = list(model.parameters())
++ema_params = [p.detach().clone() for p in ema_source_params]
+ 
+ param_counts = model.num_scaling_params()
+ print("Parameter counts:")
+@@ -541,6 +544,8 @@ while True:
+             group["momentum"] = muon_momentum
+             group["weight_decay"] = muon_weight_decay
+     optimizer.step()
++    for p, ema_p in zip(ema_source_params, ema_params):
++        ema_p.lerp_(p.detach(), 1 - WEIGHT_EMA_BETA)
+     model.zero_grad(set_to_none=True)
+ 
+     train_loss_f = train_loss.item()
+@@ -587,6 +592,8 @@ print()  # newline after \r training log
+ total_tokens = step * CONFIG.total_batch_size
+ 
+ # Final eval
++with torch.no_grad():
++    torch._foreach_copy_(ema_source_params, ema_params)
+ model.eval()
+ with autocast_ctx:
+     metric_value = evaluate_model(

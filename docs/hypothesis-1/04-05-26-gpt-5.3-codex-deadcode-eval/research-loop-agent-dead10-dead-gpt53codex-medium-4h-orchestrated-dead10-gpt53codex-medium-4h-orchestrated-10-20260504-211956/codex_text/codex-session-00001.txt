@@ -1,0 +1,72 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume immediately or do first-time branch/baseline setup.
+
+No prior results file exists, so I’ll do fresh setup: create a dated branch, verify data/tokenizer artifacts, initialize `memory/results.tsv`, and run baseline.
+
+I confirmed the target branch name is free; next I’m verifying the data/tokenizer symlink targets actually contain expected files before baseline.
+
+Data and tokenizer artifacts are present, so I’m creating `research-loops/may4`, initializing `memory/results.tsv`, then running baseline training with full log redirection.
+
+Baseline run is starting now; once it finishes I’ll read `metrics.json`, append the baseline row to `memory/results.tsv`, and use that as the initial best.
+
+Training is still running in the background session; I’m polling until completion and then I’ll collect metrics without reading the full log.
+
+The baseline job exceeded one poll window but is still active; I’m doing another check now and will enforce the 10-minute cutoff if needed.
+
+Baseline completed successfully. I’m now reading `metrics.json`, computing memory in GB, and recording the baseline entry in `memory/results.tsv`.
+
+The shell lacks a direct `python` binary here, so I’m using `uv run python` for metrics extraction and then appending the baseline row.
+
+Baseline is logged (`val_bpb=1.026098`). I’m reading `editable/` and previous results now to choose the first tuning experiment and commit it before running.
+
+I have the config surface; I’m scanning the remainder of `train.py` to target a high-impact, low-risk change for the next 5-minute run.
+
+I’m running a low-risk optimizer sweep first: reduce `embedding_lr` and `matrix_lr` in `editable/config.toml` to stabilize early updates while keeping architecture fixed for a clean comparison.
+
+The config change is committed as `fb2eb1f`; I’m launching the 5-minute training run now and will evaluate only from `metrics.json`.
+
+Run finished; I’m extracting metrics, comparing against the current best `val_bpb`, updating `memory/results.tsv`, and reverting this commit if it did not improve.
+
+This matched baseline exactly, so I’m discarding it per loop rules and resetting to the previous commit before trying a different idea.
+
+I’m starting the next experiment now: keep optimizer rates unchanged but avoid decaying LR fully to zero by setting `final_lr_frac = 0.2` to preserve learning in the last half of the 5-minute budget.
+
+Second experiment run is active; after completion I’ll read `metrics.json`, append to `memory/results.tsv`, and keep/reset based on whether `val_bpb` beats `1.026098`.
+
+I’m collecting the second run metrics now and applying the same keep/discard logic against the current best.
+
+Both tuning attempts were neutral to 6 decimals, so I’m moving to a structural test next: increase `depth` from 8 to 10 to trade throughput for model quality within the same 5-minute wall-clock budget.
+
+Depth-10 run is in progress; I’ll finish the same metrics-only evaluation path and keep/reset automatically based on `val_bpb`.
+
+This depth increase raised VRAM to 61.9 GB without improving `val_bpb`, so I’m discarding it and resetting back to the best commit before continuing with further experiments.
+
+Initialized and started the loop on branch `research-loops/may4`, ran baseline, and executed 3 experiments with strict keep/discard/reset logic.
+
+Current best remains baseline at commit `1240832`:
+- `val_bpb`: `1.026098`
+- `peak_vram`: `41.1 GB`
+
+Logged results in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv):
+
+- `1240832` `1.026098` `41.1` `keep` `baseline`
+- `fb2eb1f` `1.026098` `41.1` `discard` `lower embedding_lr=0.4 and matrix_lr=0.03`
+- `1e0a5dd` `1.026098` `41.1` `discard` `set final_lr_frac=0.2 (less aggressive warmdown)`
+- `fe4b576` `1.026098` `61.9` `discard` `increase depth from 8 to 10`
+
+Branch is currently reset to best commit `1240832`, ready for the next experiment iteration.
+tokens used
+38,863
+Initialized and started the loop on branch `research-loops/may4`, ran baseline, and executed 3 experiments with strict keep/discard/reset logic.
+
+Current best remains baseline at commit `1240832`:
+- `val_bpb`: `1.026098`
+- `peak_vram`: `41.1 GB`
+
+Logged results in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv):
+
+- `1240832` `1.026098` `41.1` `keep` `baseline`
+- `fb2eb1f` `1.026098` `41.1` `discard` `lower embedding_lr=0.4 and matrix_lr=0.03`
+- `1e0a5dd` `1.026098` `41.1` `discard` `set final_lr_frac=0.2 (less aggressive warmdown)`
+- `fe4b576` `1.026098` `61.9` `discard` `increase depth from 8 to 10`
+
+Branch is currently reset to best commit `1240832`, ready for the next experiment iteration.

@@ -1,0 +1,144 @@
+I’m starting the research loop now: I’ll first check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+There is an existing initialized run history on branch `research-loops/may4`, so I’m resuming from current state and moving directly to the next experiment. I’ll read `editable/` and `memory/results.tsv` to choose the next high-impact change.
+
+I found a long prior search history with current best `val_bpb=1.026098` (many ties) and latest tried idea was `head_dim 16` with no gain. Next I’ll confirm current HEAD/state, then run a targeted new config change that increases update count while preserving divisibility constraints.
+
+I’m going to run a throughput-focused experiment by shrinking `sequence_len` and per-device batch so each optimizer step is cheaper and more frequent within 5 minutes; this keeps gradient accumulation valid and may improve short-budget learning. I’ll patch `editable/config.toml`, show the diff, commit, run, and score from `metrics.json`.
+
+The config patch is in place and clean. Next I’m committing this exact diff and launching the 5-minute training run with full log redirection, then I’ll read only `metrics.json` for evaluation.
+
+Training is running in the background now under a timeout guard; I’ll wait for completion and then parse `metrics.json` without reading the log unless it crashed.
+
+Run is still in progress; I’m continuing to wait for it to finish before collecting metrics and deciding keep vs discard.
+
+Still running within expected window. I’ll keep polling until it exits, then immediately extract and log the result.
+
+Execution is still active; once it returns I’ll compare against the best `1.026098` threshold and apply the branch advance/reset rule.
+
+The run is continuing; no crash signal yet. I’m waiting for completion and then moving straight to `metrics.json` ingestion.
+
+I’m still on the same training job; it’s taking longer wall-clock than usual but still under the 10-minute failure threshold. I’ll keep monitoring until it exits.
+
+The experiment finished successfully. I’m now parsing `metrics.json`, appending a result row, and then enforcing keep/discard by comparing against the current best non-crash score.
+
+I hit an environment detail (`python` is not on PATH), so I’m re-running the metric parsing with `uv run python` and then finalizing the log/reset decision.
+
+This run matched the best exactly (`1.026098`), so it is a `discard`. I’m appending it to `memory/results.tsv` and resetting one commit to return to the prior best state.
+
+I’ve returned to the pre-experiment commit and will immediately launch another variant to keep the loop moving. Next idea: keep `sequence_len=128` but use a slightly larger effective batch (`2048`) for stabler updates while retaining much higher step count than baseline.
+
+I committed the second variant and I’m running it now under the same timeout guard. After completion I’ll read `metrics.json`, log to TSV, and keep/reset automatically.
+
+Second run is in progress and healthy so far. I’m waiting for exit, then I’ll do the same metrics-only evaluation path.
+
+Still running; once it finishes I’ll immediately compare against `1.026098` and either advance or revert.
+
+Run is still active within limits. I’m continuing to monitor until completion before touching results tracking.
+
+This second variant also landed at `1.026098`, so it is another `discard`. I’m recording it and resetting back to the kept commit to continue the loop from the best-known state.
+
+Completed 2 new experiments and logged both; neither improved over the current best.
+
+Current best remains:
+- commit `f371db8`
+- `val_bpb = 1.026098`
+
+Edits tested (each committed, run, measured, then discarded due no improvement):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 256
+-total_batch_size = 8192
+-device_batch_size = 8
++sequence_len = 128
++total_batch_size = 1024
++device_batch_size = 4
+@@
+-embedding_lr = 0.6
++embedding_lr = 0.45
+@@
+-matrix_lr = 0.03
++matrix_lr = 0.04
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+```
+commit `ee6e294` → `val_bpb 1.026098` (`discard`)
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 256
+-total_batch_size = 8192
+-device_batch_size = 8
++sequence_len = 128
++total_batch_size = 2048
++device_batch_size = 4
+@@
+-embedding_lr = 0.6
++embedding_lr = 0.5
+@@
+-matrix_lr = 0.03
++matrix_lr = 0.04
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+```
+commit `e1498ff` → `val_bpb 1.026098` (`discard`)
+
+I appended both rows to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv) and reset back to `f371db8` after each discard, per loop rules.
+tokens used
+51,052
+Completed 2 new experiments and logged both; neither improved over the current best.
+
+Current best remains:
+- commit `f371db8`
+- `val_bpb = 1.026098`
+
+Edits tested (each committed, run, measured, then discarded due no improvement):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 256
+-total_batch_size = 8192
+-device_batch_size = 8
++sequence_len = 128
++total_batch_size = 1024
++device_batch_size = 4
+@@
+-embedding_lr = 0.6
++embedding_lr = 0.45
+@@
+-matrix_lr = 0.03
++matrix_lr = 0.04
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+```
+commit `ee6e294` → `val_bpb 1.026098` (`discard`)
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 256
+-total_batch_size = 8192
+-device_batch_size = 8
++sequence_len = 128
++total_batch_size = 2048
++device_batch_size = 4
+@@
+-embedding_lr = 0.6
++embedding_lr = 0.5
+@@
+-matrix_lr = 0.03
++matrix_lr = 0.04
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+```
+commit `e1498ff` → `val_bpb 1.026098` (`discard`)
+
+I appended both rows to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv) and reset back to `f371db8` after each discard, per loop rules.

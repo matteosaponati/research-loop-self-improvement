@@ -1,0 +1,977 @@
+I’m starting the loop by checking git state, whether `memory/results.tsv` already has prior runs, and whether data/tokenizer artifacts exist so I can either resume immediately or do first-time setup exactly per your protocol.
+
+I found an existing initialized loop with prior results, so I’m resuming directly from step (2) on the current branch. Next I’m reading all `editable/` files to identify why runs are still crashing and make the next experiment.
+
+I have config context; now I’m checking the rest of `editable/train.py` for remaining unconditional CUDA paths so the next run can complete and produce `metrics.json`.
+
+I located a likely crash point: model construction still uses `with torch.device("meta")` regardless of runtime device, which can still trigger CUDA allocation paths when no usable GPU is present. I’ll patch model init and optimizer compile behavior to be CPU-safe, then run the next experiment.
+
+I’m making a focused safety edit in `editable/train.py`: instantiate directly on CPU fallback instead of meta-to-empty when CUDA is unavailable, and ensure eval uses the resolved runtime device. Then I’ll commit and run.
+
+Patch is committed as `a8d92cf`. I’m launching the run now (fully redirected to `run.log`), then I’ll read `metrics.json` and append `memory/results.tsv` based only on that file.
+
+The training process is running in the background session; I’m polling for completion and will immediately collect `metrics.json` when it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..58622e3a297d787c49f28aa525fb92d8d39b7dbc
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -458,9 +458,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +621,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+The run exited with code 1, and `python` isn’t on PATH in this harness, so I’m using `uv run` for result parsing and then recording this as `crash` unless `metrics.json` exists and is valid.
+
+`metrics.json` is missing, so this is a crash. I’m doing targeted crash diagnosis from `run.log` to unblock the next experiment, then I’ll append this crash row and continue.
+
+Crash cause is clear (`bf16` embedding output feeding `fp32` linear layers on CPU). I’m logging this failed run, resetting this non-improving commit, and then applying a dtype fix as the next experiment.
+
+I’ve reset to the prior commit (`2c4250f`) per the loop rule. Now I’m patching a new experiment that fixes CPU dtype consistency (and retains CPU-safe device routing) so we can get the first successful metrics run.
+
+I’ve applied the next experiment patch in `editable/train.py`; I’m committing it now and starting another timed run.
+
+The new run is in progress under the 10-minute guard; I’m waiting for completion and will read only `metrics.json` unless it crashes.
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..6c2fbceb5f2abae02e9442d086a778ef54a6d433
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -458,9 +459,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +622,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+Training is still running normally; I’m continuing to wait for process exit before collecting metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..6c2fbceb5f2abae02e9442d086a778ef54a6d433
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -458,9 +459,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +622,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+The process exited with code `137` (killed), so I’m classifying this as a crash unless `metrics.json` is present and valid; then I’ll log it and continue to the next experiment.
+
+`metrics.json` is missing and there’s no Python traceback in `run.log`, so this was a hard kill (`137`). I’m recording it as `crash`, resetting this commit, and then I’ll run a CPU-stable config experiment to get a valid metric.
+
+I’m pivoting to a conservative CPU-only training configuration (smaller sequence and batch sizes) to stop crash loops and produce a valid `metrics.json`, which gives us a stable baseline for subsequent optimization.
+
+I’ve patched `editable/config.toml` for a CPU-stable run profile and will now commit, execute, and collect metrics.
+
+The new compact CPU run is active; I’m waiting for completion before parsing `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+
+
+This run crashed again with the same CPU dtype mismatch (`bf16` vs `fp32`), which confirms the core fix must be in `train.py` regardless of config size. I’m logging this crash, resetting, and applying that fix on top of the stable CPU config in the next experiment.
+
+I’m now creating a combined fix experiment: CPU-compact config plus CPU-safe dtype/device handling in `train.py`, then running it end-to-end to target the first non-crash metric.
+
+The combined patch is committed as `f378d67`; I’m running it now under the timeout guard, then I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+Run is in progress; I’m waiting for completion and will only read `metrics.json` unless a crash occurs.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..6c2fbceb5f2abae02e9442d086a778ef54a6d433
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -458,9 +459,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +622,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+Crash source is now clear: the optimizer helper functions are decorated with `@torch.compile`, and on this machine that still initializes CUDA through inductor even in CPU mode. I’m recording this crash, resetting, and running a new experiment that disables those compile decorators.
+
+I’m applying a broader CPU compatibility patch now: compact CPU config, dtype/device fixes, and removal of optimizer `torch.compile` decorators to prevent CUDA backend initialization during compilation.
+
+Edits are in; I’m committing this CPU-compatibility experiment and launching another run.
+
+This run is now executing with compile decorators removed; I’m waiting for completion, then I’ll record either `metrics.json` or crash status.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+The process is still alive after one minute, so I’m continuing to monitor; if it reaches the 10-minute guard it’ll be treated as failure and reverted.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+I’m still waiting on the same run; no crash signal yet, so I’ll keep polling until exit or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+Run is still in progress; continuing to poll for termination and then collect the metric snapshot.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+No exit yet; I’m continuing until either normal completion or the timeout kill threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+
+I’m still monitoring the same run; once it exits I’ll immediately log the result and decide keep/reset.
+
+Current loop status:
+
+- Resumed existing branch/state (`research-loops/may4`) and continued from prior `memory/results.tsv`.
+- Ran multiple crash-recovery experiments and logged each crash row to `memory/results.tsv`:
+  - `a8d92cf` crash (`bf16/fp32` mismatch on CPU fallback)
+  - `c545e21` crash (killed, exit 137)
+  - `586dee0` crash (same dtype mismatch)
+  - `f378d67` crash (`torch.compile` path triggered CUDA backend)
+- After each non-improving/crash run, reset back per protocol.
+- Current active experiment commit is `07cf5c9` with:
+  - CPU-only compact runtime config in `editable/config.toml`
+  - CPU-safe dtype/device fixes in `editable/train.py`
+  - `@torch.compile` removed from optimizer fused step functions to avoid CUDA backend init on CPU
+
+A training run for `07cf5c9` is currently still in progress (session `56562`) under the timeout guard. I have not yet received final `metrics.json` from this run in this turn.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..948cf55e4536e72ada2597ad9ad0816f5d2ec438
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf766908b3c390e83269a46cfb6bf4daad7..ccce45fc73fa26ffba0b6a98eca9b20c873260b8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -285,7 +286,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +296,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -458,9 +457,12 @@
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +620,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+
+tokens used
+73,106
+Current loop status:
+
+- Resumed existing branch/state (`research-loops/may4`) and continued from prior `memory/results.tsv`.
+- Ran multiple crash-recovery experiments and logged each crash row to `memory/results.tsv`:
+  - `a8d92cf` crash (`bf16/fp32` mismatch on CPU fallback)
+  - `c545e21` crash (killed, exit 137)
+  - `586dee0` crash (same dtype mismatch)
+  - `f378d67` crash (`torch.compile` path triggered CUDA backend)
+- After each non-improving/crash run, reset back per protocol.
+- Current active experiment commit is `07cf5c9` with:
+  - CPU-only compact runtime config in `editable/config.toml`
+  - CPU-safe dtype/device fixes in `editable/train.py`
+  - `@torch.compile` removed from optimizer fused step functions to avoid CUDA backend init on CPU
+
+A training run for `07cf5c9` is currently still in progress (session `56562`) under the timeout guard. I have not yet received final `metrics.json` from this run in this turn.

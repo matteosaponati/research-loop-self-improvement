@@ -1,0 +1,40 @@
+commit a8d92cf69db5fc9febac139dab0718d5d5644061
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:52:32 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:52:32 2026 +0200
+
+    Fix CPU fallback model init and eval device
+---
+ editable/train.py | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf..58622e3 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -458,9 +458,12 @@ def build_model_config():
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +621,7 @@ with autocast_ctx:
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary

@@ -1,0 +1,79 @@
+commit f378d676b490c0436f6982fd8283380a3530e4d7
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:55:25 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:55:25 2026 +0200
+
+    CPU stable run profile with dtype-safe fallback path
+---
+ editable/config.toml | 10 +++++-----
+ editable/train.py    | 16 ++++++++++------
+ 2 files changed, 15 insertions(+), 11 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..948cf55 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,16 +1,16 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
++sequence_len = 512
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+diff --git a/editable/train.py b/editable/train.py
+index 16e7ebf..6c2fbce 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -187,8 +187,9 @@ class GPT(nn.Module):
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU dtype consistent; bf16 embedding is only used on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -458,9 +459,12 @@ def build_model_config():
+ config = build_model_config()
+ print(f"Model config: {asdict(config)}")
+ 
+-with torch.device("meta"):
+-    model = GPT(config)
+-model.to_empty(device=device)
++if device.type == "cuda":
++    with torch.device("meta"):
++        model = GPT(config)
++    model.to_empty(device=device)
++else:
++    model = GPT(config).to(device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+@@ -618,7 +622,7 @@ with autocast_ctx:
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary

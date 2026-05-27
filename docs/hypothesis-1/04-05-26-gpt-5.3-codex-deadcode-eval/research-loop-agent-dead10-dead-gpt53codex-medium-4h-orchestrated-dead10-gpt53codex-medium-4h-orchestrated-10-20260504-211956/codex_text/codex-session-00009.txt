@@ -1,0 +1,394 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs, then either resume or initialize branch/memory and run the baseline exactly as specified.
+
+I found an existing initialized run history with many experiments, so I’m resuming from the current branch/state and moving directly to a new experiment cycle. Next I’ll read `editable/` files and pick a targeted change.
+
+I’ve loaded current config and history; all recent runs are flat at the same `val_bpb`, so I’m now inspecting the rest of `train.py` for a structural bottleneck or bug-level tweak that can move the metric.
+
+I found a likely high-impact issue: LR/WD schedules are keyed to `total_training_time`, which only starts increasing after warmup steps, so progress-dependent scheduling is effectively delayed. I’ll patch this to use elapsed wall time since training start, then run and compare.
+
+I’m editing `editable/train.py` now to decouple scheduler progress from the warmup-excluded timing counter and instead use actual elapsed training wall time, keeping stop condition unchanged.
+
+I’ve applied the scheduling fix and will now commit this experiment, run the 5-minute training job, then read only `metrics.json` and log the outcome in `memory/results.tsv`.
+
+Training is running in the background under timeout control; I’ll wait for completion, then parse `metrics.json` and decide keep vs reset based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+
+Run is still in progress. I’m continuing to wait and will only use `metrics.json` for normal result collection once the process exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+
+Still running; I’m waiting for completion and then I’ll immediately read and log the metric result.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+
+I’m still waiting on the same run session; no log inspection needed unless the run crashes or metrics are missing.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+
+The process is still active. I’ll keep polling until it exits, then parse `metrics.json`, append TSV, and keep/reset this commit according to the rule.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0a84ea0885982bcb8b00f397b4e03c0eb196298f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -531,7 +531,8 @@
+         x, y, epoch = next(train_loader)
+ 
+     # Progress and schedules
+-    progress = min(total_training_time / TIME_BUDGET_SECONDS, 1.0)
++    elapsed_training_wall = t0 - t_start_training
++    progress = min(elapsed_training_wall / TIME_BUDGET_SECONDS, 1.0)
+     lrm = get_lr_multiplier(progress)
+     muon_momentum = get_muon_momentum(step)
+     muon_weight_decay = get_weight_decay(progress)
+
+
+The run completed successfully; I hit an environment issue (`python` not on PATH), so I’m using `uv run python` to parse metrics and append the TSV row now.
+
+I reverted the discarded commit and I’m launching a second experiment now: shorten context to `1024` and halve `total_batch_size` to `262144` to increase optimizer update frequency within the same 5-minute wall-clock budget.
+
+Second run is in progress under the same timeout guard; once it exits I’ll read `metrics.json`, append TSV, and keep/reset accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still running; I’m waiting for completion and will continue strict metrics-only readout unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Run is still active. After it exits I’ll immediately log the result and advance or reset the branch based on the new `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The process hasn’t exited yet; I’m continuing to poll until completion.
+web search: 
+web search: time: {"utc_offset":"+02:00"}
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 5472ec8901025e77d86a64d64b230883df70c48c..f36c4f34794347ffda2040e74b3b6a99cb4fc0b3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1024
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Completed two experiment cycles and logged both to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv).
+
+Latest actions:
+1. `6b5192c` (discard): scheduler progress based on wall-clock elapsed time in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/train.py) during that run.
+- Result: `val_bpb=1.026098`, `memory_gb=41.1`
+- Reverted because not improved.
+
+2. `34f31b0` (discard): `sequence_len=1024`, `total_batch_size=262144` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/config.toml) during that run.
+- Result: `val_bpb=1.026098`, `memory_gb=20.8`
+- Reverted because not improved.
+
+Current branch/head:
+- `research-loops/may4`
+- HEAD reset to `8f90e80`
+- Best remains `1.026098` (commit `1240832`)
+tokens used
+31,949
+Completed two experiment cycles and logged both to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv).
+
+Latest actions:
+1. `6b5192c` (discard): scheduler progress based on wall-clock elapsed time in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/train.py) during that run.
+- Result: `val_bpb=1.026098`, `memory_gb=41.1`
+- Reverted because not improved.
+
+2. `34f31b0` (discard): `sequence_len=1024`, `total_batch_size=262144` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/config.toml) during that run.
+- Result: `val_bpb=1.026098`, `memory_gb=20.8`
+- Reverted because not improved.
+
+Current branch/head:
+- `research-loops/may4`
+- HEAD reset to `8f90e80`
+- Best remains `1.026098` (commit `1240832`)

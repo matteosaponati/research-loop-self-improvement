@@ -1,0 +1,73 @@
+commit 9c67d63000d8884b54fecbfc67e97f3087d1d1bd
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 00:00:34 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 00:00:34 2026 +0200
+
+    Try unigram logit prior
+---
+ editable/train.py | 23 ++++++++++++++++++++---
+ 1 file changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..a447b05 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@ class GPT(nn.Module):
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@ class GPT(nn.Module):
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -475,9 +478,6 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+-
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -489,6 +489,23 @@ train_loader = prepare.make_dataloader(
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 

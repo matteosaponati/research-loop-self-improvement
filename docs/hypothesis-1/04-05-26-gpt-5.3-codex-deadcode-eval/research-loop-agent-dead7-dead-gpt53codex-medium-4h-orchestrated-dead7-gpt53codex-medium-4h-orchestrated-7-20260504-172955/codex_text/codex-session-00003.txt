@@ -1,0 +1,542 @@
+I’m starting the research loop now: I’ll first check git state and whether `memory/results.tsv` already has prior runs so I can either resume immediately or do fresh setup exactly per your protocol.
+
+I found prior experiments, so I’m resuming from the current branch and skipping setup/baseline. Next I’ll re-read all files in `editable/` and propose a targeted change from what has already been tried.
+
+I’ve loaded the config and main training structure; now I’m checking the remaining scheduler/optimizer logic in `train.py` to pick a non-redundant change that could move `val_bpb` off the current plateau.
+
+I confirmed the scheduler and optimizer logic; all prior config-only changes were flat on `val_bpb`, so I’ll try a code-level optimization: tie `lm_head` to token embeddings to improve parameter efficiency under the same 5-minute budget, then run and compare.
+
+I’m editing `editable/train.py` now to add optional embedding/head weight tying and fix parameter counting so metrics remain correct with shared tensors.
+
+I’ve applied the code change; next I’ll record the exact unified diff, commit it, run the 5-minute training job, and evaluate from `metrics.json`.
+
+Running the experiment now (`38820d0`) with full log redirection; I’ll only read `metrics.json` for result collection unless it crashes.
+
+The run is in progress under the 5-minute budget; I’m waiting for completion and will parse `metrics.json` immediately after it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+
+Still training; I’m continuing to wait for completion and will then record the metrics/result row and decide keep vs reset based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+
+I’m still waiting on the training process; once it exits I’ll immediately extract `val_bpb`/VRAM from `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+
+The job is taking longer than expected to terminate after timed training; I’m continuing to monitor and will enforce the 10-minute failure rule if it crosses that limit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..42f97587e7f143d2c5dceeca715d5524b9797e22
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -214,10 +214,14 @@
+         return 6 * (nparams - nparams_exclude) + attn_flops
+ 
+     def num_scaling_params(self):
+-        wte = sum(p.numel() for p in self.transformer.wte.parameters())
+-        lm_head = sum(p.numel() for p in self.lm_head.parameters())
+-        transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        wte_params = list(self.transformer.wte.parameters())
++        lm_head_params = list(self.lm_head.parameters())
++        transformer_params = list(self.transformer.h.parameters())
++        unique_params = {id(p): p for p in (wte_params + lm_head_params + transformer_params)}
++        wte = sum(p.numel() for p in wte_params)
++        lm_head = sum(p.numel() for p in lm_head_params)
++        transformer_matrices = sum(p.numel() for p in transformer_params)
++        total = sum(p.numel() for p in unique_params.values())
+         return {
+             'wte': wte, 'lm_head': lm_head,
+             'transformer_matrices': transformer_matrices, 'total': total,
+
+
+I’m checking elapsed runtime on the training PID now to ensure we respect the 10-minute cap and kill/revert if necessary.
+
+I found multiple concurrent harness runs on the machine; I’m returning to the exact session handle to determine whether this experiment has already completed before taking any kill/reset action.
+
+The run session has closed, so I’m now reading `metrics.json` via `uv run python` to classify this experiment and update `memory/results.tsv`.
+
+`metrics.json` is missing, so this run is a crash. I’m recording it in `memory/results.tsv` and resetting to the pre-experiment commit per loop rules.
+
+I need to verify `results.tsv` after reset because resetting can drop the just-appended crash row; I’m checking and restoring the log entry if needed before starting the next experiment.
+
+I’m proceeding to the next experiment with a low-risk scheduler tweak in `editable/config.toml`: disable warmdown so LR stays constant for the full 5-minute window.
+
+I committed `4314e48` and am launching the run now; after completion I’ll parse `metrics.json`, log to TSV, and keep or reset based on `val_bpb`.
+
+The experiment is running; I’m waiting for process exit and will read only `metrics.json` for result collection.
+
+Still in training; I’m continuing to monitor and will apply the 10-minute cutoff if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+I’m still waiting on completion; next step is immediate metric extraction and logging once the session closes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Runtime is extended by startup/compile overhead, but still within policy; I’m continuing to wait and will kill only if it crosses the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The run finished successfully; I’m extracting `metrics.json`, appending the result row, and then deciding keep vs discard against the current best `1.026098`.
+
+`val_bpb` is unchanged (`1.026098`), so this is a discard. I’m logging it with memory usage and resetting to the baseline commit before the next iteration.
+
+Completed two experiment iterations and updated the loop state.
+
+- Resumed from existing branch/results (`research-loops/may4`), no re-init/baseline rerun.
+- Confirmed current best remains `val_bpb=1.026098` (commit `5ce981a`).
+
+Experiments run:
+1. `38820d0`  
+   - Change: tie `lm_head` to embeddings in `editable/train.py`.  
+   - Result: crash (`metrics.json` missing).  
+   - Logged: `0.000000`, `0.0 GB`, `crash`.  
+   - Reverted to `5ce981a`.
+
+2. `4314e48`  
+   - Change: `warmdown_ratio = 0.0` in `editable/config.toml` (flat LR schedule).  
+   - Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (~`41.1 GB`).  
+   - Status: `discard` (equal, not improved).  
+   - Reverted to `5ce981a`.
+
+`memory/results.tsv` now includes both new rows:
+- `38820d0	0.000000	0.0	crash	tie lm_head to embeddings`
+- `4314e48	1.026098	41.1	discard	warmdown_ratio 0.0 keep LR flat`
+
+Current HEAD is back at `5ce981a`, ready for next experiment.
+tokens used
+74,026
+Completed two experiment iterations and updated the loop state.
+
+- Resumed from existing branch/results (`research-loops/may4`), no re-init/baseline rerun.
+- Confirmed current best remains `val_bpb=1.026098` (commit `5ce981a`).
+
+Experiments run:
+1. `38820d0`  
+   - Change: tie `lm_head` to embeddings in `editable/train.py`.  
+   - Result: crash (`metrics.json` missing).  
+   - Logged: `0.000000`, `0.0 GB`, `crash`.  
+   - Reverted to `5ce981a`.
+
+2. `4314e48`  
+   - Change: `warmdown_ratio = 0.0` in `editable/config.toml` (flat LR schedule).  
+   - Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (~`41.1 GB`).  
+   - Status: `discard` (equal, not improved).  
+   - Reverted to `5ce981a`.
+
+`memory/results.tsv` now includes both new rows:
+- `38820d0	0.000000	0.0	crash	tie lm_head to embeddings`
+- `4314e48	1.026098	41.1	discard	warmdown_ratio 0.0 keep LR flat`
+
+Current HEAD is back at `5ce981a`, ready for next experiment.

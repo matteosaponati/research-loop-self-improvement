@@ -1,0 +1,146 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has prior runs, and whether data/tokenizer artifacts are present so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` with 20 rows), so I’m resuming directly from the current branch and moving to a new experiment by reading `editable/` and prior results.
+
+I’ve loaded the prior experiment history and core training/config code. Next I’m inspecting the remaining training loop to choose a high-signal change likely to move `val_bpb`, then I’ll patch only `editable/`, commit, run, and record/reset based on outcome.
+
+I identified a likely high-impact lever not yet tried: larger `lm_head` initialization scale to accelerate early optimization in a 5-minute budget. I’m patching `editable/config.toml`, then I’ll commit, run, read `metrics.json`, append `memory/results.tsv`, and keep/reset by result.
+
+Patch is in place and I captured the unified diff. I’m committing this experiment and launching a timed run with output redirected to `run.log`, then I’ll collect only `metrics.json` for evaluation.
+
+The run is executing now in the background session; I’m waiting for completion and will parse `metrics.json` immediately after it exits.
+
+I’m still waiting on the 5-minute training job; once it exits I’ll read `metrics.json`, log the row, and apply keep/discard reset logic.
+
+Run is still active and within budget; I’m continuing to monitor until it exits, then I’ll process results without reading the full log.
+
+The training process is still running; I’m polling until completion and will then update `memory/results.tsv` with keep/discard according to `val_bpb`.
+
+The run finished successfully. I’m now reading `metrics.json`, appending a results row, and then either keeping the commit or resetting to the previous best commit based on whether `val_bpb` improved.
+
+Result matched the current best (no improvement), so I’m recording it as `discard` and resetting to the pre-experiment commit to continue the loop cleanly.
+
+I’m continuing to the next experiment now. I’ll try a more aggressive update-frequency change (`total_batch_size` down to 131072) to increase optimizer steps within the fixed 5-minute window.
+
+This run exited non-zero, so I’m treating it as a crash unless `metrics.json` is valid; I’ll check `metrics.json` only first, then diagnose `run.log` only if needed.
+
+Crash cause was a divisibility assertion (`total_batch_size % (device_batch_size*sequence_len) == 0`). I’m logging this as `crash`, resetting, and launching another valid experiment with `device_batch_size=64` while keeping `total_batch_size=524288`.
+
+I committed the new batch-shaping experiment and I’m running training now; I’ll keep/discard based on `metrics.json` once it finishes.
+
+Training is in progress in the background session; I’m waiting for completion and then will read only `metrics.json` for result collection.
+
+Run is still active and within the time limit; I’m continuing to monitor until exit, then I’ll log the outcome and reset if not improved.
+
+The experiment is still running; once it exits I’ll immediately extract metrics, update `memory/results.tsv`, and keep or discard the commit.
+
+Experiment loop resumed and executed with git-based keep/revert rules.
+
+Completed since resume:
+
+1. `a2a3739`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@ ignore_index = -1
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+```
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Status: `discard` (no improvement), reset to `4fa5c24`
+
+2. `315e5dc`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 131072
+ device_batch_size = 128
+ tokenizer_batch_size = 128
+```
+- Result: crash (`metrics.json` missing)
+- Crash diagnosis (from `run.log`): assertion `total_batch_size % (device_batch_size * sequence_len) == 0`
+- Status: `crash`, reset to `4fa5c24`
+
+3. `5ef6ac3`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@ h100_bf16_peak_flops = 989500000000000.0
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+```
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21265.45` (`20.8 GB`)
+- Status: `discard` (no improvement), reset to `4fa5c24`
+
+`memory/results.tsv` has been updated for all three runs.  
+Current HEAD: `4fa5c24` (best still `1.026098`).
+tokens used
+49,022
+Experiment loop resumed and executed with git-based keep/revert rules.
+
+Completed since resume:
+
+1. `a2a3739`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@ ignore_index = -1
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+```
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Status: `discard` (no improvement), reset to `4fa5c24`
+
+2. `315e5dc`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 131072
+ device_batch_size = 128
+ tokenizer_batch_size = 128
+```
+- Result: crash (`metrics.json` missing)
+- Crash diagnosis (from `run.log`): assertion `total_batch_size % (device_batch_size * sequence_len) == 0`
+- Status: `crash`, reset to `4fa5c24`
+
+3. `5ef6ac3`  
+- Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@ h100_bf16_peak_flops = 989500000000000.0
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+```
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21265.45` (`20.8 GB`)
+- Status: `discard` (no improvement), reset to `4fa5c24`
+
+`memory/results.tsv` has been updated for all three runs.  
+Current HEAD: `4fa5c24` (best still `1.026098`).

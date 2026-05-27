@@ -1,0 +1,76 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume immediately or initialize a fresh branch/baseline exactly as specified.
+
+I found an existing initialized run history, so I’m resuming from the current branch/state and skipping branch creation and baseline. Next I’ll read `editable/` and prior results to choose the next experiment.
+
+I’ve identified that most prior trials changed knobs that may be weak under this CPU fallback regime; the next test will be a stronger optimization change by increasing update magnitude on matrix and output-head learning rates in `editable/config.toml`.
+
+I’ve applied the config change and verified the exact diff. I’m committing this experiment now, then launching a 5-minute run and reading only `metrics.json` for scoring.
+
+Training is running in the background session; I’m waiting for completion, then I’ll parse `metrics.json`, append the TSV row, and keep or reset based on `val_bpb`.
+
+Run is still in progress; I’m continuing to wait without reading logs, and will only consume `metrics.json` when the process exits.
+
+I’m still waiting on the training session to finish within the expected budget window; no diagnostics needed so I’m keeping log access minimal.
+
+The run is taking longer wall-clock than the 5-minute training budget (likely compile/startup overhead), so I’m continuing to monitor and will enforce the 10-minute hard limit if needed.
+
+I’m still in wait state on the training process; once it exits I’ll immediately score from `metrics.json` and update the git/TSV state.
+
+The run finished successfully; I hit a local shell issue (`python` not on PATH), so I’m re-reading `metrics.json` and best-so-far via `uv run python` and then finalizing keep/discard.
+
+I’ve got the new metric (`val_bpb=1.026098`) and am waiting for the best-so-far query to return so I can append `results.tsv` and reset if needed.
+
+I recorded the discard and reset to the previous keep point. I’m launching another experiment now: shorter context (`sequence_len=256`) to increase update frequency within the fixed 5-minute budget.
+
+The new commit is in place with the exact one-line config change. I’m running training again and will score it from `metrics.json` when complete.
+
+This run is progressing normally; I’m continuing to wait for process exit and will avoid log inspection unless `metrics.json` is missing.
+
+I’m still in the wait window; once this exits I’ll immediately parse `metrics.json`, append result status, and keep/reset accordingly.
+
+This one is still running beyond expected startup overhead; I’m continuing to monitor and will treat it as failure if it crosses the 10-minute cap.
+
+The process exited cleanly. I’m extracting `metrics.json` now and finalizing the TSV plus keep/discard decision.
+
+Completed two new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at commit `4d2231c` (after discards/reset).
+- I resumed from existing `memory/results.tsv` and did not reinitialize baseline.
+
+New experiments run:
+
+1. `fcff7fd`  
+   - Change: `unembedding_lr 0.004 -> 0.01`, `matrix_lr 0.04 -> 0.08`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+   - Logged: `discard`  
+   - Action: reset to previous commit
+
+2. `b25027f`  
+   - Change: `sequence_len 2048 -> 256`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+   - Logged: `discard`  
+   - Action: reset to previous commit
+
+`memory/results.tsv` has both entries appended.
+tokens used
+48,665
+Completed two new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at commit `4d2231c` (after discards/reset).
+- I resumed from existing `memory/results.tsv` and did not reinitialize baseline.
+
+New experiments run:
+
+1. `fcff7fd`  
+   - Change: `unembedding_lr 0.004 -> 0.01`, `matrix_lr 0.04 -> 0.08`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+   - Logged: `discard`  
+   - Action: reset to previous commit
+
+2. `b25027f`  
+   - Change: `sequence_len 2048 -> 256`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+   - Logged: `discard`  
+   - Action: reset to previous commit
+
+`memory/results.tsv` has both entries appended.

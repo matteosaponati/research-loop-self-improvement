@@ -1,0 +1,100 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize branch/results and run the baseline exactly per your protocol.
+
+I found an active run state (`memory/results.tsv` already populated), so I’m resuming from the current branch and now reading `editable/` plus past results to pick the next experiment.
+
+I have the prior sweep history and current hyperparameters; next I’m scanning the rest of `train.py` to target a high-leverage change that can move `val_bpb` (all recent runs were flat).
+
+I’m running the next experiment as an architecture tweak: keep parameter count roughly similar but double attention heads by changing `head_dim` from 128 to 64, then commit, run, and score from `metrics.json`.
+
+The change is committed at `1184c6c`; I’m launching the 5-minute run now and will collect only `metrics.json` for evaluation and logging.
+
+The run is still in progress within the timeout window; I’m waiting for completion before parsing metrics and deciding keep vs revert.
+
+I’m still waiting on the training process; once it exits I’ll read `metrics.json`, append `memory/results.tsv`, and automatically reset if it didn’t improve best `val_bpb`.
+
+Still running cleanly; I’m continuing to wait and will process metrics immediately when it exits.
+
+The process hasn’t returned yet but remains within the 10-minute cap; I’m polling until completion or timeout.
+
+The run finished successfully; I’m now reading `metrics.json`, logging the result to `memory/results.tsv`, and applying keep/discard with a git reset if it didn’t beat the current best.
+
+A shell issue occurred (`python` missing in PATH), and the auto-reset fired based on the previous row status; I’m correcting this by reading `metrics.json` via `uv run`, appending the missing experiment row explicitly for commit `1184c6c`, and continuing from the reset state.
+
+I verified state: the branch currently sits at commit `79cf4ce` with your working memory intact, so I’ll continue from here and run the next experiment iteration from this checkpoint.
+
+Next experiment is a stronger objective-side change: remove logits softcapping in `GPT.forward` to avoid tanh saturation, then run and keep only if `val_bpb` improves.
+
+I committed `c7e4a7b` and am running the timed training now; after completion I’ll record `metrics.json` into `memory/results.tsv` and reset if not better.
+
+Run is in progress; I’m waiting for process exit before collecting metrics.
+
+Still executing within the allowed window; I’m continuing to poll until it returns.
+
+The training process is still active; once it exits I’ll immediately score, log, and keep/discard.
+
+The run completed successfully; I’m extracting `metrics.json`, appending this experiment to `memory/results.tsv`, and reverting the commit if it didn’t beat the best keep score.
+
+Completed and continuing the loop on `research-loops/may4`.
+
+Latest two experiments run and logged:
+
+1. `1184c6c` (`editable/config.toml`)
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-head_dim = 128
++head_dim = 64
+```
+Result: `val_bpb=1.026098`, `memory_gb=41.2`, `status=discard` (no improvement).  
+Action: reverted commit.
+
+2. `c7e4a7b` (`editable/train.py`)
+```diff
+--- a/editable/train.py
++++ b/editable/train.py
+@@
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+```
+Result: `val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement).  
+Action: reverted commit.
+
+Current branch head: `79cf4ce`  
+Current best keep in `memory/results.tsv`: `1.026098`  
+`memory/results.tsv` has been updated with both new experiment rows.
+tokens used
+28,105
+Completed and continuing the loop on `research-loops/may4`.
+
+Latest two experiments run and logged:
+
+1. `1184c6c` (`editable/config.toml`)
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-head_dim = 128
++head_dim = 64
+```
+Result: `val_bpb=1.026098`, `memory_gb=41.2`, `status=discard` (no improvement).  
+Action: reverted commit.
+
+2. `c7e4a7b` (`editable/train.py`)
+```diff
+--- a/editable/train.py
++++ b/editable/train.py
+@@
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+```
+Result: `val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement).  
+Action: reverted commit.
+
+Current branch head: `79cf4ce`  
+Current best keep in `memory/results.tsv`: `1.026098`  
+`memory/results.tsv` has been updated with both new experiment rows.

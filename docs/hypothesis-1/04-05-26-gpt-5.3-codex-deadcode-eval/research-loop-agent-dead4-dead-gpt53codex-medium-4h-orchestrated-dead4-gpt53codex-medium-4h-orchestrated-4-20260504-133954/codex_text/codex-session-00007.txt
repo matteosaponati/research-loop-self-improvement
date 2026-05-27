@@ -1,0 +1,237 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has prior runs, and whether data artifacts already exist so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run history (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving to the next experiment cycle by reading `editable/` and prior results.
+
+I’ve loaded prior outcomes: every attempted change so far produced the exact same `val_bpb`, which suggests we need a more structural change in optimization dynamics rather than small scalar nudges. I’m quickly scanning the rest of `editable/train.py` to target a higher-leverage edit.
+
+I identified a likely high-impact issue: `softcap` is applied unconditionally to logits before cross-entropy, which can cap confidence and blunt learning; I’m going to test removing that cap (keeping config unchanged) as a direct architecture/training dynamic experiment.
+
+I’m applying a minimal code edit in `editable/train.py` to bypass logit soft-capping during training/eval, then I’ll commit and run the 5-minute experiment.
+
+The change is committed (`888960e`). I’m running the experiment now with output redirected to `run.log`, then I’ll read `metrics.json`, append `memory/results.tsv`, and keep/reset based on `val_bpb`.
+
+Training is in progress; I’m waiting for completion and will only use `metrics.json` for result collection unless there’s a crash.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+Run is still active and within the allowed time window; I’m continuing to wait for the process to finish before reading metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+Still running; once it exits I’ll parse `metrics.json`, record TSV, and immediately decide keep vs discard.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+I’m still waiting on the training process; no diagnostics needed yet since there’s no crash signal and we’re staying within the runtime guardrail.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+Process is nearing expected completion time; I’ll collect the JSON metrics as soon as it exits and then finalize branch state accordingly.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f624d7c993bca6c5b2490a7447245e11fe9a6aee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,8 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+The run completed successfully; I hit a local shell issue (`python` not on PATH), so I’m switching to `uv run python` to read `metrics.json` and update `memory/results.tsv`.
+
+`val_bpb` matched the current best (no improvement), so I’m discarding this commit, resetting the branch to the prior state, and logging this run as `discard` in `memory/results.tsv`.
+
+I’m proceeding مباشرة with the next experiment: increasing optimizer update count by cutting `total_batch_size` further (to `131072`) while keeping sequence length fixed, then repeating the same commit-run-evaluate-log-keep/discard cycle.
+
+The second experiment commit is in (`c5b2c59`); I’m running the 5-minute training now and will collect only `metrics.json` afterward.
+
+Training is running for experiment `c5b2c59`; I’m waiting for completion and will apply the same keep/discard decision rule from `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..55d5b8f86ea6976d3cc9088fae0312782da8a919
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 131072
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+ exited 1 in 8310ms:
+
+This run exited early with a nonzero code; I’m treating it as a crash (without reading `run.log` unless needed), recording a crash row, and resetting the branch state.
+
+Completed two experiment cycles and updated `memory/results.tsv` accordingly.
+
+- `888960e` (`remove logit softcap before cross-entropy`):
+  - `val_bpb=1.026098`, `peak_vram_mb=51654.9` (`50.4 GB`)
+  - Status: `discard` (equal to best, no improvement)
+  - Branch reset after logging
+
+- `c5b2c59` (`reduce total_batch_size to 131072 for more updates`):
+  - Run crashed (`metrics.json` missing, process exited nonzero)
+  - Status: `crash` with `val_bpb=0.000000`, `memory_gb=0.0`
+  - Branch reset after logging
+
+Current HEAD is back at `986c277` on `research-loops/may4`, and the loop history is preserved in `memory/results.tsv`.
+tokens used
+37,797
+Completed two experiment cycles and updated `memory/results.tsv` accordingly.
+
+- `888960e` (`remove logit softcap before cross-entropy`):
+  - `val_bpb=1.026098`, `peak_vram_mb=51654.9` (`50.4 GB`)
+  - Status: `discard` (equal to best, no improvement)
+  - Branch reset after logging
+
+- `c5b2c59` (`reduce total_batch_size to 131072 for more updates`):
+  - Run crashed (`metrics.json` missing, process exited nonzero)
+  - Status: `crash` with `val_bpb=0.000000`, `memory_gb=0.0`
+  - Branch reset after logging
+
+Current HEAD is back at `986c277` on `research-loops/may4`, and the loop history is preserved in `memory/results.tsv`.

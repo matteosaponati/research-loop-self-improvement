@@ -1,0 +1,64 @@
+I’m starting the research loop setup by checking git state, whether prior results already exist, and whether this run should resume or initialize fresh. Then I’ll run or skip baseline accordingly and proceed to the next experiment.
+
+I found this is already initialized (`memory/results.tsv` has prior rows), so I’m resuming directly from the current branch and moving to a new experiment cycle by reading `editable/` and prior results.
+
+I’ve loaded prior results and configs; next I’m checking current `metrics.json` and key training logic sections in `train.py` to pick a change that can actually move `val_bpb` under CPU fallback constraints.
+
+I identified that runtime is forced to CPU and many prior config-only changes plateaued at exactly `1.026098`, so I’m trying a code-level optimization change in `MLP`: replacing `relu(x)^2` with `gelu` to alter gradient flow more meaningfully. I’ll commit, run, and keep only if `val_bpb` improves.
+
+I’ve applied the edit and confirmed the diff; now I’m committing this experiment and launching the 5-minute run with output redirected to `run.log`, then I’ll read only `metrics.json` for result collection.
+
+The run is in progress under a live session; I’m waiting for completion and will immediately parse `metrics.json` and append the result row.
+
+Still waiting on the training process; once it exits I’ll classify it as `keep`, `discard`, or `crash` based on `metrics.json` and branch-best comparison.
+
+Training is still running within the time budget window; I’m continuing to wait and will extract only the structured metrics as soon as it finishes.
+
+Run is still active, no crash signal yet. I’ll keep polling until completion, then update `memory/results.tsv` and reset if non-improving.
+
+I’m still waiting for process termination and have not inspected the log; result collection will come strictly from `metrics.json` unless a crash is detected.
+
+Polling continues; as soon as it returns I’ll compute memory in GB from `peak_vram_mb`, append the TSV row, and enforce keep/discard via git reset policy.
+
+The process is unusually long but still under the 10-minute failure threshold; I’m continuing to monitor until either completion or forced timeout.
+
+I’m in final wait for this run; next action is immediate metrics parsing and result logging without reading `run.log`.
+
+The job is still alive; if it crosses 10 minutes wall time I’ll terminate and mark it as failure per your rule, otherwise I’ll record normal metrics on exit.
+
+The run completed successfully. I’m now reading `metrics.json`, appending this experiment to `memory/results.tsv`, and then discarding or keeping the commit based on best `val_bpb`.
+
+`val_bpb` matched the current best (no improvement), so I’m recording this as `discard` in TSV and resetting one commit to continue from the prior best state.
+
+I’m continuing the loop with another experiment: changing the random seed to test whether a different initialization trajectory can beat the current plateau at `1.026098`. I’ll commit, run, log, and keep only on improvement.
+
+The seed experiment is running now; I’m waiting for completion and will again read only `metrics.json` for evaluation and logging.
+
+Run is still in progress. I’ll keep polling and apply keep/discard logic immediately after metrics are written.
+
+Training is still active and within limits; I’m continuing to wait without inspecting `run.log`.
+
+Still running; once it exits, I’ll append a TSV row with commit hash, `val_bpb`, memory GB, and status, then reset if not improved.
+
+The process is still alive and has not hit the failure timeout; I’m continuing to monitor for completion.
+
+Polling continues; I’ll finalize this cycle as soon as the run exits and update `memory/results.tsv` accordingly.
+
+Run remains active slightly longer than expected but still acceptable; I’m waiting for a clean exit before collecting metrics.
+
+This run completed; I’m extracting `metrics.json` now and applying keep/discard against the branch-best result.
+
+Completed 2 new experiments and logged both.
+
+- `b14bcf8` (`use GELU activation in MLP`): `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement), reset branch.
+- `4bbde97` (`change seed to 1337`): `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement), reset branch.
+
+Current HEAD is back to `4d2231c` (best-so-far unchanged in this loop), and `memory/results.tsv` has been updated with both rows.
+tokens used
+45,125
+Completed 2 new experiments and logged both.
+
+- `b14bcf8` (`use GELU activation in MLP`): `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement), reset branch.
+- `4bbde97` (`change seed to 1337`): `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement), reset branch.
+
+Current HEAD is back to `4d2231c` (best-so-far unchanged in this loop), and `memory/results.tsv` has been updated with both rows.

@@ -1,0 +1,132 @@
+commit 42b61af1f81c167c4a043c1515eecd4f40c8d711
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 09:56:32 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 09:56:32 2026 +0200
+
+    train: cpu-safe fallback with smaller config
+---
+ editable/config.toml | 12 ++++++------
+ editable/train.py    | 32 +++++++++++++++++++++++---------
+ 2 files changed, 29 insertions(+), 15 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..94f08ce 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,22 +1,22 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++sequence_len = 512
++total_batch_size = 65536
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 4
++aspect_ratio = 32
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..5e0c438 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,11 +413,23 @@ class MuonAdamW(torch.optim.Optimizer):
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
++requested_device = torch.device(CONFIG.device)
++device = requested_device
++if requested_device.type == "cuda":
++    try:
++        torch.zeros(1, device=requested_device)
++        torch.cuda.manual_seed(CONFIG.seed)
++    except Exception as exc:
++        print(f"CUDA unavailable at runtime ({exc}); falling back to CPU")
++        device = torch.device("cpu")
++        _torch_empty = torch.empty
++        def _cpu_safe_empty(*args, **kwargs):
++            kwargs.pop("pin_memory", None)
++            return _torch_empty(*args, **kwargs)
++        torch.empty = _cpu_safe_empty
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,7 +487,7 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and device.type == "cuda":
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+@@ -485,7 +497,7 @@ train_loader = prepare.make_dataloader(
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=device.type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +532,8 @@ total_training_time = 0
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if device.type == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +563,8 @@ while True:
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if device.type == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +610,7 @@ with autocast_ctx:
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=device.type,
+     )
+ 
+ # Final summary
+@@ -604,7 +618,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if device.type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),

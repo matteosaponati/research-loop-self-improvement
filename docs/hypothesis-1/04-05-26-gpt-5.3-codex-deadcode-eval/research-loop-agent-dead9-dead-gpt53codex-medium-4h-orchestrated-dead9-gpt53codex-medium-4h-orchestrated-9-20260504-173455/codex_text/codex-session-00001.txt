@@ -1,0 +1,502 @@
+I’m starting the research loop now: I’ll first check git/memory state to decide whether to resume or initialize, then run the required baseline/setup path exactly per your protocol.
+
+The workspace is on `master` with no `memory/results.tsv`, so I’m doing a fresh initialization next: create a dated branch, verify `.local/data` and `.local/tokenizer`, initialize results TSV, then run baseline.
+
+Data/tokenizer artifacts are present, so I’m creating branch `research-loops/may4`, initializing `memory/results.tsv`, and launching the baseline run with a hard timeout under 10 minutes.
+
+Baseline training is running now in the background; I’ll wait for completion, then read only `metrics.json` and record the baseline row.
+
+Still waiting on the 5-minute baseline run; no stdout is expected because output is redirected to `run.log`. I’ll keep polling and then parse `metrics.json`.
+
+I’m continuing to monitor the baseline process; once it exits, I’ll immediately log the baseline metrics and move into the first code experiment.
+
+Baseline finished successfully. I’ll now read `metrics.json`, append the baseline entry to `memory/results.tsv`, then inspect `editable/` files to propose the first tuning change.
+
+I recorded the baseline (`val_bpb=1.026098`). Next I’m reading `editable/train.py`, config files, and results history to choose the highest-impact 5-minute optimization for experiment 1.
+
+I’ve identified a low-risk first experiment: adjust the LR schedule to include a short warmup and less aggressive decay, since baseline currently decays half the run to zero. I’m editing `editable/config.toml`, then I’ll show the unified diff, commit, run, and compare against baseline.
+
+The change is committed (`563d0e3`) and the diff is clean. I’m running the experiment now and will keep/revert strictly based on `val_bpb`.
+
+Experiment run is still in progress; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m still waiting on the training process completion; once it exits I’ll log the result and either keep the commit or hard-revert to the prior baseline state per your rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c627cf32e8fb86f26465608dd7954b897d5f6e8b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run completed successfully. I’m now comparing its `val_bpb` to the current best and then applying keep/discard logic plus git reset if needed.
+
+That experiment tied baseline, so it was discarded and I reset the branch tip to the prior commit while preserving experiment memory. I’m now checking the results table and launching a new idea.
+
+Next experiment: reduce `matrix_lr` from `0.04` to `0.03` to trade a bit of speed for better 5-minute optimization stability; I’m applying this as a single config change, then running and evaluating.
+
+Second experiment is running (`a27c53b`); after completion I’ll append metrics and keep/reset based on whether `val_bpb` goes below `1.026098`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run is still active; I’m continuing to poll until exit, then I’ll immediately apply keep/discard and set up the next trial.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Both tuning attempts tied baseline and were discarded cleanly. I’m launching a third experiment by increasing model depth (8 → 10) to use more capacity within similar runtime and potentially improve `val_bpb` at fixed wall-clock budget.
+web search: 
+web search: 
+
+Depth-10 run is now executing (`c2e655a`). I’ll wait for completion, then parse `metrics.json`, log to `memory/results.tsv`, and keep or reset accordingly.
+web search: 
+web search: 
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-10 training is still running under timeout guard; I’m continuing to monitor and will apply the same keep/discard rule immediately on completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The process is unusually long versus prior runs; it is still within the 610s guard, and I’ll treat timeout or failure as discard/crash per protocol.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..51137c1185f796b83741391c6b75b40af280e607
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-10 run has finished; I’m recording metrics now and finalizing branch state based on the best-so-far rule.
+
+Current loop state after initialization + 3 experiments:
+
+- Branch: `research-loops/may4`
+- Current HEAD: `0d20b2e` (baseline kept)
+- Best `val_bpb`: `1.026098`
+- `memory/results.tsv` updated with all trials.
+
+Recorded results:
+- `0d20b2e` | `1.026098` | `41.1 GB` | `keep` | baseline
+- `563d0e3` | `1.026098` | `41.1 GB` | `discard` | warmup 2%, warmdown 20%, final lr 10%
+- `a27c53b` | `1.026098` | `41.1 GB` | `discard` | matrix_lr 0.03
+- `c2e655a` | `1.026098` | `61.9 GB` | `discard` | depth 10
+
+All non-improving commits were reset per protocol, so the branch tip remains on the baseline commit while retaining experiment memory in `memory/results.tsv`.
+tokens used
+104,171
+Current loop state after initialization + 3 experiments:
+
+- Branch: `research-loops/may4`
+- Current HEAD: `0d20b2e` (baseline kept)
+- Best `val_bpb`: `1.026098`
+- `memory/results.tsv` updated with all trials.
+
+Recorded results:
+- `0d20b2e` | `1.026098` | `41.1 GB` | `keep` | baseline
+- `563d0e3` | `1.026098` | `41.1 GB` | `discard` | warmup 2%, warmdown 20%, final lr 10%
+- `a27c53b` | `1.026098` | `41.1 GB` | `discard` | matrix_lr 0.03
+- `c2e655a` | `1.026098` | `61.9 GB` | `discard` | depth 10
+
+All non-improving commits were reset per protocol, so the branch tip remains on the baseline commit while retaining experiment memory in `memory/results.tsv`.

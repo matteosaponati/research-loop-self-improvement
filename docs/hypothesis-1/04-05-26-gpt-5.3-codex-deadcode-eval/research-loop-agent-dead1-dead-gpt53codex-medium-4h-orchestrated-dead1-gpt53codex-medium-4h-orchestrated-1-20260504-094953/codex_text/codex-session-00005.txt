@@ -1,0 +1,861 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized loop with only crash outcomes, so I’m resuming directly from the current branch and now reading `editable/` code to design a run that actually completes and yields a valid `val_bpb`.
+
+I identified the crash source: `train.py` still unconditionally calls CUDA APIs even when prior experiments tried CPU fallback. I’m patching it to be device-aware and disabling compile on CPU so we can get a valid metrics run instead of another crash.
+
+Next I’m applying a conservative CPU-safe config in `editable/config.toml` (smaller model and batches) to keep wall time under 10 minutes and maximize chance of a first successful completed run.
+
+I’ve made the code and config changes; I’ll now capture the exact unified diff, commit it, then run the experiment and collect `metrics.json`.
+
+Commit `815761b` is ready; I’m launching the timed training run now and will only read `metrics.json` afterward unless it crashes.
+
+The run is in progress in the background session; I’m monitoring it and will stop it if it exceeds the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137e4e84189f51a3a34c5ff3dd17c015d706..4290cfacc5a84bf16a7dd43047b5766273c56640
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1bac57d9c1726cdf8672c48d7ad23d0f61213e27
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,11 +413,13 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,7 +477,7 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+@@ -520,7 +522,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +553,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +608,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+ exited 1 in 7078ms:
+
+The process exited early with a non-zero code, so I’m checking `metrics.json` now to classify this as crash vs successful run without reading `run.log` yet.
+
+Crash diagnosis is clear from `run.log`: immutable dataloader allocates pinned memory unconditionally, which still triggers CUDA even on CPU mode. I’m logging this crash result, resetting, then patching a narrow pin-memory fallback in `editable/train.py` for the next run.
+
+I’ve committed `9023027` with the pin-memory shim and CPU-safe path; launching the next experiment run now.
+
+The run is active; I’m waiting for completion and will enforce the 10-minute limit if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137e4e84189f51a3a34c5ff3dd17c015d706..4290cfacc5a84bf16a7dd43047b5766273c56640
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e6b1f6c67d4fd70f7edfed76b3413d4f88aa93a7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,11 +413,13 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +477,20 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -520,7 +533,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +564,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +619,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+ exited 1 in 11624ms:
+
+The second crash came from `@torch.compile` on optimizer kernels still invoking inductor and triggering CUDA context init. I’m recording this crash, resetting, then making a third experiment that disables compile entirely on CPU before those decorators execute.
+
+I’m now patching `train.py` to neutralize `torch.compile` on CPU at import time (covering optimizer fused kernels and model compile), plus reapplying the CPU/tiny config changes for a third run.
+
+Commit `f371db8` is in place; starting the next training run now to see if we can finally get a valid `metrics.json`.
+
+The run is active; I’m waiting for completion and will collect results strictly from `metrics.json` when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137e4e84189f51a3a34c5ff3dd17c015d706..4290cfacc5a84bf16a7dd43047b5766273c56640
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..772a95a34ed50d8726ae52d4ddfc9c284a7049d2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+ 
+ prepare.DATA_DIR = os.path.expanduser(str(prepare.DATA_DIR))
+@@ -413,11 +421,13 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +485,20 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -520,7 +541,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +572,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +627,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+Training is still running normally after 60s; I’m continuing to wait for termination within the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137e4e84189f51a3a34c5ff3dd17c015d706..4290cfacc5a84bf16a7dd43047b5766273c56640
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..772a95a34ed50d8726ae52d4ddfc9c284a7049d2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+ 
+ prepare.DATA_DIR = os.path.expanduser(str(prepare.DATA_DIR))
+@@ -413,11 +421,13 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +485,20 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -520,7 +541,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +572,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +627,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+This run completed successfully with `val_bpb=1.026098`, so I’m recording it as `keep` (first non-crash baseline-quality result on this branch) and leaving the commit in place.
+
+Completed one full successful loop cycle after two crash diagnostics/resets.
+
+Unified diff used for the kept experiment:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..4290cfa 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..772a95a 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+@@ -413,11 +421,13 @@ class MuonAdamW(torch.optim.Optimizer):
+
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+@@ -475,9 +485,20 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+@@ -520,7 +541,8 @@ total_training_time = 0
+ step = 0
+
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+@@ -550,7 +572,8 @@ while True:
+         print("FAIL")
+         exit(1)
+
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+@@ -604,7 +627,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+```
+
+Commit kept: `f371db8`  
+Run result from `metrics.json`:
+- `val_bpb`: `1.026098`
+- `training_seconds`: `300.2935`
+- `total_seconds`: `316.2051`
+- `peak_vram_mb`: `0.0`
+- `num_steps`: `263`
+
+Logged to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv).  
+Edited files: [editable/train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/train.py), [editable/config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/config.toml).
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137e4e84189f51a3a34c5ff3dd17c015d706..4290cfacc5a84bf16a7dd43047b5766273c56640
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..772a95a34ed50d8726ae52d4ddfc9c284a7049d2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+ 
+ prepare.DATA_DIR = os.path.expanduser(str(prepare.DATA_DIR))
+@@ -413,11 +421,13 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +485,20 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -520,7 +541,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +572,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +627,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+tokens used
+40,936
+Completed one full successful loop cycle after two crash diagnostics/resets.
+
+Unified diff used for the kept experiment:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..4290cfa 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..772a95a 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+@@ -413,11 +421,13 @@ class MuonAdamW(torch.optim.Optimizer):
+
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+@@ -475,9 +485,20 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+@@ -520,7 +541,8 @@ total_training_time = 0
+ step = 0
+
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+@@ -550,7 +572,8 @@ while True:
+         print("FAIL")
+         exit(1)
+
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+@@ -604,7 +627,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+```
+
+Commit kept: `f371db8`  
+Run result from `metrics.json`:
+- `val_bpb`: `1.026098`
+- `training_seconds`: `300.2935`
+- `total_seconds`: `316.2051`
+- `peak_vram_mb`: `0.0`
+- `num_steps`: `263`
+
+Logged to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv).  
+Edited files: [editable/train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/train.py), [editable/config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/config.toml).

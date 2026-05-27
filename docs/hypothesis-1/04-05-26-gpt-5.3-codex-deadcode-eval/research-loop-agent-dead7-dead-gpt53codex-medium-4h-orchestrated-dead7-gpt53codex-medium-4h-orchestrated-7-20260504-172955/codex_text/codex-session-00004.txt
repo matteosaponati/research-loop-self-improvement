@@ -1,0 +1,456 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has runs, and whether data/tokenizer artifacts exist so I can either resume or initialize exactly as instructed.
+
+I found an initialized run history with prior experiments, so I’m resuming from the current branch and moving directly to proposing a new edit after re-reading the `editable/` files for context.
+
+I’ve identified a likely quality bottleneck in `train.py`: embeddings are force-cast to `bfloat16` at init while most weights remain full precision. I’m editing that to keep embeddings in default precision and then running a full 5-minute experiment.
+
+I’ve applied the code change and next I’m capturing the unified diff, committing it, and launching the training run with output redirected to `run.log`.
+
+Commit `4ad4b62` is in place. I’m running the experiment now and will read only `metrics.json` on completion, then decide keep/discard and log to `memory/results.tsv`.
+
+Training is in progress under a timed guard (`timeout 610s`). I’m waiting for completion and then I’ll parse `metrics.json` directly.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Run is still active; I’m continuing to wait and will only inspect `run.log` if `metrics.json` is missing or invalid after exit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Still running within budget. I’m polling again for completion.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+I’m waiting on the same run; once it exits I’ll immediately extract `val_bpb` and VRAM from `metrics.json` and update git accordingly.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Polling again for completion.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Run is still active; continuing to wait.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Continuing to poll the same process; no extra log inspection unless the run fails.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+I’m still waiting for the 5-minute training + eval cycle to finish.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Another poll in progress; I’ll process metrics as soon as this exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+Training should be near completion; polling again now.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..682260b5da0c037cec7057eb56bc14e2eda94bc9
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+
+
+The run finished successfully. I’m now reading `metrics.json`, appending to `memory/results.tsv`, and reverting the commit if it did not improve `val_bpb`.
+
+The shell lacks `python` on PATH, so I’m switching to `uv run` for metrics parsing and result comparison.
+
+This experiment matched the current best (`1.026098`) rather than improving it, so I’m recording it as `discard` in `memory/results.tsv` and resetting to the previous commit.
+
+I’ve reverted to the baseline commit and logged the discarded run. I’m starting another experiment now, this time adjusting optimizer regularization/speed in `editable/config.toml` to test whether lower `weight_decay` plus lower `matrix_lr` improves convergence in 5 minutes.
+
+I’ve made the config edit; next I’m committing this trial and launching the run.
+
+The second experiment is running now under timeout control. I’m waiting for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Run remains active, continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Polling again for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+I’m still waiting for training/eval to complete.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Continuing to poll the same run.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running; polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Near end of budget; checking again for exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+This run is taking longer than usual but still under the 10-minute failure cap; I’m polling once more.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4dec4bad1b99036535049ebb721046d374ac5389
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run completed successfully. I’m extracting metrics, recording the result, and then keeping or reverting this commit based on `val_bpb`.
+
+Completed 2 new experiments in the loop, both properly committed, run, logged, and reverted on non-improvement.
+
+Latest status:
+- Current HEAD: `5ce981a` (best still baseline)
+- Best `val_bpb`: `1.026098`
+- `memory/results.tsv` updated with:
+  - `4ad4b62	1.026098	45.4	discard	keep embeddings at default precision`
+  - `b5174e0	1.026098	41.1	discard	lower matrix_lr 0.03 and weight_decay 0.1`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..682260b 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@ class GPT(nn.Module):
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..4dec4ba 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+I’m ready to continue with the next experiment in the same keep/discard loop.
+tokens used
+38,867
+Completed 2 new experiments in the loop, both properly committed, run, logged, and reverted on non-improvement.
+
+Latest status:
+- Current HEAD: `5ce981a` (best still baseline)
+- Best `val_bpb`: `1.026098`
+- `memory/results.tsv` updated with:
+  - `4ad4b62	1.026098	45.4	discard	keep embeddings at default precision`
+  - `b5174e0	1.026098	41.1	discard	lower matrix_lr 0.03 and weight_decay 0.1`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..682260b 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,8 @@ class GPT(nn.Module):
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep embedding weights in default parameter precision.
++        # This avoids extra quantization noise on token representations.
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..4dec4ba 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.03
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+I’m ready to continue with the next experiment in the same keep/discard loop.

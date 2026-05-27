@@ -1,0 +1,104 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from them or initialize the branch/memory and run the baseline exactly per your protocol.
+
+I found an existing initialized run history on `research-loops/may4`, so I’m resuming directly from step (2). Next I’ll read the editable code/config and pick a focused experiment that can move `val_bpb` below `1.026098`.
+
+I’ve identified that almost all non-crash runs are flat at `1.026098`, so I’m testing stochastic improvement next by changing only `seed` in `editable/config.toml` to alter initialization/data order while keeping architecture and schedule fixed.
+
+I’ve made a single-parameter edit and confirmed the diff; next I’m committing this experiment, running the 5-minute training job, and then reading `metrics.json` only for evaluation.
+
+The run is in progress under timeout protection (`610s`) to enforce your failure rule; I’ll wait for completion and then parse `metrics.json` directly.
+
+Training is still running; I’m continuing to wait and will only inspect `metrics.json` when the process exits.
+
+Still in-flight. I’m polling again and will immediately record results to `memory/results.tsv` once metrics are available.
+
+Run is still active; I’m waiting again.
+
+Continuing to wait for the training process to finish before collecting metrics.
+
+The process hasn’t exited yet; I’m polling again.
+
+Still running. I’m waiting through the remainder of the training window.
+
+Waiting on completion; once it exits I’ll parse JSON metrics and decide keep/discard against the current best.
+
+The run completed successfully. I’m now reading `metrics.json`, comparing against the best recorded `val_bpb`, and then updating `memory/results.tsv` plus git state accordingly.
+
+`python` isn’t on PATH in this harness, so I’m re-running the same reads via `uv run python` to extract metrics and best score.
+
+Result is exactly tied with the current best (`1.026098`), so per protocol I’m marking this experiment `discard` in `memory/results.tsv` and resetting the branch to the pre-experiment commit.
+
+I’m continuing the loop with a new architecture test: increase `depth` from `4` to `8` (keeping everything else fixed) to check whether extra capacity improves `val_bpb` within the same 5-minute budget.
+
+The depth-8 run has started; I’m monitoring it under timeout and will collect only `metrics.json` at completion.
+
+Run is still active. I’m continuing to wait and will evaluate against best as soon as it exits.
+
+Training is still in progress; polling again.
+
+Still running; I’m waiting through the remaining window.
+
+No exit yet. I’m polling again and will immediately record the experiment outcome.
+
+The process is still active; continuing to wait.
+
+Still in-flight. I’m polling again.
+
+Waiting for completion; next step is metrics parse plus keep/discard decision.
+
+Metrics show `val_bpb` is still `1.026098` at depth 8; I’m finishing the best-score check and then I’ll mark this as `discard` and reset.
+
+Experiment loop resumed and I ran 2 new experiments, both recorded and reverted per protocol.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -1,6 +1,6 @@
+-seed = 42
++seed = 123
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -15,7 +15,7 @@
+-depth = 4
++depth = 8
+```
+
+Results appended to `memory/results.tsv`:
+
+- `7c2a9fd` | `val_bpb=1.026098` | `memory_gb=0.0` | `discard` | `change seed from 42 to 123`
+- `4c79e36` | `val_bpb=1.026098` | `memory_gb=0.0` | `discard` | `increase depth from 4 to 8`
+
+Branch state after each non-improving run was reset to baseline commit `168861d` (current HEAD).
+
+Current best remains `val_bpb=1.026098` (from prior keep commit `0da5bb2` in log).
+tokens used
+32,318
+Experiment loop resumed and I ran 2 new experiments, both recorded and reverted per protocol.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -1,6 +1,6 @@
+-seed = 42
++seed = 123
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -15,7 +15,7 @@
+-depth = 4
++depth = 8
+```
+
+Results appended to `memory/results.tsv`:
+
+- `7c2a9fd` | `val_bpb=1.026098` | `memory_gb=0.0` | `discard` | `change seed from 42 to 123`
+- `4c79e36` | `val_bpb=1.026098` | `memory_gb=0.0` | `discard` | `increase depth from 4 to 8`
+
+Branch state after each non-improving run was reset to baseline commit `168861d` (current HEAD).
+
+Current best remains `val_bpb=1.026098` (from prior keep commit `0da5bb2` in log).

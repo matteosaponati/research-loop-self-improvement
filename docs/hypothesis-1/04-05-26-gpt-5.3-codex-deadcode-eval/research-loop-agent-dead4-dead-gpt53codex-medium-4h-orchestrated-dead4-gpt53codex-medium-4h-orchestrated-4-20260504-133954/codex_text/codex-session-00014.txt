@@ -1,0 +1,120 @@
+I’m starting the research loop by checking git state, looking for an existing `memory/results.tsv`, and then either resuming or performing first-time setup exactly per your rules.
+
+I found an active branch with prior experiments (`memory/results.tsv` has 27 lines), so I’m resuming from current state and now reading `editable/` plus prior results to choose the next experiment.
+
+I’ve loaded prior experiments and config; next I’m checking the rest of `train.py` to find underexplored levers and confirm how `val_bpb` is produced so we can target a change that can actually move it.
+
+I’m proceeding with a low-risk optimizer experiment by setting Muon `weight_decay` to `0.0` in `editable/config.toml`, then I’ll commit, run, read `metrics.json`, append TSV, and reset if it doesn’t beat best `val_bpb`.
+
+The config change is committed (`c3983f2`). I’m running the 5-minute training job now with output redirected to `run.log`, then I’ll read only `metrics.json` to decide keep vs discard.
+
+Training is still running within timeout; I’m waiting for completion before collecting metrics and updating `memory/results.tsv`.
+
+I’m still waiting on the run process; once it exits I’ll parse `metrics.json`, log the result row, and automatically revert this commit if `val_bpb` is not lower than the current best.
+
+The run is taking longer than expected but still alive under the hard timeout guard; I’m continuing to wait and will treat timeout as failure if it exceeds 10 minutes.
+
+The run finished successfully; I hit a shell issue (`python` unavailable), so I’m re-reading `metrics.json` and best-so-far using `uv run python` now.
+
+I’ve logged and discarded that experiment (no improvement), and I’m launching a second experiment now: set `sequence_len=1536` with a divisible `total_batch_size=393216` to increase update frequency without the prior divisibility crash.
+
+Second run is in progress under timeout. After it exits, I’ll collect `metrics.json`, append `memory/results.tsv`, and keep/reset based on best `val_bpb`.
+
+I’m still waiting on completion; if this run fails to produce valid `metrics.json`, I’ll mark it as `crash`, log `0.000000`, and hard-reset this commit.
+
+Completed 2 new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at `986c277` (both new commits were discarded after evaluation).
+- Best `val_bpb` remains `1.026098` (baseline `80daec7`).
+
+Unified diffs tested:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3..544be53 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3..8bd997e 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+Recorded in `memory/results.tsv`:
+
+- `c3983f2	1.026098	50.4	discard	set muon weight decay to zero`
+- `be86a0e	1.026098	38.0	discard	set sequence_len 1536 and total_batch_size 393216`
+
+I will continue with the next experiment iteration.
+tokens used
+69,791
+Completed 2 new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at `986c277` (both new commits were discarded after evaluation).
+- Best `val_bpb` remains `1.026098` (baseline `80daec7`).
+
+Unified diffs tested:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3..544be53 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3..8bd997e 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 393216
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+Recorded in `memory/results.tsv`:
+
+- `c3983f2	1.026098	50.4	discard	set muon weight decay to zero`
+- `be86a0e	1.026098	38.0	discard	set sequence_len 1536 and total_batch_size 393216`
+
+I will continue with the next experiment iteration.

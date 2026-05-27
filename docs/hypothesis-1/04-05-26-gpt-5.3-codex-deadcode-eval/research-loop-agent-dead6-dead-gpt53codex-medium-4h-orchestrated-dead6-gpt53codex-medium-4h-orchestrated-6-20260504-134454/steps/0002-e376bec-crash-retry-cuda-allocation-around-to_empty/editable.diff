@@ -1,0 +1,39 @@
+commit e376bec4ba16d2afa81e2071f5ccb16d385eb37c
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:47:22 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:47:22 2026 +0200
+
+    train: retry model materialization on transient CUDA unavailable
+---
+ editable/train.py | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..15eb481 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -447,7 +447,22 @@ print(f"Model config: {asdict(config)}")
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def materialize_model_with_retry(model, device, max_attempts=5, retry_delay_s=5.0):
++    for attempt in range(1, max_attempts + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except torch.AcceleratorError as exc:
++            message = str(exc).lower()
++            transient = "busy or unavailable" in message or "devicesunavailable" in message
++            if not transient or attempt == max_attempts:
++                raise
++            print(f"CUDA allocation attempt {attempt}/{max_attempts} failed; retrying in {retry_delay_s:.1f}s")
++            torch.cuda.empty_cache()
++            time.sleep(retry_delay_s)
++
++materialize_model_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()

@@ -1,0 +1,374 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or initialize exactly per your setup rules.
+
+I found an active loop with prior results on branch `research-loops/may4`, so I’m resuming from there and moving directly to the next experiment by reading `editable/` and current config/results context.
+
+I’ve loaded the main editable files and results; next I’m checking the training/scheduler sections in `train.py` to pick a targeted change likely to improve `val_bpb` without reducing throughput.
+
+I’m running a pure scheduler experiment next: keep high LR longer and add a short warmup, since previous LR/depth changes didn’t move `val_bpb`. I’ll patch `editable/config.toml`, commit, run, then decide keep/reset from `metrics.json`.
+
+I’ve applied the config edit; next I’m capturing the exact diff, committing this experiment, and launching the 5-minute run with output redirected to `run.log`.
+
+I’m starting the training run now; once it finishes, I’ll read `metrics.json`, append `memory/results.tsv`, and keep or reset based on whether `val_bpb` improved.
+
+Training is in progress under a timed wrapper; I’m polling for completion and will only use `metrics.json` for normal result collection.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run is still active; I’m continuing to wait for it to complete before extracting metrics and updating memory.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running. I’ll keep polling until it exits, then immediately parse `metrics.json` and log the experiment outcome.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m waiting on the same run; once it exits I’ll collect `val_bpb` and VRAM from `metrics.json` and apply keep/discard logic.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run has not returned yet, so I’m continuing to poll. After completion I’ll update `memory/results.tsv` and reset if there’s no improvement.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still waiting on the training process; I’ll let the timeout wrapper enforce the 10-minute ceiling and treat timeout as failure if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m polling again; as soon as it exits I’ll parse and record metrics without inspecting `run.log`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is still executing; I’m continuing to wait for a clean exit before collecting `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training finished successfully. I’m now reading `metrics.json`, appending the TSV row, and applying keep/discard by comparing against the current best `val_bpb`.
+
+This experiment tied baseline and is marked `discard`; I’m resetting to the prior commit as required, then launching a different hypothesis to keep the loop moving.
+
+I’m testing optimizer-step frequency next by halving `total_batch_size` (same token budget, twice as many optimizer updates), which can improve short-budget convergence.
+
+I’ve patched the config; I’m now committing this experiment, running training, then recording/keeping or discarding strictly from `metrics.json`.
+
+Second experiment run is now active; I’m waiting for completion and will collect only `metrics.json` afterward.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still running; I’m continuing to poll until it exits and then I’ll append the TSV row with keep/discard status.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Run is still in progress, so I’m waiting and will process results immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m continuing to wait on the same process; once complete I’ll update `memory/results.tsv` and reset if non-improving.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This run is taking longer than usual but still under the timeout cap; I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run completed cleanly. I’m extracting metrics, logging the row to `memory/results.tsv`, and then enforcing keep/discard with a git reset if needed.
+
+Completed 2 new experiments and logged both in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/memory/results.tsv).
+
+Latest outcomes:
+1. `18304e3` (`warmup 2%, warmdown 10%, final lr 20%`)  
+`val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement), reset applied.
+2. `c5ec64f` (`halve total_batch_size to 262144`)  
+`val_bpb=1.026098`, `memory_gb=41.0`, `status=discard` (no improvement), reset applied.
+
+Current HEAD is back at baseline commit `0d20b2e` per loop rules.
+tokens used
+46,969
+Completed 2 new experiments and logged both in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/memory/results.tsv).
+
+Latest outcomes:
+1. `18304e3` (`warmup 2%, warmdown 10%, final lr 20%`)  
+`val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement), reset applied.
+2. `c5ec64f` (`halve total_batch_size to 262144`)  
+`val_bpb=1.026098`, `memory_gb=41.0`, `status=discard` (no improvement), reset applied.
+
+Current HEAD is back at baseline commit `0d20b2e` per loop rules.

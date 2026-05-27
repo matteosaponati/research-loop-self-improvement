@@ -1,0 +1,414 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs, then either resume or perform full setup exactly as specified before launching training.
+
+`memory/results.tsv` does not exist yet, so I’ll perform the full initialization: create a dated branch, verify data/tokenizer artifacts, initialize results memory, and run the baseline.
+
+I verified the expected branch namespace is free. Next I’ll create `research-loops/may4`, confirm shard/tokenizer files are actually present under the symlinked directories, then run the baseline.
+
+I still need to verify the contents inside those symlink targets (not just the links), then I’ll initialize `memory/results.tsv` and launch baseline training.
+
+Data artifacts are present, so no prepare step is needed. I’m now initializing the results file header and running the baseline with output redirected to `run.log`, then I’ll read `metrics.json` and record the baseline row.
+
+Baseline run is in progress under a timed guard; I’ll wait for completion and then read only `metrics.json` for logging.
+ exited 1 in 7094ms:
+
+The baseline command exited early, so I’m checking `metrics.json` first to determine whether it still produced a valid result before doing any crash diagnosis.
+
+`metrics.json` is missing, so this baseline is a crash. I’ll inspect `run.log` briefly for the failure cause, then record a `crash` row in `memory/results.tsv`.
+
+Crash cause is GPU unavailable (`CUDA-capable device(s) is/are busy or unavailable`). I’m logging this baseline crash in `memory/results.tsv`, then I’ll inspect `editable/` and proceed with the first code experiment commit/run cycle.
+
+I’m moving to step (2): reading all in-scope `editable/` files plus `memory/results.tsv` to choose the first training-stability/performance experiment.
+
+Next I’m reading `editable/train.py`, `editable/config.toml`, and `editable/config_loader.py` to identify a safe first tweak that can both stabilize startup and improve throughput/quality.
+
+I found the immediate blocker: startup fails before training when CUDA is temporarily busy. I’m making a small `train.py` change to retry model allocation on GPU a few times before failing, then I’ll commit and run this experiment.
+
+I’ve applied the retry safeguard; now I’ll show the exact diff, commit it, and launch the experiment run.
+
+Experiment commit `4decd72` is ready and I’m running training now with full output redirected to `run.log`; after completion I’ll read `metrics.json` and update `memory/results.tsv`.
+
+Training is running; I’m waiting for it to finish before collecting only `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..999fb39039b1b61e0c6a67188de4dd29bf4dbdeb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 6
++CUDA_INIT_RETRY_SLEEP_SECONDS = 10
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+
+Run is still active and within budget; I’ll continue waiting and then parse `metrics.json` immediately on exit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..999fb39039b1b61e0c6a67188de4dd29bf4dbdeb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 6
++CUDA_INIT_RETRY_SLEEP_SECONDS = 10
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+ exited 1 in 57046ms:
+
+The run exited non-zero again. I’m checking `metrics.json`; if missing, I’ll diagnose the crash briefly from `run.log`, log it, and reset this commit as `discard/crash`.
+
+`metrics.json` is missing, so this is a crash; I’m extracting the error tail from `run.log`, recording it in `memory/results.tsv`, and resetting the branch to discard this non-improving commit.
+
+I’ve recorded the crash result. Next I’m resetting to the prior commit per the keep/discard rule, then checking GPU visibility (`nvidia-smi`) so the next experiment targets the real blocker rather than model hyperparameters.
+
+GPU is currently idle and visible, so I’m proceeding with a real training experiment instead of more crash handling. I’ll make a small stability-focused schedule tweak (`warmup_ratio`) in `editable/config.toml`, commit, run, and evaluate from `metrics.json`.
+
+I’ve made the schedule change; next I’ll capture the unified diff, commit it, and launch the run.
+
+Experiment `ede6818` is running now; I’ll wait for completion and then read `metrics.json` only for scoring and logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+ exited 1 in 6544ms:
+
+This run also exited early; I’m checking `metrics.json` first, then I’ll log and reset if it crashed.
+
+I confirmed the same CUDA allocation error. I’m recording this crash for `ede6818` and resetting, then I’ll create a new experiment that combines startup retry logic with the warmup tweak so runs can survive transient device contention.
+
+I’m now applying a combined experiment: robust CUDA init retries in `train.py` plus `warmup_ratio=0.02` in `config.toml`, then committing and rerunning.
+
+Edits are in place. I’ll commit this combined stability+scheduling experiment and run it next.
+
+Run `36f874c` is in progress; I’ll wait through completion and then collect metrics from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..2aaaf75f0fa5c485b71a08ed8c311d30c2094771
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 20
++CUDA_INIT_RETRY_SLEEP_SECONDS = 5
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+
+Still running under the timeout guard, so I’m continuing to wait for process exit before scoring.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..2aaaf75f0fa5c485b71a08ed8c311d30c2094771
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 20
++CUDA_INIT_RETRY_SLEEP_SECONDS = 5
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+
+No exit yet; I’m still waiting on the same run and will parse `metrics.json` immediately when it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..2aaaf75f0fa5c485b71a08ed8c311d30c2094771
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 20
++CUDA_INIT_RETRY_SLEEP_SECONDS = 5
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+
+The job continues to run; I’m monitoring until completion or timeout threshold.
+ exited 1 in 103021ms:
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..2aaaf75f0fa5c485b71a08ed8c311d30c2094771
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,8 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++CUDA_INIT_RETRIES = 20
++CUDA_INIT_RETRY_SLEEP_SECONDS = 5
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -447,7 +449,23 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
++
++def move_model_to_device_with_retry(model, device):
++    for attempt in range(1, CUDA_INIT_RETRIES + 1):
++        try:
++            model.to_empty(device=device)
++            return
++        except (torch.AcceleratorError, RuntimeError) as exc:
++            if "busy or unavailable" not in str(exc).lower() or attempt == CUDA_INIT_RETRIES:
++                raise
++            print(
++                f"CUDA unavailable during model allocation "
++                f"(attempt {attempt}/{CUDA_INIT_RETRIES}); retrying in "
++                f"{CUDA_INIT_RETRY_SLEEP_SECONDS}s..."
++            )
++            time.sleep(CUDA_INIT_RETRY_SLEEP_SECONDS)
++
++move_model_to_device_with_retry(model, device)
+ model.init_weights()
+ 
+ param_counts = model.num_scaling_params()
+
+
+This attempt also ended early. I’m checking `metrics.json`, then I’ll log/reset and run a quick torch CUDA probe to pinpoint why allocation fails despite retries.
+
+The failure is persistent across all retries. I’m logging this crash, resetting, and running a minimal torch CUDA allocation probe to verify whether any CUDA allocation works in this environment at all.
+
+I’ve isolated this as an environment-level GPU allocation failure (not a model/config issue). I’ll make one quick cleanup to the results log typo and then report the current loop state and blocker precisely.
+
+Current loop state:
+
+- Branch: `research-loops/may4`
+- HEAD: `5ce981a` (reset to baseline commit after non-improving crashes)
+- Results log: [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/memory/results.tsv)
+
+Recorded experiments:
+
+- `5ce981a` `crash` baseline
+- `4decd72` `crash` startup CUDA retry logic
+- `ede6818` `crash` warmup ratio `0.02`
+- `36f874c` `crash` warmup `0.02` + stronger CUDA retry
+
+Blocker confirmed:
+
+- Even minimal CUDA allocation fails in this environment:
+  - `torch.cuda.is_available() == True`
+  - `torch.cuda.device_count() == 1`
+  - `torch.empty(..., device='cuda')` raises `CUDA error: CUDA-capable device(s) is/are busy or unavailable`
+
+So right now no run reaches training/eval, `metrics.json` is never produced, and no `val_bpb` can be measured until GPU allocation succeeds.
+tokens used
+68,173
+Current loop state:
+
+- Branch: `research-loops/may4`
+- HEAD: `5ce981a` (reset to baseline commit after non-improving crashes)
+- Results log: [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead8-gpt53codex-medium-4h-orchestrated-8-20260504-172955/research-loop/memory/results.tsv)
+
+Recorded experiments:
+
+- `5ce981a` `crash` baseline
+- `4decd72` `crash` startup CUDA retry logic
+- `ede6818` `crash` warmup ratio `0.02`
+- `36f874c` `crash` warmup `0.02` + stronger CUDA retry
+
+Blocker confirmed:
+
+- Even minimal CUDA allocation fails in this environment:
+  - `torch.cuda.is_available() == True`
+  - `torch.cuda.device_count() == 1`
+  - `torch.empty(..., device='cuda')` raises `CUDA error: CUDA-capable device(s) is/are busy or unavailable`
+
+So right now no run reaches training/eval, `metrics.json` is never produced, and no `val_bpb` can be measured until GPU allocation succeeds.

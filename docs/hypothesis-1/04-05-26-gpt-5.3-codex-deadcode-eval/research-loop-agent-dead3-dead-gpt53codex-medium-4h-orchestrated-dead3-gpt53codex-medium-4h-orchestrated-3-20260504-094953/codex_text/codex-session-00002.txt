@@ -1,0 +1,162 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from them or initialize branch/results and run the baseline exactly per your protocol.
+
+I found an initialized run (`memory/results.tsv` already has results), so I’m resuming from the current branch and moving straight to proposing the next experiment after reading `editable/` and prior results.
+
+I’ve loaded the current code and prior scores; next I’m selecting a high-probability change and will patch `editable/config.toml`, commit it, run a timed trial, and collect `metrics.json` only.
+
+I’m running a single focused config experiment next: adjust Muon dynamics (`matrix_lr`, momentum schedule, and `beta2`) while keeping architecture fixed, then I’ll keep/reset strictly based on `val_bpb`.
+
+I’ve applied the patch and confirmed the diff; now I’ll commit this variant, run the 5-minute training job, and then read only `metrics.json` for scoring.
+
+The experiment is now running in the background session; I’ll wait for completion and then parse `metrics.json` to decide keep vs reset.
+
+Training hit the 5-minute budget window and is still finishing shutdown/eval; I’m waiting for process exit before collecting metrics.
+
+The run finished cleanly; I hit an environment detail (`python` not on PATH), so I’m extracting metrics via `uv run` now and then I’ll append results and keep/reset the commit.
+
+I have the new score (`1.026098`, unchanged); I’m waiting on the best-so-far query to finish so I can log and perform the correct keep/discard action.
+
+This trial is equal to the best (not an improvement), so I’m recording it as `discard` and resetting the branch to the previous commit before launching the next idea.
+
+I’ve reverted to the last kept commit and will immediately launch the next experiment: reduce regularization pressure by lowering `weight_decay` and disabling decay over time.
+
+I’ve prepared the config delta and confirmed the diff; I’m committing and starting the 5-minute run now.
+
+The second experiment is running; I’ll wait for completion, then score from `metrics.json` and keep/reset automatically.
+
+Training budget elapsed and evaluation/finalization is still in progress; waiting for clean process exit now.
+
+I’m collecting the new metrics and comparing against the current best keep to decide whether this commit advances or gets discarded.
+
+This run also appears tied on score; I’m waiting for the comparator command to finish, then I’ll log it and reset if it’s not strictly better.
+
+Completed and started the loop from the existing initialized state (resumed branch `research-loops/may4` with prior results).
+
+Ran 2 new experiments end-to-end (edit → commit → train → score via `metrics.json` → log → reset on non-improvement):
+
+1. Commit `89f814f` (discard), `val_bpb=1.026098`, `memory_gb=41.1`
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..5222fef 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -42,13 +42,13 @@ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_warmup_steps = 600
++muon_momentum_start = 0.80
++muon_momentum_end = 0.92
+ weight_decay_decay = true
+```
+
+2. Commit `1cfb313` (discard), `val_bpb=1.026098`, `memory_gb=41.1`
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..442bf65 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -51,4 +51,4 @@ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+Current branch head is reset back to kept baseline commit `9a8eff4` (as required for non-improving runs).  
+`memory/results.tsv` has been updated at [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead3-gpt53codex-medium-4h-orchestrated-3-20260504-094953/research-loop/memory/results.tsv).
+tokens used
+21,882
+Completed and started the loop from the existing initialized state (resumed branch `research-loops/may4` with prior results).
+
+Ran 2 new experiments end-to-end (edit → commit → train → score via `metrics.json` → log → reset on non-improvement):
+
+1. Commit `89f814f` (discard), `val_bpb=1.026098`, `memory_gb=41.1`
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..5222fef 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -42,13 +42,13 @@ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_warmup_steps = 600
++muon_momentum_start = 0.80
++muon_momentum_end = 0.92
+ weight_decay_decay = true
+```
+
+2. Commit `1cfb313` (discard), `val_bpb=1.026098`, `memory_gb=41.1`
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..442bf65 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -51,4 +51,4 @@ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+Current branch head is reset back to kept baseline commit `9a8eff4` (as required for non-improving runs).  
+`memory/results.tsv` has been updated at [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead3-gpt53codex-medium-4h-orchestrated-3-20260504-094953/research-loop/memory/results.tsv).

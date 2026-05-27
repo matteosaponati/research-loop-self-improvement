@@ -1,0 +1,174 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has prior runs, and whether data/tokenizer artifacts are present so I can either resume or initialize exactly as specified.
+
+I found an active branch with an existing `memory/results.tsv` (40 lines), so I’m resuming from the current state and now reading `editable/` plus prior results to pick the next experiment based on best `val_bpb`.
+
+I’ve confirmed the current best is `1.026098`, with many no-change runs; I’m now scanning the rest of `editable/train.py` to target a change that can actually move optimization in this 5-minute budget.
+
+I’ve identified a high-leverage gap: all recent runs changed only schedules/activations, but none changed sequence length with matching batch divisibility and throughput-aware retuning; I’m checking the final metrics-writing section, then I’ll make a single controlled config experiment and run it.
+
+I’m applying one targeted optimizer-scale experiment in `editable/config.toml`: raise `matrix_lr` and `embedding_lr` together to increase early learning velocity within the fixed 5-minute window, then I’ll commit and run.
+
+I’ve made the config edit; next I’m capturing the unified diff, committing it, then launching the 5-minute run with log redirection and collecting `metrics.json` only.
+
+The experiment is running now in the background; I’m waiting for completion and will immediately parse `metrics.json`, append `memory/results.tsv`, and keep/reset based on `val_bpb` vs best `1.026098`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..1e5eaf499f642d09e4b2d907e98c3ca751adc6d9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.05
++embedding_lr = 0.10
+ unembedding_lr = 0.001
+-matrix_lr = 0.005
++matrix_lr = 0.020
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Training has exceeded 5 minutes of wall time but may still be in startup/eval overhead; I’m continuing to wait up to the 10-minute failure cap, then I’ll kill it if needed per your rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..1e5eaf499f642d09e4b2d907e98c3ca751adc6d9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.05
++embedding_lr = 0.10
+ unembedding_lr = 0.001
+-matrix_lr = 0.005
++matrix_lr = 0.020
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run finished cleanly, but this shell only has Python via `uv`, so I’m re-reading `metrics.json` and the current best result using `uv run` and then finalizing keep/discard with branch reset if needed.
+
+Result is exactly tied with best (`1.026098`), so I’m recording it as `discard` in `memory/results.tsv` and resetting the branch back to the previous commit to continue the loop from the best state.
+
+I’m continuing the loop with a second experiment to push output adaptation harder: increase `unembedding_lr` by 10x while keeping other settings unchanged, then re-run and compare against `1.026098`.
+
+I’ve applied the edit with `apply_patch`; next I’m committing, running the 5-minute training command, and collecting `metrics.json` for keep/discard.
+
+The second run is in progress; I’m waiting for completion, then I’ll read `metrics.json`, append `memory/results.tsv`, and keep/reset automatically.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..b8c5ff0533b32b7e386a6ca1a772f59c2e32ff1f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.05
+-unembedding_lr = 0.001
++unembedding_lr = 0.010
+ matrix_lr = 0.005
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..b8c5ff0533b32b7e386a6ca1a772f59c2e32ff1f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.05
+-unembedding_lr = 0.001
++unembedding_lr = 0.010
+ matrix_lr = 0.005
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+
+
+This run is also a tie at `1.026098`; I’m finalizing logging/reset now, and I’ll also finish the small stuck helper process cleanly before moving on.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..b8c5ff0533b32b7e386a6ca1a772f59c2e32ff1f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.05
+-unembedding_lr = 0.001
++unembedding_lr = 0.010
+ matrix_lr = 0.005
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+
+
+Experiment loop resumed from existing state and I ran two new experiments end-to-end.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-embedding_lr = 0.05
++embedding_lr = 0.10
+@@
+-matrix_lr = 0.005
++matrix_lr = 0.020
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-unembedding_lr = 0.001
++unembedding_lr = 0.010
+```
+
+Results:
+
+1. Commit `c6313e4`
+- val_bpb: `1.026098`
+- peak_vram_mb: `0.0` (memory_gb `0.0`)
+- status: `discard` (tie vs best)
+
+2. Commit `0df4a9a`
+- val_bpb: `1.026098`
+- peak_vram_mb: `0.0` (memory_gb `0.0`)
+- status: `discard` (tie vs best)
+
+I appended both rows to `memory/results.tsv` and reset the branch after each discard, so the working code is back at the previous best state. Current best remains `1.026098`.
+tokens used
+39,817
+Experiment loop resumed from existing state and I ran two new experiments end-to-end.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-embedding_lr = 0.05
++embedding_lr = 0.10
+@@
+-matrix_lr = 0.005
++matrix_lr = 0.020
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-unembedding_lr = 0.001
++unembedding_lr = 0.010
+```
+
+Results:
+
+1. Commit `c6313e4`
+- val_bpb: `1.026098`
+- peak_vram_mb: `0.0` (memory_gb `0.0`)
+- status: `discard` (tie vs best)
+
+2. Commit `0df4a9a`
+- val_bpb: `1.026098`
+- peak_vram_mb: `0.0` (memory_gb `0.0`)
+- status: `discard` (tie vs best)
+
+I appended both rows to `memory/results.tsv` and reset the branch after each discard, so the working code is back at the previous best state. Current best remains `1.026098`.

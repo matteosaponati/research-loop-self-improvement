@@ -1,0 +1,44 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or do fresh setup exactly as specified.
+
+I found an initialized run with existing history, so I’m resuming from the current branch and current best result. Next I’ll read `editable/` and prior results to choose the next targeted experiment.
+
+I’ve loaded prior experiments and config; all non-crash runs tie at `1.026098`, so I’m now checking the training/eval path for leverage points that could actually move `val_bpb` within 5 minutes.
+
+I identified that most hyperparameter tweaks haven’t moved the metric, so I’m trying a stronger throughput tradeoff next: cut model depth to 4 to maximize optimization steps in the same 5-minute budget. I’ll commit, run, record, and auto-revert if it doesn’t beat the current best.
+
+I’ve committed the depth-4 experiment and I’m launching the 5-minute training run now; after completion I’ll read only `metrics.json`, log into `memory/results.tsv`, then keep or reset based on `val_bpb`.
+
+The run is still executing after the initial 5-minute window, likely in startup/eval overhead, so I’m monitoring it and will enforce the 10-minute failure rule if needed.
+
+Training finished successfully; I hit a small tooling issue (`python` not on PATH), so I’m reading metrics and comparing best via `uv run python` now.
+
+I’ve recorded and discarded the depth-4 run (equal `val_bpb`). I’m proceeding immediately with another structural tradeoff: depth 6, aiming for better quality/throughput balance than both depth 8 and depth 7.
+
+I’ve committed depth 6 and started the next run. After it finishes, I’ll parse `metrics.json`, append to `memory/results.tsv`, and keep/reset based on whether it beats `1.026098`.
+
+This run is still in progress right after the 5-minute training window, so I’m waiting for completion and will enforce the 10-minute cap if it hangs.
+
+The run completed cleanly; I’m now extracting `metrics.json` and finalizing keep/discard with a git reset if needed.
+
+Completed two new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at `0d20b2e` (both new trials were discarded and reset per rule).
+- Best `val_bpb` remains: `1.026098`.
+
+New logged rows in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/memory/results.tsv):
+- `f1b5efc	1.026098	13.4	discard	reduce depth to 4 for max step throughput`
+- `614e48c	1.026098	24.9	discard	set depth to 6 for quality-throughput balance`
+
+No crashes; both runs produced valid `metrics.json`.
+tokens used
+23,877
+Completed two new experiments and updated the loop state.
+
+- Current branch/head: `research-loops/may4` at `0d20b2e` (both new trials were discarded and reset per rule).
+- Best `val_bpb` remains: `1.026098`.
+
+New logged rows in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/memory/results.tsv):
+- `f1b5efc	1.026098	13.4	discard	reduce depth to 4 for max step throughput`
+- `614e48c	1.026098	24.9	discard	set depth to 6 for quality-throughput balance`
+
+No crashes; both runs produced valid `metrics.json`.

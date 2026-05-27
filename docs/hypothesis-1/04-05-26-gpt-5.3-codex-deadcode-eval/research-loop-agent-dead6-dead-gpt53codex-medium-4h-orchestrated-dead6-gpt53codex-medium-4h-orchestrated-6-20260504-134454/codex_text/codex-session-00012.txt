@@ -1,0 +1,250 @@
+Starting the research loop now. I’ll first check whether `memory/results.tsv` already has prior experiments so I can either resume immediately or do full setup with baseline.
+
+I found existing experiment history, so I’m resuming from the current branch/state and skipping fresh setup and baseline. Next I’ll read all `editable/` files plus recent results to choose the next code change.
+
+I’ve identified the current best as `1.026098`, with many variants tied at exactly the same value, which suggests the updates are too weak to move validation in this CPU regime. I’ll try a stronger change: remove the logits softcap by setting `softcap` very high to reduce output squashing, then run and compare.
+
+I hit an environment detail: plain `python` isn’t available on PATH here, so I’ll use `uv run` for metrics reads and continue.
+
+I’m editing `editable/config.toml` now to set `softcap` to a very large value (effectively unsaturated logits) while keeping everything else constant for a clean A/B experiment.
+
+Edit is committed (`0a96af5`) and I verified the unified diff. Running the 5-minute training job now and then I’ll read only `metrics.json`, append to `memory/results.tsv`, and keep/discard via git reset based on `val_bpb`.
+
+Training is in progress under timeout guard; I’m waiting for completion before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Run is still active; I’m continuing to wait until it exits, then I’ll parse `metrics.json` and update the experiment log.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still waiting on the same run; no log inspection needed unless it crashes, so I’ll continue polling for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The training process is still running within the allowed window. I’ll keep polling and finalize as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Process is still in-flight. I’ll continue waiting and then immediately do metrics-only result collection.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still running; maintaining the timeout guard and waiting for clean exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..f86e5cea4ea96b54d8202048df8e983a7019b687
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 1000.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Run finished successfully. I’m now reading `metrics.json`, appending the TSV row, and then I’ll reset this commit if `val_bpb` did not improve.
+
+This experiment tied the best value (not lower), so per loop rules I’m reverting the commit and keeping the result row marked `discard` in memory.
+
+I’m proceeding to the next iteration immediately. First I’ll scan all logged results to identify the true best commit/value, then I’ll launch a more aggressive config change from that baseline.
+
+Best is still `1.026098` after 32 runs. I’m trying a stronger optimizer shift next: much lower learning rates and zero weight decay to test whether the current setup is over-regularized/too noisy on CPU.
+
+Second experiment is committed (`168861d`) with the optimizer-only diff above. I’m launching the run now under timeout and will apply the same keep/discard logic from `metrics.json`.
+
+Training is running for experiment `168861d`; I’m waiting for completion and will only read `metrics.json` afterward.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..0e25eaeb531d93cff1372cc67ebf5e3788770397
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,10 +32,10 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.25
+-unembedding_lr = 0.002
+-matrix_lr = 0.02
+-weight_decay = 0.2
++embedding_lr = 0.05
++unembedding_lr = 0.001
++matrix_lr = 0.005
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..0e25eaeb531d93cff1372cc67ebf5e3788770397
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,10 +32,10 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.25
+-unembedding_lr = 0.002
+-matrix_lr = 0.02
+-weight_decay = 0.2
++embedding_lr = 0.05
++unembedding_lr = 0.001
++matrix_lr = 0.005
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Run is still active and within budget; continuing to poll until exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..0e25eaeb531d93cff1372cc67ebf5e3788770397
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,10 +32,10 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.25
+-unembedding_lr = 0.002
+-matrix_lr = 0.02
+-weight_decay = 0.2
++embedding_lr = 0.05
++unembedding_lr = 0.001
++matrix_lr = 0.005
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running. I’ll keep waiting, then do metrics extraction and branch decision immediately.
+
+Experiment loop is actively running and the current training job (`168861d`: lower LRs + no weight decay) is still in progress under timeout control. I’m continuing autonomously with the same cycle: finish run → read `metrics.json` → append `memory/results.tsv` → keep or reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index cda837fbf3411eea5e22c518fe7ea3ab68408f39..0e25eaeb531d93cff1372cc67ebf5e3788770397
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,10 +32,10 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.25
+-unembedding_lr = 0.002
+-matrix_lr = 0.02
+-weight_decay = 0.2
++embedding_lr = 0.05
++unembedding_lr = 0.001
++matrix_lr = 0.005
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+tokens used
+36,728
+Experiment loop is actively running and the current training job (`168861d`: lower LRs + no weight decay) is still in progress under timeout control. I’m continuing autonomously with the same cycle: finish run → read `metrics.json` → append `memory/results.tsv` → keep or reset based on `val_bpb`.

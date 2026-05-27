@@ -1,0 +1,314 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has runs, and then I’ll either resume or perform the required setup path before launching the next experiment.
+
+I found an initialized branch and prior results, so I’m resuming from step (2). Next I’ll read all files in `editable/` and choose a new architecture/optimization change that is meaningfully different from prior discarded trials.
+
+I’ve loaded config and most of `train.py`; I’m reading the rest of the training loop now to target a change that can affect early 5-minute convergence rather than long-horizon behavior.
+
+I’m going to run a more structural experiment: tie `lm_head` weights to token embeddings to cut parameters and potentially improve short-budget generalization, then commit and run one full 5-minute trial.
+
+I’ve applied the code change and next I’ll commit it, launch training with output redirected to `run.log`, then read only `metrics.json` to evaluate keep/discard.
+
+Running the experiment now; I’ll wait for completion (or kill if it exceeds 10 minutes), then parse `metrics.json` and update `memory/results.tsv`.
+
+Training is in progress in the background session; I’m polling until it exits, then I’ll collect metrics without reading the full log.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Still running; I’m continuing to wait and will enforce the 10-minute failure cutoff.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+The run is still active; I’m polling again and will proceed directly to metric extraction once it returns.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Waiting on completion; no crash signal yet. I’ll keep polling.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Run is still executing. I’m continuing to wait for termination and then I’ll evaluate `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Still active; I’m polling again.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+The process has not exited yet; I’m continuing to wait, and I’ll enforce timeout rules if needed.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..891a0b52373dd624b5c03cbad39727fb686ac95e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,8 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        # Weight tying improves parameter efficiency and often helps early training quality.
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +173,6 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+
+
+Training finished successfully in about 321s wall time. I’m now reading `metrics.json`, recording the result row, and then deciding keep/discard against the current best `val_bpb`.
+
+This run matched the best `val_bpb` exactly, so per your rule it will be marked `discard` and I’ll reset the branch to the previous commit after appending the result row.
+
+I’m continuing the loop with another trial: a more aggressive learning-rate schedule in `editable/config.toml` (higher `matrix_lr`, shorter cooldown, nonzero LR floor) to push stronger progress within the fixed 5-minute window.
+
+The config change is committed. I’m running the next 5-minute training job now and will append the result, then keep or reset based on `val_bpb`.
+
+Run is still active; I’m continuing to poll until completion.
+
+Training continues normally from process state; waiting for exit.
+
+Still running; I’ll keep polling and then collect `metrics.json` immediately when done.
+
+No exit yet; continuing to wait.
+
+Approaching expected finish window; I’m polling for final process exit now.
+
+The run completed successfully. I’m extracting metrics, logging to `memory/results.tsv`, and applying keep/discard logic now.
+
+Completed 2 new experiments and applied keep/discard rules.
+
+- Branch resumed: `research-loops/may4`
+- Current HEAD after discard resets: `fe6efda`
+- Best `val_bpb` remains: `1.026098`
+
+New logged results appended to `memory/results.tsv`:
+
+- `eecc1eb	1.026098	41.1	discard	tie lm head weights to token embeddings`
+- `8dd739c	1.026098	41.1	discard	raise matrix lr to 0.08 with short warmdown and 0.2 lr floor`
+
+Latest run metrics (`metrics.json`) from `8dd739c`:
+- `val_bpb`: `1.026098`
+- `training_seconds`: `300.2733`
+- `total_seconds`: `311.9409`
+- `peak_vram_mb`: `42060.4473`
+- `mfu_percent`: `44.2069`
+- `total_tokens_M`: `479.7235`
+- `num_steps`: `915`
+- `num_params_M`: `33.5544`
+- `depth`: `8`
+
+I will continue iterating with the next experiment pattern (optimizer/architecture changes in `editable/`) and keep logging each result in `memory/results.tsv`.
+tokens used
+44,369
+Completed 2 new experiments and applied keep/discard rules.
+
+- Branch resumed: `research-loops/may4`
+- Current HEAD after discard resets: `fe6efda`
+- Best `val_bpb` remains: `1.026098`
+
+New logged results appended to `memory/results.tsv`:
+
+- `eecc1eb	1.026098	41.1	discard	tie lm head weights to token embeddings`
+- `8dd739c	1.026098	41.1	discard	raise matrix lr to 0.08 with short warmdown and 0.2 lr floor`
+
+Latest run metrics (`metrics.json`) from `8dd739c`:
+- `val_bpb`: `1.026098`
+- `training_seconds`: `300.2733`
+- `total_seconds`: `311.9409`
+- `peak_vram_mb`: `42060.4473`
+- `mfu_percent`: `44.2069`
+- `total_tokens_M`: `479.7235`
+- `num_steps`: `915`
+- `num_params_M`: `33.5544`
+- `depth`: `8`
+
+I will continue iterating with the next experiment pattern (optimizer/architecture changes in `editable/`) and keep logging each result in `memory/results.tsv`.

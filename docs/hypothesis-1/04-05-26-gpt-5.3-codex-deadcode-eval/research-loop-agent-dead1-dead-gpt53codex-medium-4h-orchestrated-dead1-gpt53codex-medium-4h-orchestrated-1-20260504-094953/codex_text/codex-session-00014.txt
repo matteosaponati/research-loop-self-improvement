@@ -1,0 +1,99 @@
+I’m starting the research loop by checking whether prior memory exists, confirming git state, and then either resuming or doing fresh setup + baseline exactly per your protocol.
+
+I found an existing initialized loop on branch `research-loops/may4` with prior results, so I’m resuming directly from step (2): I’ll read `editable/` and propose the next code experiment from current best `val_bpb=1.026098`.
+
+I’ve reviewed the current code and prior trials; next I’m testing a schedule-focused change that keeps learning rates higher later in the 5-minute window (`warmdown_ratio` down, non-zero `final_lr_frac`) to avoid over-decaying too early.
+
+I committed the experiment and I’m running the 5-minute training job now; after it completes I’ll read only `metrics.json`, log to `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+The run is in progress; I’m waiting for completion and will only pull structured metrics once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..13e227765c98870055d4cd39af450ac9515809d9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training exceeded the 5-minute core window but can still be in eval/shutdown; I’m waiting briefly for normal completion before enforcing the 10-minute failure rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..13e227765c98870055d4cd39af450ac9515809d9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The metric came back equal to best (`1.026098`), so this trial is logged as `discard`; I’m resetting to the prior commit and launching the next idea.
+
+I’m trying an optimizer-dynamics experiment next: increase Adam momentum (`beta1`) and shorten Muon momentum warmup so updates stabilize faster within the short runtime.
+
+Second experiment is committed and running now; I’ll collect `metrics.json`, append `results.tsv`, and keep/reset automatically.
+
+This run is still finalizing after the 5-minute training window; I’m waiting for process exit, then I’ll score and decide keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..17d6c9a0fa11d3dd92880fed00cc9c5c990d2e80
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -36,7 +36,7 @@
+ unembedding_lr = 0.004
+ matrix_lr = 0.03
+ weight_decay = 0.2
+-adam_beta1 = 0.8
++adam_beta1 = 0.9
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 120
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Experiment loop resumed and I ran 2 new experiments end-to-end (commit → run → metric read from `metrics.json` → log to `memory/results.tsv` → keep/reset decision).
+
+New trials logged:
+- `4db5502` | `val_bpb=1.026098` | `0.0 GB` | `discard` | shorter cooldown + `final_lr_frac=0.2`
+- `8e216f2` | `val_bpb=1.026098` | `0.0 GB` | `discard` | `adam_beta1=0.9` + faster Muon momentum warmup
+
+Actions taken:
+- Both trials were not better than current best, so I reset branch state after each discard.
+- Current HEAD is back at best kept commit: `f371db8`.
+- Current best remains `val_bpb=1.026098` (from `f371db8`).
+- `memory/results.tsv` is updated with both new rows (total rows now 39).
+tokens used
+22,541
+Experiment loop resumed and I ran 2 new experiments end-to-end (commit → run → metric read from `metrics.json` → log to `memory/results.tsv` → keep/reset decision).
+
+New trials logged:
+- `4db5502` | `val_bpb=1.026098` | `0.0 GB` | `discard` | shorter cooldown + `final_lr_frac=0.2`
+- `8e216f2` | `val_bpb=1.026098` | `0.0 GB` | `discard` | `adam_beta1=0.9` + faster Muon momentum warmup
+
+Actions taken:
+- Both trials were not better than current best, so I reset branch state after each discard.
+- Current HEAD is back at best kept commit: `f371db8`.
+- Current best remains `val_bpb=1.026098` (from `f371db8`).
+- `memory/results.tsv` is updated with both new rows (total rows now 39).

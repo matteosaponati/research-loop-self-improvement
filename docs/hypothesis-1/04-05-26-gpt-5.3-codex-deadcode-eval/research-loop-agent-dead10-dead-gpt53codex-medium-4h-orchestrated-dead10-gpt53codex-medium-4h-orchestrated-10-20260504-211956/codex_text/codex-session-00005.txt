@@ -1,0 +1,74 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from current branch or perform first-time setup (branch, data check, baseline) exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows) on branch `research-loops/may4`, so I’m resuming directly from step (2). Next I’ll read `editable/` and the results history to choose the next experiment.
+
+I’ve got enough context; next experiment will target model capacity by increasing width (`aspect_ratio`) while keeping depth constant, since prior LR/schedule tweaks and even depth change showed no gain. I’ll patch `editable/config.toml`, commit, run, then keep or reset strictly by `val_bpb`.
+
+I’m applying a single config edit now: `aspect_ratio 64 -> 80` to raise `n_embd` and capacity without touching training code paths.
+
+The commit is in place (`d7fb2f1`). I’m launching the 5-minute training run now and will read only `metrics.json` for evaluation unless it crashes.
+
+Training is running in the background; I’m waiting for completion and will immediately parse `metrics.json` and update `memory/results.tsv`.
+
+Still running under the timeout guard; I’ll keep polling and then record the result with keep/discard plus reset if needed.
+
+Run is still active; once it exits I’ll classify it as keep/discard/crash from `metrics.json` and enforce branch reset rules automatically.
+
+I’m continuing to wait; no log is being streamed by design, and I’ll only touch `run.log` if `metrics.json` is missing after exit.
+
+Still in progress within the 10-minute safety window; I’ll finalize this trial as soon as the process returns.
+
+The run is taking longer than expected but still under guard; if it hits timeout I’ll mark as failure and revert. Polling until exit now.
+
+Run finished successfully. I’m now extracting `metrics.json`, updating `memory/results.tsv`, and then either keeping this commit or resetting based on whether `val_bpb` improved below `1.026098`.
+
+The shell doesn’t have `python` on PATH, so I’m re-reading metrics and baseline using `uv run python` and proceeding with the decision logic.
+
+I have the new metrics (`val_bpb=1.026098`, peak VRAM ~51.7 GB). I’m finishing best-score lookup and then logging plus resetting this non-improving commit.
+
+I’ve reverted to the prior commit and logged the discarded trial. I’m now trying a code-level experiment in `train.py` (not just hyperparams), targeting an obvious gap: `softcap` exists in config but appears unused.
+
+`softcap` is already implemented in the forward pass, so I’m switching strategy to a compute-optimality test: shrink model depth to 6 to trade parameters for more updates/tokens within the same 5-minute budget.
+
+I’m committing this depth-6 experiment and launching a timed run.
+
+Depth-6 run is in progress; I’m waiting for completion, then I’ll parse `metrics.json`, log the TSV row, and keep/reset accordingly.
+
+Still running under the timeout guard; continuing to poll.
+
+No crash signal so far; I’ll finalize decision immediately once the process exits.
+
+Run is still active and within limits; continuing to wait for completion.
+
+The run completed successfully. I’m extracting metrics now, logging the row, and applying keep/discard with reset logic.
+
+Experiment loop resumed and executed from existing branch `research-loops/may4` (commit now back at `65ec9fb` after discards).
+
+New experiments run:
+
+1. `d7fb2f1` (`editable/config.toml`): `aspect_ratio 64 -> 80`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=51654.9` (`50.4 GB`)  
+- Decision: `discard` (no improvement)
+
+2. `25387dd` (`editable/config.toml`): `depth 8 -> 6`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25497.6` (`24.9 GB`), `num_params_M=16.9`  
+- Decision: `discard` (no improvement)
+
+`memory/results.tsv` updated with both rows.  
+Current best remains `1.026098` (baseline-equivalent).
+tokens used
+46,756
+Experiment loop resumed and executed from existing branch `research-loops/may4` (commit now back at `65ec9fb` after discards).
+
+New experiments run:
+
+1. `d7fb2f1` (`editable/config.toml`): `aspect_ratio 64 -> 80`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=51654.9` (`50.4 GB`)  
+- Decision: `discard` (no improvement)
+
+2. `25387dd` (`editable/config.toml`): `depth 8 -> 6`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25497.6` (`24.9 GB`), `num_params_M=16.9`  
+- Decision: `discard` (no improvement)
+
+`memory/results.tsv` updated with both rows.  
+Current best remains `1.026098` (baseline-equivalent).

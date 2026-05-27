@@ -1,0 +1,116 @@
+Starting the research loop now. I’ll first check whether `memory/results.tsv` already has prior runs so I can either resume immediately or do the one-time setup and baseline.
+
+I found an initialized loop with prior crash attempts, so I’m resuming from the current branch and moving directly to a new experiment. Next I’ll read `editable/` files and design a stability-first run to get a valid baseline metric.
+
+I’ve identified the likely blocker: repeated CUDA/pin-memory failures and CPU OOM from using the full default config. I’m now patching `editable/train.py` to use a safe CPU fallback profile (smaller batch/sequence/model, no CUDA sync calls, and CPU dataloader placement) so we can get valid `metrics.json` and resume real optimization.
+
+The first patch didn’t apply cleanly due context drift, so I’m applying smaller targeted hunks against exact line matches in `train.py` to keep the change precise.
+
+I’m switching to a simpler, lower-risk experiment: change only `editable/config.toml` to a small CPU-safe profile. This avoids brittle training-script surgery and should get us the first successful metric quickly.
+
+I’ve applied the CPU-safe config edit. Next I’ll capture the unified diff, commit it, run training, and record `metrics.json` into `memory/results.tsv`.
+
+Running experiment commit `0ef97d5` now with output redirected to `run.log`. I’ll only read `metrics.json` afterward unless it crashes.
+
+The run is in progress. I’m waiting for completion and then I’ll parse `metrics.json` directly for result logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..66970801f0096290c4cdbdee706baf71d0f8aa0b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,22 +1,22 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 16
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 4
++aspect_ratio = 32
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+`metrics.json` is missing, so this run crashed. I’m now checking the crash trace in `run.log` to fix the failure path before the next experiment.
+
+The crash is from `immutable/prepare.py` forcing `pin_memory=True` even on CPU. I’ll log this crash result, reset this commit, then run a targeted training-script patch to bypass pin-memory allocation only while constructing dataloaders.
+
+I’ve added a scoped dataloader shim in `train.py` that strips `pin_memory` only for CPU loader creation. I’m now wiring both loader call sites to use it and then re-applying the small CPU config.
+
+The patch is committed as `533031e`. I’m launching this run now; if it completes, I’ll read `metrics.json`, append results, and decide keep/discard against the current best.
+
+This run also exited non-zero, so I’m checking the crash trace and then I’ll record the result before the next fix iteration.
+
+I confirmed the failure occurs because the loader allocates pinned memory lazily during iteration, not at construction. I’ll log commit `533031e` as crash, reset, then apply a cleaner global CPU pin-memory shim as the next experiment.
+
+I’m running a new experiment from the clean base now: global CPU `torch.empty` pin-memory override plus tiny CPU config, then rerun training.
+
+Experiment `429afb0` is committed and running now. I’ll collect `metrics.json` on completion and update `memory/results.tsv` accordingly.
+
+Root cause is now clear: `torch.compile`/inductor touches CUDA context even in this CPU profile, and combined with the empty shim it still trips unavailable CUDA. I’ll log this crash, reset, and make the next run disable compile on CPU while keeping the CPU data-path fixes.
+
+I’ve applied the next fix set: CPU tiny profile, CPU-safe empty shim, and compile disabled on CPU. I’m committing this and running another full 5-minute trial.
+
+The run still failed quickly; I’m reading the crash tail now to isolate the remaining blocker and keep iterating.
+
+The remaining issue is the optimizer’s fused functions are always `@torch.compile`d, so they still trigger inductor/CUDA init on CPU. I’ll log this crash, reset, then run a CPU path that disables those compiled optimizer kernels.
+
+I’ve disabled all `torch.compile` paths for CPU (model and fused optimizer kernels) and kept the no-pin-memory CPU workaround. I’m committing and running this experiment now.
+
+This crash is a patch ordering bug (`maybe_compile` was defined after use). I’ll fix that immediately and rerun.
+
+I’m recording this latest crash and resetting again so the branch stays at a clean known-good point before the next iteration.
+
+Current loop status:
+
+- Resumed existing branch `research-loops/may4` from commit `374038c`.
+- Ran multiple crash-focused experiments to get a first successful CPU fallback run.
+- Logged each run in `memory/results.tsv` with `status=crash` and reset after each discard, per protocol.
+- Branch is currently reset cleanly to `374038c`.
+
+Newly recorded crash entries:
+
+- `0ef97d5` CPU tiny config still fails due `pin_memory` CUDA allocator
+- `533031e` lazy `pin_memory` allocation still crashes at first loader iteration
+- `429afb0` global `torch.empty` shim conflicted with inductor fake tensor CUDA init
+- `9224a6a` optimizer fused `torch.compile` path still triggered inductor/CUDA init
+- `4362e98` patch-order bug (`maybe_compile` defined after decorator use)
+
+I’m ready for the next iteration: a clean CPU path patch that (1) defines `maybe_compile` before use, (2) disables all compile paths on CPU, and (3) applies pin-memory workaround without interfering with compiler internals.
+tokens used
+73,805
+Current loop status:
+
+- Resumed existing branch `research-loops/may4` from commit `374038c`.
+- Ran multiple crash-focused experiments to get a first successful CPU fallback run.
+- Logged each run in `memory/results.tsv` with `status=crash` and reset after each discard, per protocol.
+- Branch is currently reset cleanly to `374038c`.
+
+Newly recorded crash entries:
+
+- `0ef97d5` CPU tiny config still fails due `pin_memory` CUDA allocator
+- `533031e` lazy `pin_memory` allocation still crashes at first loader iteration
+- `429afb0` global `torch.empty` shim conflicted with inductor fake tensor CUDA init
+- `9224a6a` optimizer fused `torch.compile` path still triggered inductor/CUDA init
+- `4362e98` patch-order bug (`maybe_compile` defined after decorator use)
+
+I’m ready for the next iteration: a clean CPU path patch that (1) defines `maybe_compile` before use, (2) disables all compile paths on CPU, and (3) applies pin-memory workaround without interfering with compiler internals.

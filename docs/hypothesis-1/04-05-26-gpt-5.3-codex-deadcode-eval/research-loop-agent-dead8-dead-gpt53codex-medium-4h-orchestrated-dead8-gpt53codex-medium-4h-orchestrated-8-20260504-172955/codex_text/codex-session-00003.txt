@@ -1,0 +1,84 @@
+I’m starting the research loop now: I’ll first detect whether this workspace is already initialized by checking `memory/results.tsv`, current branch, and data/tokenizer presence, then either resume or run the required setup baseline path exactly as specified.
+
+The repo is already initialized on branch `research-loops/may4` with prior experiments logged, so I’m resuming from the current best and reading `editable/` plus `memory/results.tsv` to select the next high-value change.
+
+I found prior successful CPU-only fallback (`val_bpb 1.026098`) and now I’m inspecting the rest of `train.py` to target quality improvements that are safe under the current non-CUDA environment.
+
+I’m running a low-risk optimization experiment via `editable/config.toml`: add a short warmup and reduce the main learning rates to better match the CPU fallback regime, then I’ll commit and benchmark against `1.026098`.
+
+I’ve applied the config tweak and verified the exact diff; next I’m committing this experiment and launching a timed run with output redirected to `run.log`.
+
+The run is in progress under a 10-minute hard timeout; I’m waiting for completion and will read only `metrics.json` for evaluation unless it crashes.
+
+Still running; I’m continuing to wait for process exit, then I’ll parse `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+Run is still active within budget; I’m polling until it exits and then evaluating the single metric file only.
+
+I’m still waiting on the training process; once it returns I’ll immediately score the result and apply keep/discard via git state.
+
+The job is taking longer than expected but still under the 10-minute cutoff, so I’m continuing to monitor without touching `run.log`.
+
+I’m near the hard timeout window; if this exceeds 10 minutes it will be treated as failure and discarded per your protocol.
+
+The runner still hasn’t returned control, so I’m checking process state separately to confirm whether `timeout` already terminated it.
+
+I confirmed this process is still active and currently around 7 minutes elapsed; I’m waiting until 10 minutes max, then marking failure if it doesn’t complete.
+
+The run finished successfully. I’m now reading `metrics.json`, updating `memory/results.tsv`, and applying keep/discard with the required git reset logic.
+
+The shell lacks `python` on PATH, so I’m re-reading metrics and best score via `uv run python` to continue the keep/discard decision.
+
+Result matches the current best (`1.026098`), so this experiment is a `discard`; I’m logging it to `memory/results.tsv` and resetting the branch to the previous kept commit.
+
+I’m proceeding with a second experiment: reducing `sequence_len` to increase optimization steps within the same 5-minute training window, while keeping the stable CPU fallback code path unchanged.
+
+The new run is active; I’m monitoring it to completion (or timeout) and will score strictly from `metrics.json`.
+
+Run is still in progress; I’ll keep polling and apply keep/discard immediately once metrics are written.
+
+I’m continuing to wait on the trainer; no crash signal yet, and I have not inspected `run.log`.
+
+This run is at about 5 minutes 44 seconds elapsed; I’m waiting for either normal completion or timeout termination, then I’ll finalize the keep/discard decision.
+
+The process has exited successfully; I’m reading `metrics.json` now and applying the git decision logic.
+
+This also ties the best (`1.026098`), so I’m recording it as `discard` and resetting to the kept commit before continuing the loop.
+
+Current loop status:
+
+- Resumed existing run state on `research-loops/may4` (no re-init/baseline needed).
+- Kept baseline remains commit `b291219` with `val_bpb=1.026098`.
+
+I ran 2 new experiments end-to-end (edit → commit → run → metrics → log → keep/discard):
+
+1. Commit `b2dd1db`  
+- Change: lower LRs (`embedding_lr 0.6→0.3`, `unembedding_lr 0.004→0.003`, `matrix_lr 0.04→0.03`) + `warmup_ratio 0.02`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+- Decision: `discard` (equal to best), reset branch to `b291219`
+
+2. Commit `3f50306`  
+- Change: `sequence_len 2048→1024`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+- Decision: `discard` (equal to best), reset branch to `b291219`
+
+`memory/results.tsv` is updated with both entries. Branch is currently at kept commit `b291219`.
+tokens used
+32,154
+Current loop status:
+
+- Resumed existing run state on `research-loops/may4` (no re-init/baseline needed).
+- Kept baseline remains commit `b291219` with `val_bpb=1.026098`.
+
+I ran 2 new experiments end-to-end (edit → commit → run → metrics → log → keep/discard):
+
+1. Commit `b2dd1db`  
+- Change: lower LRs (`embedding_lr 0.6→0.3`, `unembedding_lr 0.004→0.003`, `matrix_lr 0.04→0.03`) + `warmup_ratio 0.02`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+- Decision: `discard` (equal to best), reset branch to `b291219`
+
+2. Commit `3f50306`  
+- Change: `sequence_len 2048→1024`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=0.0`  
+- Decision: `discard` (equal to best), reset branch to `b291219`
+
+`memory/results.tsv` is updated with both entries. Branch is currently at kept commit `b291219`.

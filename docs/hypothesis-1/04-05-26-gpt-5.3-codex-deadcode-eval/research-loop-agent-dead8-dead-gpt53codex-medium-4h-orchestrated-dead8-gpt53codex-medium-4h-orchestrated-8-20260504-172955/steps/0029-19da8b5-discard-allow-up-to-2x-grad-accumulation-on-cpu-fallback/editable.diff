@@ -1,0 +1,25 @@
+commit 19da8b593748767a5065b9abb4893a90a5a74e39
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 20:20:50 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 20:20:50 2026 +0200
+
+    allow 2x grad accumulation in cpu fallback
+---
+ editable/train.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4..ac117c0 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_max_tokens_per_step = runtime_device_batch_size * CONFIG.sequence_len
++runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_max_tokens_per_step * 2)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()

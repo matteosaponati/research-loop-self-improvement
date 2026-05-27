@@ -1,0 +1,70 @@
+commit 09eadcd0eb587de3b797bd4a181c5cd7c51eaa5e
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Sun May 3 23:54:17 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Sun May 3 23:54:17 2026 +0200
+
+    Try tied embeddings with small init
+---
+ editable/config.toml |  2 +-
+ editable/train.py    | 15 +++++++++------
+ 2 files changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..4a7de2a 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@ ignore_index = -1
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..c0cb209 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@ class GPT(nn.Module):
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@ class GPT(nn.Module):
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@ class GPT(nn.Module):
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(

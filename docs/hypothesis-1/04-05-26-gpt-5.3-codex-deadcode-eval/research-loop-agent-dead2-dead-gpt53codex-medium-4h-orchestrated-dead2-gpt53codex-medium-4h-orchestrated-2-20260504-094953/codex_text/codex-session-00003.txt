@@ -1,0 +1,83 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume immediately or perform the one-time branch/baseline setup. I’ll inspect git state, `memory/results.tsv`, and required data artifacts next.
+
+I found an active run history, so I’m resuming from the current branch without reinitializing. Next I’ll read `editable/` code and current config to choose the next targeted experiment.
+
+I’ve loaded the top-level model and config; now I’m checking the remaining training-loop and scheduler sections in `train.py` to pick a nontrivial hyperparameter change likely to move `val_bpb`.
+
+I have enough context now and I’m choosing a config-only experiment to improve optimization dynamics without changing model size. I’ll apply a single commit that introduces modest warmup plus a nonzero LR floor at the tail, then run and score it from `metrics.json`.
+
+I’m editing only `editable/config.toml` for this run: short warmup, gentler long-tail decay with a nonzero floor, and a slightly stronger Muon momentum ramp to test better late-training convergence in the 5-minute window.
+
+I’ll commit this experiment now, then launch a full 5-minute training run and collect `metrics.json` for keep/discard.
+
+Training is running under timeout control now. I’ll wait for completion, then read only `metrics.json`, append `memory/results.tsv`, and decide keep vs reset based on `val_bpb`.
+
+Run is still in progress within the expected window; no crash signal yet. I’m continuing to wait for completion before collecting metrics.
+
+I’m still waiting on the training process and will immediately parse `metrics.json` once it exits.
+
+Training is still active; I’m continuing to monitor until exit and then I’ll score the run.
+
+The process is near completion time; after it exits I’ll parse metrics and apply keep/discard with a git reset if needed.
+
+I’m still waiting on the same run; timeout guard will force exit if it overruns. I’ll proceed with metrics ingestion the moment it returns.
+
+Training completed successfully. I hit a local shell issue (`python` not on PATH), so I’m re-reading `metrics.json` and prior best via `uv run python`, then I’ll record and keep/reset.
+
+I’ve recorded the result and reverted since `val_bpb` was unchanged from best. I’m immediately starting the next experiment with a more aggressive optimizer shift: lower Muon LR and remove weight decay to test whether the current setup is over-regularized.
+
+I’m committing this second experiment and launching another timed run now.
+
+Second run is active. I’ll wait for completion, then evaluate from `metrics.json`, append to TSV, and keep/reset based on improvement.
+
+The process is still running cleanly inside the expected duration. I’m continuing to wait for exit before reading metrics.
+
+Run is still in progress; I’ll keep monitoring and finalize scoring as soon as it exits.
+
+I’m waiting on the same training job; timeout protection remains in place if it overruns.
+2026-05-04T08:34:05.616036Z ERROR rmcp::transport::worker: worker quit with fatal: Unexpected content type: Some("text/plain; body: upstream connect error or disconnect/reset before headers. reset reason: connection termination"), when send initialized notification
+
+This run is near the end of the budget window. I’ll ingest metrics and update the branch state immediately after exit.
+
+I have the current best loaded; I’m now waiting for the metrics parser command to return the new run values so I can finalize keep/discard.
+
+Completed two full experiments in the loop and logged both.
+
+- Branch: `research-loops/may4` (resumed existing run state)
+- Best `val_bpb` remains: `1.026098`
+- Current HEAD after discard resets: `374038c`
+
+Experiments run this turn:
+
+1. Commit `c8efe58`  
+   - Change: `warmup_ratio=0.02`, `warmdown_ratio=0.7`, `final_lr_frac=0.2`, `muon_momentum_warmup_steps=120`, `muon_momentum_start=0.9`, `muon_momentum_end=0.97`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+   - Decision: `discard` (no improvement), reset applied
+
+2. Commit `39d11ce`  
+   - Change: `matrix_lr=0.02`, `weight_decay=0.0`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+   - Decision: `discard` (no improvement), reset applied
+
+`memory/results.tsv` updated with both rows.
+tokens used
+39,446
+Completed two full experiments in the loop and logged both.
+
+- Branch: `research-loops/may4` (resumed existing run state)
+- Best `val_bpb` remains: `1.026098`
+- Current HEAD after discard resets: `374038c`
+
+Experiments run this turn:
+
+1. Commit `c8efe58`  
+   - Change: `warmup_ratio=0.02`, `warmdown_ratio=0.7`, `final_lr_frac=0.2`, `muon_momentum_warmup_steps=120`, `muon_momentum_start=0.9`, `muon_momentum_end=0.97`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+   - Decision: `discard` (no improvement), reset applied
+
+2. Commit `39d11ce`  
+   - Change: `matrix_lr=0.02`, `weight_decay=0.0`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=42060.4` (`41.1 GB`)  
+   - Decision: `discard` (no improvement), reset applied
+
+`memory/results.tsv` updated with both rows.

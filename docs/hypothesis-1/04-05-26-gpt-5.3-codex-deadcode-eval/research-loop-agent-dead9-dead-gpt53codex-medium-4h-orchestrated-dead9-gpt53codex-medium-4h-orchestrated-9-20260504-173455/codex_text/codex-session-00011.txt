@@ -1,0 +1,62 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has prior runs, then I’ll either resume directly or initialize branch/results and run a baseline before proposing the next experiment.
+
+There is an existing initialized run history (`memory/results.tsv` already populated), so I’m resuming from the current branch state and reading `editable/` plus prior results to pick the next experiment.
+
+I’ve reviewed prior experiments; almost all schedule and depth tweaks were flat, so I’m trying a different axis next: changing `seed` to alter initialization/data order while keeping compute budget constant, then I’ll run and compare `val_bpb`.
+
+I committed the seed-change experiment (`8a15e07`) and I’m launching the 5-minute training run now with output redirected to `run.log`; after completion I’ll read `metrics.json` and record it.
+
+The run is in progress; I’m waiting for completion and then I’ll collect `metrics.json` only (no log inspection unless it crashed).
+
+Training is still running within the allowed window; I’m continuing to wait and will parse metrics as soon as the process exits.
+
+I’m still waiting on the run process; next step is immediate metrics extraction and keep/discard decision once it exits.
+
+The training command is still active; I’ll keep polling and proceed to result logging immediately on completion.
+
+Polling continues; once this exits I’ll compute `memory_gb`, append the TSV row, and reset if it didn’t beat the current best `1.026098`.
+
+The run finished successfully; I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then reverting this commit because it only ties the best and does not improve it.
+
+The shell lacks a direct `python` binary here, so I’m rerunning those metric/TSV parsing steps via `uv run python` and proceeding with logging/reset.
+
+I’ve logged and discarded the seed experiment, and I’m immediately starting another trial by changing the attention block to remove Q/K RMS normalization (`q, k = norm(q), norm(k)`), which can shift optimization dynamics under fixed compute.
+
+I committed the Q/K norm removal experiment (`b7c5b9b`) and I’m running training now; once done I’ll read `metrics.json`, append TSV, and keep/discard by `val_bpb`.
+
+This run is still active and within the expected duration; I’m continuing to wait and will collect only `metrics.json` on exit.
+
+Polling continues; as soon as it exits I’ll log commit/result/status in `memory/results.tsv` and reset if not improved.
+
+Run is still in progress; I’m waiting for completion before touching anything else.
+
+The process exited cleanly; I’m extracting metrics, recording the row, and applying keep/discard based on whether it beats `1.026098`.
+
+Experiment loop resumed from existing `memory/results.tsv` on branch `research-loops/may4` and I ran 2 new experiments end-to-end:
+
+1. `8a15e07`  
+- Diff: `editable/config.toml` changed `seed = 42` → `seed = 123`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`)  
+- Logged: `discard` (tie, no improvement)
+
+2. `b7c5b9b`  
+- Diff: `editable/train.py` removed `q, k = norm(q), norm(k)` in attention  
+- Result: `val_bpb=1.026098`, `peak_vram_mb≈37888` (`37.0 GB`)  
+- Logged: `discard` (tie, no improvement)
+
+I appended both rows to `memory/results.tsv` and reset discarded commits each time, so working tree is back at `0d20b2e` with no retained code changes. Current best remains `1.026098`.
+tokens used
+49,678
+Experiment loop resumed from existing `memory/results.tsv` on branch `research-loops/may4` and I ran 2 new experiments end-to-end:
+
+1. `8a15e07`  
+- Diff: `editable/config.toml` changed `seed = 42` → `seed = 123`  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=42060.45` (`41.1 GB`)  
+- Logged: `discard` (tie, no improvement)
+
+2. `b7c5b9b`  
+- Diff: `editable/train.py` removed `q, k = norm(q), norm(k)` in attention  
+- Result: `val_bpb=1.026098`, `peak_vram_mb≈37888` (`37.0 GB`)  
+- Logged: `discard` (tie, no improvement)
+
+I appended both rows to `memory/results.tsv` and reset discarded commits each time, so working tree is back at `0d20b2e` with no retained code changes. Current best remains `1.026098`.

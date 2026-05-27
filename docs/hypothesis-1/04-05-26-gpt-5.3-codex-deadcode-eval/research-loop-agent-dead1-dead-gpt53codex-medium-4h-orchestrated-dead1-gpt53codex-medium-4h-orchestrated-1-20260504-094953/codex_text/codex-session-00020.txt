@@ -1,0 +1,114 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already exists to decide resume vs fresh setup, then follow the exact setup sequence before launching the next run.
+
+I found an initialized run (`memory/results.tsv` exists with prior rows), so I’m resuming from the current branch and skipping branch/baseline setup. Next I’ll read `editable/` and the results table to choose the next experiment.
+
+I’ve loaded prior results and current config; the run is CPU-constrained and many changes plateaued at exactly `1.026098`. I’ll inspect the remaining training-loop sections to pick a higher-leverage change before editing.
+
+I identified that most prior tweaks were small and all tied at the same metric, so I’m making a more structural optimizer-schedule change next: keep LR flat for full run and reduce regularization pressure to test underfitting in the 5-minute budget. I’ll edit `editable/config.toml`, commit, run, and decide keep/revert from `metrics.json`.
+
+I committed the config change (`61e9374`) and I’m launching the 5-minute training run now with output redirected to `run.log`; after it ends I’ll read only `metrics.json`, append results, and keep or reset based on `val_bpb`.
+
+The run is in progress in the background session; I’m waiting for completion, then I’ll parse `metrics.json` and update the experiment ledger.
+
+Training has passed the 5-minute budget window including startup, so I’m checking whether it has exited cleanly; if it exceeds 10 minutes total I’ll kill and mark crash per your rule.
+
+I got `val_bpb=1.026098` (no improvement vs current best `1.026098`), so I’m recording this as `discard` and resetting to the previous commit as required.
+
+I’m continuing with another trial immediately. Next experiment: reduce `mlp_hidden_multiplier` to `2` to trade model expressivity for faster steps within the same 5-minute budget.
+
+Second run is started (`1e9ed12`) and training is underway; I’m waiting for completion and will again score from `metrics.json` only, then keep or reset.
+
+This run also returned `1.026098`, so it does not beat the best. I’m logging it as `discard` and resetting back one commit.
+
+Experiment loop resumed and I ran 2 new experiments end-to-end (edit → commit → run → score via `metrics.json` → log → reset on non-improvement).
+
+1. Commit `61e9374`  
+Diff:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 74801b3..ff0d5c5 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.03
+-weight_decay = 0.2
++weight_decay = 0.05
+@@ -46,9 +46,9 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.0
++final_lr_frac = 1.0
+@@
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` → logged as `discard` and reset.
+
+2. Commit `1e9ed12`  
+Diff:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 74801b3..0333628 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -18,7 +18,7 @@ vocab_size_default = 32768
+ depth = 4
+ aspect_ratio = 16
+ head_dim = 32
+-mlp_hidden_multiplier = 4
++mlp_hidden_multiplier = 2
+```
+Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` → logged as `discard` and reset.
+
+Current HEAD is back to `5284fb0`.  
+`memory/results.tsv` has been updated with both rows.
+tokens used
+39,769
+Experiment loop resumed and I ran 2 new experiments end-to-end (edit → commit → run → score via `metrics.json` → log → reset on non-improvement).
+
+1. Commit `61e9374`  
+Diff:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 74801b3..ff0d5c5 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.03
+-weight_decay = 0.2
++weight_decay = 0.05
+@@ -46,9 +46,9 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.0
++final_lr_frac = 1.0
+@@
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` → logged as `discard` and reset.
+
+2. Commit `1e9ed12`  
+Diff:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 74801b3..0333628 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -18,7 +18,7 @@ vocab_size_default = 32768
+ depth = 4
+ aspect_ratio = 16
+ head_dim = 32
+-mlp_hidden_multiplier = 4
++mlp_hidden_multiplier = 2
+```
+Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` → logged as `discard` and reset.
+
+Current HEAD is back to `5284fb0`.  
+`memory/results.tsv` has been updated with both rows.

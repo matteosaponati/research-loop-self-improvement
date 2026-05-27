@@ -1,0 +1,84 @@
+I’m starting the research loop now: I’ll first check git/memory state to decide whether to resume or initialize, then run or continue from the best recorded baseline before proposing the next code experiment.
+
+I found an initialized run history on branch `research-loops/may4`, so I’m resuming directly from the current best (`1.026098`). Next I’ll re-read the editable code and choose a new high-signal change not yet tried.
+
+I’ve reviewed config and core model path; I’m now checking the remaining training loop sections in `train.py` to target a parameterization that can actually shift learning dynamics within the fixed 5-minute budget.
+
+I’ve got full training-loop context. I’m choosing a scheduler-shape change that hasn’t been tested: switch from linear cooldown to cosine cooldown so LR remains higher mid-run but still decays to the same floor, then I’ll commit and run.
+
+I’m editing `editable/train.py` now to implement cosine warmdown in `get_lr_multiplier` while preserving warmup and final LR floor behavior.
+
+I’ve applied the scheduler change; next I’ll commit this experiment and launch a full 5-minute run, then score it from `metrics.json` and decide keep/discard.
+
+The run is in progress in the background; I’ll wait for completion, then read `metrics.json` and update `memory/results.tsv` without scanning the full log.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..15c7558ca2d0e330c03e0fe6d16d445376372b48
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -501,7 +501,9 @@
+         return 1.0
+     else:
+         cooldown = (1.0 - progress) / CONFIG.warmdown_ratio
+-        return cooldown * 1.0 + (1 - cooldown) * CONFIG.final_lr_frac
++        cooldown = min(max(cooldown, 0.0), 1.0)
++        cosine = 0.5 * (1.0 + math.cos(math.pi * (1.0 - cooldown)))
++        return CONFIG.final_lr_frac + (1.0 - CONFIG.final_lr_frac) * cosine
+ 
+ def get_muon_momentum(step):
+     frac = min(step / CONFIG.muon_momentum_warmup_steps, 1)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..15c7558ca2d0e330c03e0fe6d16d445376372b48
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -501,7 +501,9 @@
+         return 1.0
+     else:
+         cooldown = (1.0 - progress) / CONFIG.warmdown_ratio
+-        return cooldown * 1.0 + (1 - cooldown) * CONFIG.final_lr_frac
++        cooldown = min(max(cooldown, 0.0), 1.0)
++        cosine = 0.5 * (1.0 + math.cos(math.pi * (1.0 - cooldown)))
++        return CONFIG.final_lr_frac + (1.0 - CONFIG.final_lr_frac) * cosine
+ 
+ def get_muon_momentum(step):
+     frac = min(step / CONFIG.muon_momentum_warmup_steps, 1)
+
+
+Training finished successfully. I’ll now read `metrics.json`, append the experiment row, compare against the best prior `val_bpb`, and reset this commit if it didn’t improve.
+
+The result matches the current best exactly (`1.026098`), so this experiment is a discard. I’m logging it to `memory/results.tsv` and resetting to the pre-experiment commit to continue the loop cleanly.
+
+I’m continuing immediately with the next iteration. I’ll try a stronger late-stage Muon momentum target (`muon_momentum_end=0.99`) to stabilize updates near evaluation within the same 5-minute budget.
+
+Second experiment is running now; after it exits I’ll read `metrics.json`, log to `memory/results.tsv`, and keep or reset based on strict improvement only.
+
+This run finished cleanly; I’m collecting the metric values now and applying the keep/discard decision against the current best threshold.
+
+No improvement again (`1.026098`), so I’m discarding this commit, appending the result row, and resetting to the prior checkpoint before starting another idea.
+
+Completed two new experiments and applied the keep/discard loop correctly.
+
+- Current branch: `research-loops/may4`
+- Current HEAD reset back to: `986c277`
+- Best `val_bpb` remains: `1.026098`
+
+New logged results added to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead4-gpt53codex-medium-4h-orchestrated-4-20260504-133954/research-loop/memory/results.tsv):
+
+- `1b6917c	1.026098	50.4	discard	cosine LR warmdown schedule`
+- `8085115	1.026098	50.4	discard	raise muon momentum end to 0.99`
+
+Both runs completed successfully (no crash), each matched baseline exactly, so both commits were discarded via reset.
+tokens used
+21,904
+Completed two new experiments and applied the keep/discard loop correctly.
+
+- Current branch: `research-loops/may4`
+- Current HEAD reset back to: `986c277`
+- Best `val_bpb` remains: `1.026098`
+
+New logged results added to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead4-gpt53codex-medium-4h-orchestrated-4-20260504-133954/research-loop/memory/results.tsv):
+
+- `1b6917c	1.026098	50.4	discard	cosine LR warmdown schedule`
+- `8085115	1.026098	50.4	discard	raise muon momentum end to 0.99`
+
+Both runs completed successfully (no crash), each matched baseline exactly, so both commits were discarded via reset.

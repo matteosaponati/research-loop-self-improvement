@@ -1,0 +1,68 @@
+commit 3a49ce6864a05a85ea9cb32ff81aa06d23342f60
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 12:01:55 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 12:01:55 2026 +0200
+
+    eval with running-average weights
+---
+ editable/train.py | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..306aacf 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -518,6 +518,9 @@ t_start_training = time.time()
+ smooth_train_loss = 0
+ total_training_time = 0
+ step = 0
++avg_start_step = 50
++avg_params = None
++avg_count = 0
+ 
+ while True:
+     torch.cuda.synchronize()
+@@ -578,6 +581,18 @@ while True:
+ 
+     step += 1
+ 
++    # Maintain a lightweight running average of post-update weights.
++    if step >= avg_start_step:
++        with torch.no_grad():
++            if avg_params is None:
++                avg_params = {name: p.detach().clone() for name, p in model.named_parameters()}
++                avg_count = 1
++            else:
++                avg_count += 1
++                mix = 1.0 / avg_count
++                for name, p in model.named_parameters():
++                    avg_params[name].lerp_(p.detach(), mix)
++
+     # Time's up — but only stop after warmup steps so we don't count compilation
+     if step > WARMUP_STEPS_EXCLUDED_FROM_TIMING and total_training_time >= TIME_BUDGET_SECONDS:
+         break
+@@ -588,6 +603,12 @@ total_tokens = step * CONFIG.total_batch_size
+ 
+ # Final eval
+ model.eval()
++restore_params = None
++if avg_params is not None and avg_count > 1:
++    restore_params = {name: p.detach().clone() for name, p in model.named_parameters()}
++    with torch.no_grad():
++        for name, p in model.named_parameters():
++            p.copy_(avg_params[name])
+ with autocast_ctx:
+     metric_value = evaluate_model(
+         model,
+@@ -598,6 +619,10 @@ with autocast_ctx:
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+         device=CONFIG.device,
+     )
++if restore_params is not None:
++    with torch.no_grad():
++        for name, p in model.named_parameters():
++            p.copy_(restore_params[name])
+ 
+ # Final summary
+ t_end = time.time()

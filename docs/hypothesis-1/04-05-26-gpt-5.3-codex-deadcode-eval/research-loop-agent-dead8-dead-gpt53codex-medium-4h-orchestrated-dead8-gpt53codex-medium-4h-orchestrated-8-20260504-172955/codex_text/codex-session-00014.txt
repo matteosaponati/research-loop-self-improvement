@@ -1,0 +1,626 @@
+I’m starting the research loop now: I’ll check whether `memory/results.tsv` already has prior runs, then either resume or initialize the branch/baseline exactly per your protocol before launching the next experiment.
+
+I found an existing initialized loop with many results, so I’m resuming from the current branch and best known `val_bpb=1.026098` as required. Next I’ll read the `editable/` files and pick a targeted experiment.
+
+I’ve loaded the config and core model setup; next I’m scanning the rest of `train.py` to target a change that can improve optimization within the 5-minute cap without destabilizing the CPU fallback path.
+
+I’ve identified the main bottleneck: the run is effectively CPU-only, so most prior hyperparameter tweaks didn’t move `val_bpb`. I’m going to try a throughput-oriented config change (`device_batch_size` up to the script’s CPU cap) to push more tokens through the fixed 5-minute budget, then commit and run.
+
+I’m editing `editable/config.toml` to raise `device_batch_size` from 2 to 8 so each optimizer step processes more tokens under the same time budget.
+
+I committed the experiment (`198bbfb`) and I’m launching the 5-minute run now with output redirected to `run.log`; after it completes I’ll read only `metrics.json`, record TSV, and keep/revert based on `val_bpb`.
+
+The run is in progress. I’m waiting for completion and will treat it as failure if it crosses the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running within the allowed window; I’m continuing to wait and will read `metrics.json` immediately once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Execution is still active. I’m polling again; if it times out or crashes I’ll mark it `crash` and revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run is continuing normally so far; I’m waiting for completion before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still in progress and under the hard limit; I’ll keep polling until exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The process is still running; I’m continuing to wait for termination and then I’ll parse `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+No completion yet; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run remains active; I’m staying on it and will apply keep/discard immediately after results are available.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+This is now past expected training time but still under the 10-minute failure threshold, so I’m waiting a bit longer for normal shutdown/metrics flush.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running. I’m continuing to monitor and will classify as crash if it reaches the 10-minute cap without producing metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Process is still active; waiting again.
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf480f5173142c264be805f966fc3aed98a..7a259b3ae2777f44e566fede5c4032fd2c6c18ed
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 2
++device_batch_size = 8
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run completed successfully. I’m now reading `metrics.json`, logging this experiment to `memory/results.tsv`, and applying keep/discard with a git reset if there was no improvement.
+
+`python` isn’t on PATH in this harness, so I’m re-reading metrics/results via `uv run` and then finalizing TSV + branch decision.
+
+I logged and discarded that trial (no improvement) and reset to the previous commit. I’m launching a new code-level experiment: increase effective batch via gradient accumulation on CPU fallback by targeting up to `8` microbatches per optimizer step.
+
+I committed experiment `84a580b` and started the new run with output redirected to `run.log`; I’ll collect only `metrics.json` after completion and keep/discard accordingly.
+
+Second run is now in progress. I’m monitoring for normal exit within the 10-minute limit.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still running; waiting for completion before reading metrics.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Execution continues within bounds. I’m polling again.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run is still active; I’ll keep monitoring until it exits or hits the timeout ceiling.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Process remains in flight and under the hard cap. Polling again.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still running; continuing to wait.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+No exit yet, monitoring continues.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run still active; I’m polling again.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+This is around expected finish time; I’m waiting for shutdown and metrics writeout.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still running but within the allowed 10-minute limit; continuing to monitor.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+No completion yet. I’ll keep waiting up to the timeout boundary, then classify appropriately.
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4b7d46b377b8ed6bd6de579b110fe9f709..5eeb3bb6f60925e0936bda5d7b8c7a3074cbca7b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run finished; I’m collecting `metrics.json` now and finalizing keep/discard plus git state.
+
+Completed two new experiments and updated the loop state.
+
+- Resumed existing run history from `memory/results.tsv` (no re-init, no new branch, no baseline rerun).
+- Current branch/head remains `research-loops/may4` at commit `4d2231c` after discarding non-improving trials.
+- Best `val_bpb` is still `1.026098`.
+
+New experiments logged:
+
+1. `198bbfb`  
+   - Change: `editable/config.toml` `device_batch_size = 2 -> 8`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)  
+   - Status: `discard` (equal to best), reset performed
+
+2. `84a580b`  
+   - Change: `editable/train.py` increased CPU fallback effective batch target to up to `8x` microbatches via `runtime_total_batch_size` formula  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`), `total_seconds=567.7`  
+   - Status: `discard` (equal to best), reset performed
+
+`memory/results.tsv` has been appended with both rows accordingly.
+tokens used
+36,486
+Completed two new experiments and updated the loop state.
+
+- Resumed existing run history from `memory/results.tsv` (no re-init, no new branch, no baseline rerun).
+- Current branch/head remains `research-loops/may4` at commit `4d2231c` after discarding non-improving trials.
+- Best `val_bpb` is still `1.026098`.
+
+New experiments logged:
+
+1. `198bbfb`  
+   - Change: `editable/config.toml` `device_batch_size = 2 -> 8`  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`)  
+   - Status: `discard` (equal to best), reset performed
+
+2. `84a580b`  
+   - Change: `editable/train.py` increased CPU fallback effective batch target to up to `8x` microbatches via `runtime_total_batch_size` formula  
+   - Result: `val_bpb=1.026098`, `peak_vram_mb=0.0` (`memory_gb=0.0`), `total_seconds=567.7`  
+   - Status: `discard` (equal to best), reset performed
+
+`memory/results.tsv` has been appended with both rows accordingly.

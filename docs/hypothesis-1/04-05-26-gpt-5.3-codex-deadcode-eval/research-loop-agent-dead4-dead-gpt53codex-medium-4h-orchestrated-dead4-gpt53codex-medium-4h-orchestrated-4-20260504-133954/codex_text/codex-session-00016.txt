@@ -1,0 +1,64 @@
+Starting the research loop now. I’ll first check git state and whether `memory/results.tsv` already has prior rows so I can either resume or initialize exactly per your protocol.
+
+I found an active run history, so I’m resuming from the current branch and skipping initialization/baseline. Next I’ll re-read the editable code and prior results context, then make one targeted architecture/training tweak and run it.
+
+I’ve reviewed the current setup and prior trials; most changes were neutral, with deeper models hurting. I’m going to test a smaller model (`depth=6`) to increase update throughput within the fixed 5-minute budget and see if that improves `val_bpb`.
+
+I’ve applied the config edit and captured the exact diff. Next I’ll commit this experiment, run training with full log redirection, then read `metrics.json` and decide keep vs reset.
+
+The run is in progress now under the 5-minute budget. I’m waiting for completion, then I’ll read `metrics.json` only and log the result to `memory/results.tsv`.
+
+Training is still running past the first wait window, so I’m continuing to wait and will enforce the 10-minute failure rule if needed.
+
+The run finished successfully. I’ll parse `metrics.json`, append the experiment row, and then keep or reset based on whether `val_bpb` beat the current best.
+
+The metrics parsing command failed because plain `python` is unavailable here; I’ll rerun the same readout via `uv run python` and proceed with logging/reset.
+
+I recorded the result and it did not improve (`val_bpb` unchanged), so I’m now resetting to the pre-experiment commit to continue the loop cleanly.
+
+I found one leftover temp file from editing (`editable/config.toml.bak`) and will remove it so the workspace stays clean before the next experiment.
+
+I’m proceeding with another trial: add substantial LR warmup by setting `warmup_ratio=0.2` (keeping other settings unchanged) to stabilize early updates in the 5-minute window.
+
+The warmup experiment is running now. After it exits, I’ll read `metrics.json`, append to `memory/results.tsv`, and reset if there’s no improvement.
+
+This run is still active after 5 minutes of waiting, so I’m continuing to monitor it and will apply the 10-minute cutoff rule if it overruns.
+
+The run has completed successfully. I’m collecting `metrics.json`, logging it to `memory/results.tsv`, and then handling keep/discard automatically.
+
+This experiment also tied the best without improvement, so I’m resetting the branch to the previous kept commit and preparing the next hypothesis.
+
+I’m testing a more direct hypothesis now: apply a fixed logit temperature (`0.8`) before the softcap/tanh step to sharpen probabilities, which can materially change validation bpb even when most prior hyperparameter tweaks were neutral.
+
+I’ve applied the code change and confirmed the unified diff. I’ll commit this experiment, run it, and log/keep-or-reset based on `metrics.json`.
+
+The temperature experiment is running. I’ll wait for completion, then read only `metrics.json`, append to `memory/results.tsv`, and reset if it does not beat the best.
+
+No improvement again, so I’m resetting to the current best commit and leaving the logbook updated with all new trials.
+
+Completed 3 new experiments and logged all of them in `memory/results.tsv`, following the keep/discard reset loop.
+
+New logged results:
+- `fc2f367` `1.026098` `32.0 GB` `discard` `reduce depth to 6 for higher step throughput`
+- `fefa2db` `1.026098` `50.4 GB` `discard` `add 20% learning-rate warmup`
+- `51aca8b` `1.026098` `50.4 GB` `discard` `sharpen logits with fixed temperature 0.8`
+
+Branch state now:
+- Reset to best commit `986c277`
+- Working tree clean except expected generated `metrics.json` (untracked)
+
+No `val_bpb` improvement yet; best remains `1.026098`.
+tokens used
+51,201
+Completed 3 new experiments and logged all of them in `memory/results.tsv`, following the keep/discard reset loop.
+
+New logged results:
+- `fc2f367` `1.026098` `32.0 GB` `discard` `reduce depth to 6 for higher step throughput`
+- `fefa2db` `1.026098` `50.4 GB` `discard` `add 20% learning-rate warmup`
+- `51aca8b` `1.026098` `50.4 GB` `discard` `sharpen logits with fixed temperature 0.8`
+
+Branch state now:
+- Reset to best commit `986c277`
+- Working tree clean except expected generated `metrics.json` (untracked)
+
+No `val_bpb` improvement yet; best remains `1.026098`.

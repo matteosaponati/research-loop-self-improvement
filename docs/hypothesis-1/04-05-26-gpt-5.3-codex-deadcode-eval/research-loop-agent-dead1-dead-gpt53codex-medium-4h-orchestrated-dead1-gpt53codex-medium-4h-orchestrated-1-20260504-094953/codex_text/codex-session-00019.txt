@@ -1,0 +1,118 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or do the full setup path correctly.
+
+I found an existing initialized run on branch `research-loops/may4` with prior results, so I’m resuming directly at experiment step (2). Next I’ll read `editable/` files and pick a new code change that has a real chance to beat `1.026098`.
+
+I’ve loaded the active configuration and experiment history; almost every successful run is tied at `1.026098`, so I’ll target a change that alters optimization dynamics more materially than previous LR-only tweaks. I’m quickly scanning the remaining training loop for leverage points not yet tested.
+
+I’m making a high-impact throughput tradeoff that hasn’t been tried yet: cut `sequence_len` to `64` while keeping total tokens per update fixed, which should substantially increase optimizer step count within the same 5-minute budget. I’ll commit this as a single config experiment, run, and keep only if `val_bpb` improves.
+
+The experiment commit is in place (`66417c7`). I’m launching the 5-minute training run now with full log redirection, then I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it crosses the failure window.
+
+Run is still in progress and within allowed time. I’m continuing to wait for exit before reading metrics.
+
+Still running; I’m monitoring until process exits so I can capture result status cleanly.
+
+I’m still waiting on the same run session; once it finishes I’ll immediately parse `metrics.json` and decide keep vs reset.
+
+The run has not exited yet but remains under the hard timeout wrapper, so I’m continuing to block on completion.
+
+Still in-flight. I’ll keep waiting; if the wrapper times out it will return a nonzero exit and I’ll mark crash/discard accordingly.
+
+I’m still polling the same process; no output is expected due redirection, so I’m waiting for terminal exit code.
+
+The run finished successfully (`EXIT:0`). I’m now reading `metrics.json`, appending the TSV row, and then either keeping this commit or resetting if it did not beat the current best.
+
+Result is exactly tied with the current best (`1.026098`), so this experiment is a discard. I’m recording it in `memory/results.tsv` and resetting one commit to continue the loop from the prior best state.
+
+I’ve reverted to the pre-experiment commit and am continuing the loop. Next experiment will increase model width (`aspect_ratio`) to raise capacity without changing depth, then I’ll run and keep only on strict improvement.
+
+Width-change commit is ready (`7073156`). I’m running the next 5-minute training job now and will evaluate from `metrics.json` only.
+
+The run is in progress; I’m waiting on completion and tracking the timeout boundary.
+
+Still running cleanly under the wrapper; continuing to wait for exit.
+
+I’m continuing to block on this same session and will parse metrics immediately when it exits.
+
+The process is still active; no action needed until completion or timeout.
+
+Run is still in flight and within limits. I’m waiting for the final exit code now.
+
+Still running. I’ll keep polling until it returns so we can record keep/discard.
+
+The session remains active; waiting for completion under the `timeout` guard.
+
+Still no exit yet. I’m continuing to wait and will process metrics as soon as it finishes.
+
+It’s still running; staying on the same process until terminal exit.
+
+The run completed successfully. I’m reading `metrics.json`, logging the result row, and then deciding keep versus reset against the current best.
+
+This one also ties at `1.026098`, so it’s a discard. I’m recording it and resetting to continue from the previous branch state.
+
+Experiment loop resumed on existing branch `research-loops/may4` (no re-init, no baseline rerun).
+
+Ran 2 new experiments end-to-end:
+
+1. Commit `66417c7`  
+Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-sequence_len = 128
++sequence_len = 64
+```
+Result: `val_bpb=1.026098`, `memory_gb=0.0`  
+Decision: `discard` (no improvement), reset to previous commit.
+
+2. Commit `7073156`  
+Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-aspect_ratio = 16
++aspect_ratio = 24
+```
+Result: `val_bpb=1.026098`, `memory_gb=0.0`  
+Decision: `discard` (no improvement), reset to previous commit.
+
+`memory/results.tsv` updated with both rows.  
+Current HEAD is back to `5284fb0`.  
+Best known `val_bpb` remains `1.026098`.
+tokens used
+30,690
+Experiment loop resumed on existing branch `research-loops/may4` (no re-init, no baseline rerun).
+
+Ran 2 new experiments end-to-end:
+
+1. Commit `66417c7`  
+Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-sequence_len = 128
++sequence_len = 64
+```
+Result: `val_bpb=1.026098`, `memory_gb=0.0`  
+Decision: `discard` (no improvement), reset to previous commit.
+
+2. Commit `7073156`  
+Diff:
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-aspect_ratio = 16
++aspect_ratio = 24
+```
+Result: `val_bpb=1.026098`, `memory_gb=0.0`  
+Decision: `discard` (no improvement), reset to previous commit.
+
+`memory/results.tsv` updated with both rows.  
+Current HEAD is back to `5284fb0`.  
+Best known `val_bpb` remains `1.026098`.

@@ -1,0 +1,118 @@
+I will initialize or resume the research loop state first by checking git status, existing `memory/results.tsv`, and data artifacts, then I’ll run the required baseline only if this is a fresh run.
+
+I found an active run state (`research-loops/may4` with populated `memory/results.tsv`), so I’m resuming directly from experiment step (2) and will now read `editable/` plus prior results to choose the next change.
+
+I’ve loaded prior experiments; almost all successful runs are tied at `1.026098`, so I’m inspecting the rest of `train.py` to find a high-leverage change not yet tried (likely optimization dynamics or evaluation path).
+
+I identified a clean next test: add moderate Muon weight decay regularization, which has not been meaningfully tested yet in this resumed state. I’ll patch `editable/config.toml`, commit, run, then keep or reset strictly based on `val_bpb`.
+
+I’ve made the config edit and will now commit this experiment with a precise description, then execute the 5-minute run and collect `metrics.json`.
+
+The run is active in the background; I’m waiting for completion, then I’ll read only `metrics.json`, append to `memory/results.tsv`, and decide keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..43754c13bdebd244fd02cfd790510828fa8188c4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.05
+ unembedding_lr = 0.001
+ matrix_lr = 0.005
+-weight_decay = 0.0
++weight_decay = 0.05
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Training exceeded 5 minutes of timed work but may still be finalizing evaluation; I’m continuing to wait and will enforce the 10-minute hard cap if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..43754c13bdebd244fd02cfd790510828fa8188c4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.05
+ unembedding_lr = 0.001
+ matrix_lr = 0.005
+-weight_decay = 0.0
++weight_decay = 0.05
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run finished successfully; I hit a local shell issue (`python` not on PATH), so I’ll read `metrics.json` via `uv run python` and proceed with result logging and keep/discard decision.
+
+This experiment matched the current best (`1.026098`), so I’m recording it as `discard` in `memory/results.tsv` and resetting the branch back to the pre-experiment commit.
+
+I’m continuing the loop with a second experiment now: increase model width (`aspect_ratio`) to raise capacity while keeping runtime budget fixed, then I’ll run and compare against `1.026098`.
+
+I committed the width increase and I’m launching the new 5-minute training run now; after it ends I’ll read `metrics.json` and either keep this commit or reset it.
+
+Run is in progress; I’m waiting for completion and will only use `metrics.json` for result collection unless there’s a crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..d8e7d0ea29fab0484e0a68722ad662074337ead7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 4
+-aspect_ratio = 32
++aspect_ratio = 64
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..d8e7d0ea29fab0484e0a68722ad662074337ead7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 4
+-aspect_ratio = 32
++aspect_ratio = 64
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+This run also tied at `1.026098`, so I’m logging it as `discard` and resetting to the prior anchor commit before starting the next idea.
+
+Completed and resumed the loop correctly from existing state on branch `research-loops/may4` (no re-init, no baseline rerun).
+
+Ran 2 new experiments:
+
+1. `1fe6fba`  
+- Change: `weight_decay = 0.05`  
+- Result: `val_bpb = 1.026098`, `peak_vram_mb = 0.0`  
+- Logged: `discard`  
+- Action: reset back to `168861d`
+
+2. `fe7bbd0`  
+- Change: `aspect_ratio = 64` (wider model)  
+- Result: `val_bpb = 1.026098`, `peak_vram_mb = 0.0`  
+- Logged: `discard`  
+- Action: reset back to `168861d`
+
+`memory/results.tsv` has been updated with both rows. Current HEAD is back at `168861d` and the loop is ready for the next experiment.
+tokens used
+23,569
+Completed and resumed the loop correctly from existing state on branch `research-loops/may4` (no re-init, no baseline rerun).
+
+Ran 2 new experiments:
+
+1. `1fe6fba`  
+- Change: `weight_decay = 0.05`  
+- Result: `val_bpb = 1.026098`, `peak_vram_mb = 0.0`  
+- Logged: `discard`  
+- Action: reset back to `168861d`
+
+2. `fe7bbd0`  
+- Change: `aspect_ratio = 64` (wider model)  
+- Result: `val_bpb = 1.026098`, `peak_vram_mb = 0.0`  
+- Logged: `discard`  
+- Action: reset back to `168861d`
+
+`memory/results.tsv` has been updated with both rows. Current HEAD is back at `168861d` and the loop is ready for the next experiment.

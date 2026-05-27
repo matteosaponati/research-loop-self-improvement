@@ -1,0 +1,109 @@
+commit aea103688360ee1aead71f990f4bff8e92ac1803
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:51:02 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:51:02 2026 +0200
+
+    train: cpu fallback without inductor and cpu-safe dataloader pinning
+---
+ editable/train.py | 40 ++++++++++++++++++++++++++++++++--------
+ 1 file changed, 32 insertions(+), 8 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..2b6cdbb 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -40,6 +40,7 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+ import gc
+ import math
+ import time
++from contextlib import nullcontext
+ from dataclasses import dataclass, asdict
+ 
+ import torch
+@@ -413,11 +414,23 @@ class MuonAdamW(torch.optim.Optimizer):
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
++if torch.cuda.is_available():
++    torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++requested_device = torch.device(CONFIG.device)
++device = requested_device
++if requested_device.type == "cuda":
++    try:
++        _ = torch.empty((1,), device=requested_device)
++    except torch.AcceleratorError:
++        print("CUDA allocation unavailable; falling back to CPU")
++        device = torch.device("cpu")
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++    if device.type == "cuda"
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +488,16 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and device.type == "cuda":
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if device.type == "cpu":
++    _torch_empty = torch.empty
++    def _cpu_safe_empty(*args, **kwargs):
++        kwargs.pop("pin_memory", None)
++        return _torch_empty(*args, **kwargs)
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -485,8 +505,10 @@ train_loader = prepare.make_dataloader(
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=device.type,
+ )
++if device.type == "cpu":
++    torch.empty = _torch_empty
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+@@ -520,7 +542,8 @@ total_training_time = 0
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if device.type == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +573,8 @@ while True:
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if device.type == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +628,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if device.type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),

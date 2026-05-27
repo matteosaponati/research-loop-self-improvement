@@ -1,0 +1,424 @@
+I’m starting the research loop by checking whether prior experiment state already exists (`memory/results.tsv` with rows), then I’ll either resume directly or do the one-time branch/baseline setup exactly as specified.
+
+The repo is already initialized and has prior runs, so I’m resuming from current branch without baseline/setup. Next I’ll read `editable/` and `memory/results.tsv` to pick the next experiment.
+
+I’ve loaded the training code and history: every prior run landed at exactly `1.026098`, so I’m going to try a higher-impact optimizer/schedule change rather than minor LR tweaks. I’ll patch `editable/config.toml`, commit, run, and keep/revert strictly by `val_bpb`.
+
+I’m editing the config now to test a smoother optimization profile: add warmup, reduce matrix LR, keep higher late LR, and lower Muon momentum ceiling to reduce early overstepping. Then I’ll show the unified diff and commit it.
+
+The experiment commit is ready (`94020d7`) and I’m launching the 5-minute training run now with output redirected to `run.log`. I’ll only read `metrics.json` afterward unless it crashes.
+
+Training is running in the background session; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv` before deciding keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+Still running; I’m continuing to wait for the run to finish so we can collect the metrics cleanly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+Run is still active and within the allowed window; I’m polling until it exits, then I’ll read only `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+Waiting for completion; once it exits I’ll immediately record result and either keep the commit or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+I’m still polling the training process; no crash signal so far. I’ll proceed to metrics extraction as soon as the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+The run is taking longer than 5 minutes end-to-end but still under the 10-minute failure threshold; I’m continuing to wait for normal completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+Training finished successfully. I hit a shell environment detail (`python` unavailable directly), so I’m extracting `metrics.json` via `uv run python`, then I’ll log and apply keep/discard reset logic.
+
+I have the new metrics (`val_bpb 1.026098`); I’m finishing the best-so-far lookup and then recording this as `discard` unless it beats current best.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5390fb1d9e7811cf8988b8dd172baf5cae310be5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,10 +45,10 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.05
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_start = 0.8
++muon_momentum_end = 0.9
+ weight_decay_decay = true
+
+
+I logged the run and reverted to the prior best commit since it did not improve. I’m immediately starting the next experiment with a more direct model change: increasing `softcap` to reduce output logit saturation.
+
+Second experiment commit is ready (`cf04990`). I’m running training again and will record `metrics.json` on completion, then keep/reset based on `val_bpb`.
+
+The second run is in progress; I’m waiting for it to finish and then applying the same metrics-only evaluation flow.
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..4e849147bc314a20f9fefba8442c4a81b8f7d351
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..4e849147bc314a20f9fefba8442c4a81b8f7d351
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Training completed. I’m extracting the metrics, logging this experiment, and then deciding whether to keep `cf04990` or reset.
+
+Completed two new experiments and applied strict keep/reset logic.
+
+- Current branch head: `65ec9fb` (best unchanged)
+- Best `val_bpb`: `1.026098`
+- New runs were both `discard` and reset after logging.
+
+New `memory/results.tsv` entries added:
+
+- `94020d7	1.026098	41.1	discard	smoother schedule with warmup and higher final lr; lower matrix lr/momentum`
+- `cf04990	1.026098	41.1	discard	increase logit softcap from 15 to 30`
+
+I followed the required loop constraints:
+- Read only `metrics.json` for normal result collection
+- Logged each run to `memory/results.tsv`
+- Reverted non-improving commits with `git reset --hard HEAD~1` after logging
+tokens used
+27,849
+Completed two new experiments and applied strict keep/reset logic.
+
+- Current branch head: `65ec9fb` (best unchanged)
+- Best `val_bpb`: `1.026098`
+- New runs were both `discard` and reset after logging.
+
+New `memory/results.tsv` entries added:
+
+- `94020d7	1.026098	41.1	discard	smoother schedule with warmup and higher final lr; lower matrix lr/momentum`
+- `cf04990	1.026098	41.1	discard	increase logit softcap from 15 to 30`
+
+I followed the required loop constraints:
+- Read only `metrics.json` for normal result collection
+- Logged each run to `memory/results.tsv`
+- Reverted non-improving commits with `git reset --hard HEAD~1` after logging

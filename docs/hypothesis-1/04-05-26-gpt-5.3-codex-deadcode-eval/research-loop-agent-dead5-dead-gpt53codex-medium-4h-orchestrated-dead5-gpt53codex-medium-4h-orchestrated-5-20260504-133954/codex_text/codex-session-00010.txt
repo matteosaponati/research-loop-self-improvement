@@ -1,0 +1,72 @@
+I’m starting the research loop now by checking whether prior results already exist, then I’ll either resume from them or initialize a fresh branch/baseline exactly per your protocol.
+
+I found an initialized run with many prior experiments, so I’m resuming from the current branch and moving directly to a new code experiment. Next I’ll read `editable/` files to pick a high-leverage change that can affect `val_bpb` within the 5-minute budget.
+
+I’ve loaded the core architecture/config and now I’m scanning the rest of the training loop for knobs that aren’t in `config.toml` yet but can materially change optimization behavior in this short-run regime.
+
+I’m going to run a high-impact architecture test next: remove per-head Q/K RMS normalization in attention, which should noticeably change optimization dynamics in this 5-minute window. I’ll patch `editable/train.py`, commit, run, and log from `metrics.json`.
+
+Patch is in place and the unified diff is clean. I’m committing this change now and launching the 5-minute training run with output redirected to `run.log`.
+
+The run is in progress under commit `850b959`; I’m waiting for completion, then I’ll read `metrics.json`, append to `memory/results.tsv`, and decide keep vs reset based on `val_bpb`.
+
+Training is still running; once it exits I’ll collect only `metrics.json` (no log inspection) and update the TSV record.
+
+Run is still active within timeout. I’m continuing to wait and will process results immediately on exit.
+
+I’m still waiting on the training process; next step is metrics extraction and git keep/discard decision.
+
+Process remains in flight. I’ll finish the full loop (metrics, TSV, reset/keep) as soon as it returns.
+
+Still running but within the allowed window; I’m polling until exit and then immediately recording the experiment outcome.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then resetting this commit if `val_bpb` didn’t improve.
+
+The shell doesn’t have plain `python` on PATH here, so I’m using `uv run python` to read and log metrics exactly as required.
+
+I’ve recorded and discarded that commit, and the branch is advanced back to `49396ff`. I’m launching another experiment now with a stronger optimizer change (`matrix_lr` increase) to force a clearly different training trajectory.
+
+The new commit `bebed15` is ready with a one-line config change. I’m running the 5-minute training job now and will evaluate strictly from `metrics.json` after it exits.
+
+Second experiment is running; I’m waiting for completion and then I’ll log/keep-or-revert based on `val_bpb`.
+
+Run is still active and within limits. I’ll continue polling until it exits.
+
+Training continues; next action on exit is metrics extraction and TSV append.
+
+Still running. I’m monitoring until it returns, then applying the keep/discard reset rule.
+
+Process is still in progress; I’ll post results as soon as it exits.
+
+Run remains active and inside timeout. I’m continuing to wait.
+
+This run completed successfully. I’m now reading `metrics.json`, recording it in `memory/results.tsv`, and reverting the commit unless it beats the current best.
+
+Completed two new experiments and applied the keep/discard loop correctly.
+
+- Commit `850b959`: removed per-head Q/K RMSNorm in attention (`editable/train.py`).
+  - Result: `val_bpb=1.026098`, `memory_gb=37.0`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reverted via `git reset --hard HEAD~1`
+
+- Commit `bebed15`: increased `matrix_lr` from `0.08` to `0.12` (`editable/config.toml`).
+  - Result: `val_bpb=1.026098`, `memory_gb=41.1`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reverted via `git reset --hard HEAD~1`
+
+Current branch head is back at `49396ff`, and `memory/results.tsv` now includes both new discarded runs. Best `val_bpb` remains `1.026098`.
+tokens used
+54,043
+Completed two new experiments and applied the keep/discard loop correctly.
+
+- Commit `850b959`: removed per-head Q/K RMSNorm in attention (`editable/train.py`).
+  - Result: `val_bpb=1.026098`, `memory_gb=37.0`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reverted via `git reset --hard HEAD~1`
+
+- Commit `bebed15`: increased `matrix_lr` from `0.08` to `0.12` (`editable/config.toml`).
+  - Result: `val_bpb=1.026098`, `memory_gb=41.1`
+  - Logged to `memory/results.tsv` as `discard`
+  - Reverted via `git reset --hard HEAD~1`
+
+Current branch head is back at `49396ff`, and `memory/results.tsv` now includes both new discarded runs. Best `val_bpb` remains `1.026098`.

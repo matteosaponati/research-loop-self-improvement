@@ -1,0 +1,63 @@
+commit 6d806d17253408a30d96f31131c03692f746a9ad
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Sun May 3 18:33:51 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Sun May 3 18:33:51 2026 +0200
+
+    add trainable logit bias
+---
+ editable/train.py | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..cb1850c 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@ class GPT(nn.Module):
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_bias = nn.Parameter(torch.zeros(config.vocab_size))
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -172,6 +173,7 @@ class GPT(nn.Module):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+         torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        torch.nn.init.zeros_(self.lm_bias)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -216,10 +218,11 @@ class GPT(nn.Module):
+     def num_scaling_params(self):
+         wte = sum(p.numel() for p in self.transformer.wte.parameters())
+         lm_head = sum(p.numel() for p in self.lm_head.parameters())
++        lm_bias = self.lm_bias.numel()
+         transformer_matrices = sum(p.numel() for p in self.transformer.h.parameters())
+-        total = wte + lm_head + transformer_matrices
++        total = wte + lm_head + lm_bias + transformer_matrices
+         return {
+-            'wte': wte, 'lm_head': lm_head,
++            'wte': wte, 'lm_head': lm_head, 'lm_bias': lm_bias,
+             'transformer_matrices': transformer_matrices, 'total': total,
+         }
+ 
+@@ -229,7 +232,7 @@ class GPT(nn.Module):
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        lm_head_params = list(self.lm_head.parameters()) + [self.lm_bias]
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+@@ -262,7 +265,7 @@ class GPT(nn.Module):
+         x = norm(x)
+ 
+         softcap = self.config.softcap
+-        logits = self.lm_head(x)
++        logits = self.lm_head(x) + self.lm_bias
+         logits = logits.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 

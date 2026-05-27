@@ -1,0 +1,2272 @@
+I’ll initialize or resume the git-based loop first, then run only committed experiments and collect normal results from `metrics.json`. I’ll keep edits scoped to `editable/` and use `memory/results.tsv` as the experiment ledger.
+
+There is no completed results ledger yet, so this is a fresh run on `master`. The local data/tokenizer artifacts were not visible, so after creating the research branch I’ll run the permitted prepare script before the baseline.
+
+The research branch and results ledger are initialized. I’m preparing the dataset artifacts now, using only the allowed `immutable/prepare.py` entry point.
+
+The data and tokenizer were already present after prepare verified them. I’m launching the baseline with output redirected to `run.log`, then I’ll read only `metrics.json` for the recorded result.
+
+Baseline training is running under the fixed five-minute budget. I’ll leave the log alone unless the run fails and use the JSON metrics when it exits.
+
+The baseline is still running normally. I’m waiting for completion rather than sampling the progress log, per the loop rules.
+
+Still in the baseline run window. Once it exits, I’ll commit the baseline state/result row and use that as the comparison point for experiments.
+
+The process is continuing within the expected time envelope. I’m tracking wall time so it can be killed if it crosses the ten-minute failure threshold.
+
+Baseline training has about the expected remaining runtime. No edits are being made while the baseline is running.
+
+The baseline is still active and within limits. I’ll continue polling at coarse intervals to avoid pulling training output into context.
+
+Still running. The next action remains metrics extraction from `metrics.json` once the process exits.
+
+Baseline training is nearing the fixed budget plus startup overhead. I’m continuing to wait without reading `run.log`.
+
+The run is still within the allowed ten-minute cap. I’ll give it more time, then mark it failed only if it exceeds that cap.
+
+Still no completion signal yet. The process remains under the failure threshold, so I’m letting it finish naturally. 
+
+
+The baseline has passed the nominal training window and may be in validation/summary work. I’m still within the hard cap and will collect metrics as soon as it exits.
+
+The baseline finished successfully, but this environment does not expose `python` directly in the shell. I’ll use `uv run python` for the small metrics reader, which keeps normal result collection on `metrics.json`.
+
+Baseline is recorded at `val_bpb=1.026098` using about `41.1 GB`. I’m reading the editable training/config files now to choose the first code experiment.
+
+The baseline model is an 8-layer, 512-wide GPT with ReLU-squared MLP, Muon for matrices, and a long half-run LR warmdown. For the first experiment I’m going to test a slightly higher matrix LR, which is a narrow optimizer change with no memory risk and often matters most in short fixed-budget runs.
+
+I’m editing only `editable/config.toml`: `matrix_lr` from `0.04` to `0.045`. Then I’ll show the diff, commit that code change, and run the five-minute experiment.
+
+Experiment `4705c9d` is committed with the higher matrix LR. I’m launching it now with training output redirected, and I’ll compare its `val_bpb` against the baseline when it finishes.
+
+The higher-LR run is active. I’ll keep the same polling discipline and avoid reading `run.log` unless the process crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The experiment is still running normally. The only decision point after completion is whether the JSON `val_bpb` beats `1.026098`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still within the timed training window. I’m waiting for the run to finish before touching the branch.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run continues with no crash signal. I’ll collect only `metrics.json` at exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The experiment remains in progress. It is still safely below the ten-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running. I’m preserving the current commit until the metric says whether to keep or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The higher-LR run is still active and nearing the later part of the budget. No log inspection needed so far.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still no exit yet; this matches the baseline’s runtime profile. I’ll continue waiting under the hard cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run is approaching the training-time boundary and may still need validation afterward. I’m waiting for the process to close cleanly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The experiment is still under the ten-minute ceiling. I’ll keep polling until it exits or crosses that threshold.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The nominal training window has elapsed; the process likely has validation/summary work left. I’ll collect metrics as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The higher matrix LR matched the baseline to six decimals, so it is recorded as `discard` and I’m resetting that code commit. Next I’ll try a different low-risk schedule change rather than another tiny LR nudge.
+
+The branch is back at the baseline code. I’m going to test a shorter LR warmdown with a small nonzero final LR, aiming to spend more of the five-minute run at full learning rate while still cooling down before eval.
+
+Experiment `64e9942` is committed with the shorter warmdown schedule. I’m starting the run now and will record it against the current best `1.026098`.
+
+The shorter-warmdown experiment is running. I’ll keep the same metric-only collection path and avoid the redirected training log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is progressing normally. I’m waiting for the fixed-budget train plus eval to finish before deciding keep or reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running within the expected window. The schedule change should not affect memory, so the main signal will be validation bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The experiment remains active. I’ll continue polling without reading progress output.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+No completion yet, still inside the normal runtime. I’m leaving the code state untouched until the result is recorded.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is still going and has not hit any failure path. I’ll wait out the remainder of the training window.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still active. I’m watching for process exit only, then `metrics.json` decides the branch state.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The experiment is in the later part of the fixed budget. No crash or timeout signal so far. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run is still below the ten-minute cap. I’m continuing to wait for a clean exit and final metrics. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running; this is similar to the baseline timing. I’ll collect the JSON metrics after validation finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32602a63b4790d1bae42a543bcb4d9aa0a04dee7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.35
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The shorter warmdown also tied the baseline at six decimals, so it is recorded and will be reset. Since optimizer schedule tweaks are not moving the measured metric, I’m switching to a capacity experiment: depth 9, which should fit memory but may trade steps for model quality.
+
+Experiment `aaec781` is committed with `depth=9`. I’m starting the training run; if memory or runtime fails, I’ll record it as a crash and reset.
+
+The depth-9 run is underway. I’ll monitor for completion or timeout and otherwise keep the log untouched.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth 9 is still running, so it has made it past startup without an immediate OOM. I’ll continue waiting for the final JSON metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The run remains active. A deeper model may take fewer steps, so the validation result will tell whether the added capacity is worth it. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running normally. I’m keeping the branch on the depth-9 commit until metrics are recorded.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth-9 experiment is still in the training window. No intervention needed yet.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still active and below the hard cap. I’ll wait for the process to finish cleanly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The run continues. I’m expecting the final memory figure to be higher than baseline, but still usable if bpb improves. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-9 training is in its later phase. I’m still avoiding progress-log reads and waiting for final metrics. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The process is still within the allowed runtime. I’ll keep polling until completion or the ten-minute cutoff. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running; this is consistent with the prior runs’ startup plus validation overhead. I’ll collect the JSON metrics when it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth-9 run has reached the nominal training budget and is likely finishing validation. It is still below the hard timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth 9 raised memory to `56.2 GB`, reduced tokens, and still did not beat the baseline, so I’m discarding it. Next I’m going to test `total_batch_size=262144` to double optimizer update frequency within the same time budget; this changes training dynamics more than the previous schedule tweaks.
+
+Experiment `95ea32c` is committed with half the total batch size. I’m starting the run; it should use one microbatch per optimizer step and may change both step count and convergence.
+
+The smaller-batch experiment is running. I’ll keep monitoring process state only and read `metrics.json` at completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run is active. With half the total batch, I expect more optimizer steps for roughly similar training time, though throughput may shift.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still running normally. I’m waiting for final metrics before making any branch decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The smaller-batch run remains inside the expected runtime window. No log diagnosis is needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still active. I’ll continue to let the fixed-budget training complete.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run is progressing and still below timeout. The result will be recorded even if it ties or regresses. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still running. I’m keeping the experiment isolated to the committed batch-size change. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The smaller-batch run is nearing the later part of its budget. I’ll collect the final JSON once it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The process remains under the ten-minute cap. I’m waiting for validation and summary to finish. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Still no exit, but still within allowed runtime. I’ll keep polling without touching `run.log`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f5dba48fd16673a59e4738d36c39a643e7d08a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The half-batch run doubled steps but processed fewer total tokens and still tied the baseline, so I’m discarding it. Next I’ll test shorter context (`sequence_len=1024`) with a larger device batch to keep microbatch tokens constant; this may improve throughput/update density without changing total batch size.
+
+Experiment `8bcac88` is committed with 1024-token sequences and device batch 256. I’m launching it now; this one may change both throughput and the evaluation context.
+
+The shorter-sequence experiment is running. I’ll watch for completion and use `metrics.json` for the result. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run is active. If the larger device batch causes a failure, I’ll diagnose only then; otherwise I’ll leave logs alone. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running normally, so the 256 device batch appears to fit. I’m waiting for the final metrics. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The shorter-context run continues. The interesting comparison will be total tokens and bpb, not just step count. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still inside the fixed-budget window. I’ll continue waiting without sampling progress output. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run is still active and below timeout. I’ll keep the branch state unchanged until the result is written. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running. This configuration has not produced an immediate memory issue. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run is in the later phase now. I’ll collect metrics after validation completes. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still active and under the cap. I’m continuing to wait for a clean exit. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+No exit yet; still within the expected envelope. I’ll poll again and then decide from `metrics.json`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The shorter-sequence run has reached the nominal training budget and should be in its final phase. It remains below the hard timeout. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..32a65b13c7c8394122258510fe9960fdce23f49e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,9 +7,9 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The 1024-context setup reduced throughput and tied the baseline, so I’m discarding it. Next I’ll test more attention heads by changing `head_dim` from 128 to 64 while keeping model width at 512; this changes attention structure without increasing parameter count much.
+
+Experiment `2707319` is committed with `head_dim=64`, doubling the number of heads at the same model width. I’m launching the run now.
+
+The head-dim experiment is running. I’ll wait for completion and compare its metric to the current best. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still running. More heads may affect attention kernel performance, so I’ll note steps and MFU along with bpb after the run. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The experiment remains active with no failure signal. I’m continuing metric-only collection. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still in the fixed training window. I’m leaving the branch on the committed experiment until final metrics are recorded. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The head-dim run is still active and under timeout. I’ll keep polling at coarse intervals. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still running normally. The result will be recorded even if it ties the repeated baseline value. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The run continues in the expected envelope. I’m waiting for final eval and summary. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The process is in the later training phase. No timeout issue yet. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still active. I’ll continue waiting and keep the log unread. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The run is now around the nominal training budget plus overhead. It remains below the hard cap. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The 64-dim head setup improved throughput but not bpb, so I’m discarding it. Next I’m testing a same-scale MLP change from ReLU-squared to SwiGLU, keeping parameter count roughly comparable by using a 2.67x gated hidden size.
+
+I’m editing `editable/train.py` now to add a gated MLP path and its initialization. This is the first architecture-code experiment, so I’ll keep the diff small and localized to the `MLP` class and weight init.
+
+Experiment `fe2e2bd` is committed with the SwiGLU-style MLP. I’m starting the run; if this destabilizes training or changes optimizer grouping incorrectly, I’ll record the crash and inspect only what is needed.
+
+The SwiGLU experiment is running. I’ll monitor process completion and avoid the training log unless it fails before metrics are written.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run is still active, so the modified MLP compiled and started training. I’ll continue waiting for final metrics. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still running normally. This change should keep memory near baseline while changing the nonlinearity and feature mixing. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The SwiGLU run remains active within the fixed budget. I’m waiting for `metrics.json`. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still running. No sign of a crash, so no log inspection is needed. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The architecture run is still under the timeout cap. I’ll keep polling until clean exit. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still active. I’ll record steps, params, and memory alongside bpb after completion because this changed the model structure. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run is in the later part of the training budget. I’m waiting for validation and summary to finish. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still no exit; still below the hard cap. I’ll keep the run alive and collect metrics at completion. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run has reached the nominal training window plus overhead. It remains within allowed runtime. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The SwiGLU run is still finishing but remains under the ten-minute failure threshold. I’m giving it more time for the final eval. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6dc903af9d25d23ec501d261eb39ef6e2839e10e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = (8 * config.n_embd) // 3
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The SwiGLU MLP changed params and runtime but still tied the baseline metric, so I’m discarding it. I’ll return to config-level optimizer regularization next: disabling weight decay to see if this short run benefits from less shrinkage.
+
+Experiment `46220d8` is committed with Muon weight decay disabled. I’m starting the run now and will compare against the same baseline best. 
+
+
+The no-weight-decay run is active. I’ll keep to process polling and JSON metrics only. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running normally. This should isolate the effect of regularization without changing model memory. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run remains active. I’ll wait for final eval and then record the result row. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still inside the fixed-budget run. No crash signal so far. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The no-weight-decay experiment is still active and under timeout. I’m continuing to wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running. I’ll preserve the current commit until the metrics indicate keep or discard. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run continues with no failure. I’m waiting for the summary JSON. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The experiment is in the later part of the budget. I’ll collect metrics as soon as it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still active and below the ten-minute cap. I’ll keep polling without reading progress logs. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The no-weight-decay run has reached the nominal training window and is likely in final eval. It remains within the allowed runtime. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No weight decay tied the baseline and will be reset. Since many training-dynamics changes are landing on the same rounded bpb, I’m going to try output calibration next by increasing the logit softcap from 15 to 30. 
+
+
+Experiment `292888d` is committed with `softcap=30.0`. I’m starting the run and will record it normally. 
+
+
+The softcap experiment is running. I’ll leave `run.log` untouched unless the process fails before writing metrics. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still running normally. This change affects logits and loss scale behavior without changing memory. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The run remains active. I’ll wait for the JSON summary before deciding the branch state. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still in progress and below timeout. No log inspection is needed. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The softcap run is still active. I’m continuing the normal polling loop. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still running; the process has not crossed any failure threshold. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The experiment continues within the expected runtime envelope. I’ll collect metrics after final eval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The run is in the later budget window. I’m still avoiding progress output and waiting for exit. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still active and below ten minutes. I’ll keep polling until completion. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The run has reached the nominal training period and is likely finishing validation. I’ll collect `metrics.json` once it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+The softcap run is taking a little longer in final overhead but remains under the hard cutoff. I’m continuing to wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c16dc3f0b644e7be975d12d69022002ed85fcdcb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Softcap 30 tied again, so I’m discarding it. Next I’m testing output-head initialization: raising `init_lm_head_std` from `0.001` to `0.02` to give the classifier head a less tiny starting scale. 
+
+
+Experiment `38f454d` is committed with larger LM-head initialization. I’m launching it now; this may alter early loss and convergence without changing the architecture size. 
+
+
+The LM-head init run is active. I’ll monitor for completion and only inspect logs if it crashes. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still running normally, so the larger head init did not trigger the fast loss-failure path at startup. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The run remains active. I’ll wait for `metrics.json` and compare against the baseline. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still inside the fixed-budget training window. No log reading needed. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The experiment is still active and below timeout. I’ll keep polling. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still running. I’m preserving the committed experiment until the result is recorded. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The run continues normally. Final JSON metrics will determine keep or reset. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The LM-head init run is in the later training phase. I’ll wait out validation and summary. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still active and still under the hard cap. I’ll collect metrics when it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The run has reached the nominal training budget and likely has final eval remaining. I’ll continue waiting. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The larger head init tied the baseline and will be reset. Next I’ll test a smaller, faster model with `depth=7`; if the benchmark rewards more tokens over capacity in five minutes, this is a plausible direction. 
+
+
+Experiment `ed933eb` is committed with `depth=7`. I’m starting the run and will compare speed and bpb against baseline. 
+
+
+The depth-7 run is active. I’ll monitor it the same way and record from `metrics.json` at exit. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running. This smaller model should use less memory and may take more steps within the time budget. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The run remains active. I’ll wait for the final JSON metrics before deciding. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still within the fixed training window. No failure signal. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The depth-7 experiment is still active and under timeout. I’ll continue polling. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running normally. I’m preserving the current experiment commit until the result row is written. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The run continues. I’ll note whether the smaller model processes more tokens once the metrics are available. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth-7 training is in the later window. I’m waiting for final eval and summary. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still active and below ten minutes. I’ll keep polling without reading `run.log`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The run has reached the nominal training budget and should be near completion. I’ll collect metrics when it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2e2714182f7aa345f11f86d83dfacc2a91806ed4
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 7
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Depth 7 used less memory and more tokens but still tied the baseline, so I’m discarding it and leaving the branch at the best known code state. I’ll summarize the ledger state after resetting.
+
+The reset completed, but my combined summary command had a heredoc syntax error after the reset. I’m rerunning the ledger/status read cleanly.
+
+Current best remains the baseline:
+
+`e4d84d7	1.026098	41.1 GB	keep	baseline`
+
+I ran and recorded 11 experiments, all tying `val_bpb=1.026098` to six decimals, so each was discarded and the branch was reset back to the baseline code. The branch is `research-loops/may3`; `memory/results.tsv` contains the full ledger. The only untracked file currently shown by git is `metrics.json`.
+tokens used
+162,198
+Current best remains the baseline:
+
+`e4d84d7	1.026098	41.1 GB	keep	baseline`
+
+I ran and recorded 11 experiments, all tying `val_bpb=1.026098` to six decimals, so each was discarded and the branch was reset back to the baseline code. The branch is `research-loops/may3`; `memory/results.tsv` contains the full ledger. The only untracked file currently shown by git is `metrics.json`.

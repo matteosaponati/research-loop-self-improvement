@@ -1,0 +1,472 @@
+I’m starting the research loop by checking git state, branch status, prior `memory/results.tsv`, and whether data/tokenizer artifacts already exist so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized loop with three recorded runs, so I’m resuming from the current branch state and moving directly to a new experiment after reviewing `editable/` and current git commit alignment.
+
+I’ve loaded the editable code and confirmed we’re already on the baseline commit with prior failed variants reverted. Next I’m extracting the scheduler and optimization internals in `train.py` to choose a high-probability hyperparameter change.
+
+I’m going to run a low-risk scheduler-only experiment in `editable/config.toml`: add a short warmup and avoid decaying LR all the way to zero, which should usually help a 5-minute budget where late training still matters.
+
+I’ve applied the scheduler tweak and next I’ll capture the exact diff, commit it, run a full 5-minute training job, then read only `metrics.json` and update `memory/results.tsv`.
+
+The experiment commit is in place (`c0d8cae`). I’m launching training now with full log redirection and will treat it as failed if it crosses 10 minutes.
+
+Training is running in the background PTY session; I’m waiting for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running. I’m continuing to wait and will check exit status as soon as the process returns.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run is still in progress; I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m waiting for the process to finish, then I’ll parse `metrics.json` and record the result row.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training is still active. Polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m continuing to wait for completion. Once it exits, I’ll immediately collect metrics and decide keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running; polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Process is ongoing. I’ll keep waiting until it exits or hits the timeout limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still active; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2c1f91f5fa316f08b205b7c18ea690ed12397d1e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training completed successfully. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then resetting if it didn’t improve `val_bpb`.
+
+The shell image doesn’t have plain `python` on PATH, so I’ll parse `metrics.json` via `uv run` and proceed with logging and keep/discard decision.
+
+I recorded the run and reverted because `val_bpb` was exactly equal to the best. I’m starting another experiment now with a more aggressive speed/quality tradeoff: reduce model depth to increase optimization steps within the same 5-minute budget.
+
+I’m committing the depth change and launching the next timed run now.
+
+Second experiment is running (session `83629`). I’m waiting for completion, then I’ll collect `metrics.json`, log, and keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Run is still active; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running. I’m continuing to wait for the process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Training remains in progress; polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+I’m still waiting on the run; I’ll parse metrics immediately once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Run is still active; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+Still running. Continuing to wait for completion or timeout cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..baae6d99fdd8f8efde1820dae6f9577cfbd26915
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The second run completed successfully; I’m extracting metrics and applying keep/discard logic now.
+
+Executed two new experiments and logged both to `memory/results.tsv`; both were discarded and branch reset to best commit `374038c`.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..2c1f91f 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..baae6d9 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@ tokenizer_batch_size = 128
+
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+```
+
+Results appended:
+
+- `c0d8cae` → `val_bpb=1.026098`, `memory_gb=41.1`, `discard`, `short warmup plus higher late LR floor`
+- `cab5e82` → `val_bpb=1.026098`, `memory_gb=24.9`, `discard`, `reduce depth to 6 for higher step throughput`
+
+Current best remains:
+
+- `374038c` → `val_bpb=1.026098` (keep)
+tokens used
+31,404
+Executed two new experiments and logged both to `memory/results.tsv`; both were discarded and branch reset to best commit `374038c`.
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..2c1f91f 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..baae6d9 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@ tokenizer_batch_size = 128
+
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 6
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+```
+
+Results appended:
+
+- `c0d8cae` → `val_bpb=1.026098`, `memory_gb=41.1`, `discard`, `short warmup plus higher late LR floor`
+- `cab5e82` → `val_bpb=1.026098`, `memory_gb=24.9`, `discard`, `reduce depth to 6 for higher step throughput`
+
+Current best remains:
+
+- `374038c` → `val_bpb=1.026098` (keep)

@@ -1,0 +1,360 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has runs, and whether data/tokenizer artifacts exist so I can either resume immediately or perform the required baseline setup.
+
+I found an existing initialized branch with prior results, so I’m resuming from the current state and moving straight to reading `editable/` and `memory/results.tsv` to pick the next experiment.
+
+I’ve reviewed prior experiments and config; most simple LR/shape changes were flat. I’m now reading the remaining training-loop section to target a change that affects optimization dynamics more fundamentally.
+
+I’m testing an optimizer-regularization change that hasn’t been tried yet: applying weight decay to embedding and unembedding AdamW groups instead of forcing them to `0.0`. I’ll patch `editable/train.py`, commit, run, and keep only if `val_bpb` improves.
+
+The patch is committed as `b68577c`; I’m running the 5-minute training job now and will read `metrics.json` only to score it.
+
+Training is in progress. I’m waiting for completion, then I’ll parse `metrics.json`, log the result, and decide keep vs reset against the current best `1.026098`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+Run is still executing within expected wall-clock. I’m continuing to wait and will immediately score from `metrics.json` once it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+I’m still waiting on the same run; once complete I’ll update `memory/results.tsv` and automatically revert if it doesn’t beat the best score.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The run is taking longer than usual startup+train, so I’m monitoring closely against the 10-minute failure cutoff.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+Still running; I’m continuing to wait and will stop it only if it crosses the 10-minute limit per your loop rules.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..1cbf238e56641fad2982f9d122de0ba6f345e72e
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -236,8 +236,8 @@
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
++            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The run finished successfully. I’m now reading `metrics.json`, recording it in `memory/results.tsv`, and then resetting this commit if it did not improve `val_bpb`.
+
+I’ve recorded and discarded that experiment, and the branch is back to the previous commit. I’m checking the current `editable/` state again, then launching the next orthogonal idea to keep the search moving.
+
+Next experiment will target initialization: increasing `init_lm_head_std` so early logits aren’t nearly flat, which can speed early learning in a short 5-minute budget. I’m applying this in `editable/config.toml`, then committing and running.
+web search: 
+web search: 
+
+Committed as `8c132be`. I’m running the training benchmark now and will score from `metrics.json`, log it, and keep/reset based on whether `val_bpb` drops below `1.026098`.
+
+Run is active and within normal timing; I’m waiting for completion before collecting metrics and deciding keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+I’m still waiting on this run; after exit I’ll only read `metrics.json`, append to `memory/results.tsv`, and auto-revert if non-improving.
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Execution is still ongoing but not beyond failure threshold; I’m continuing to monitor until completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index c525e011e45df0b9c5ab3999043cfa0fa4d362df..fc758d342742fc4fb61bacc8c28207db4b1265c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+This experiment also matched the same validation score, so I’m recording it as `discard` and resetting to continue the search from the previous best state.
+
+Current loop state:
+
+- Resumed existing run history on branch `research-loops/may4` (no re-init/baseline needed).
+- Ran 2 new experiments, both completed successfully and were evaluated via `metrics.json` only.
+- Both were logged to `memory/results.tsv` and discarded (no `val_bpb` improvement).
+- Branch was reset after each non-improving run, per protocol.
+
+New logged rows:
+
+- `b68577c	1.026098	20.6	discard	apply weight decay to embedding and lm_head adamw groups`
+- `8c132be	1.026098	20.6	discard	increase lm_head init std from 0.001 to 0.01`
+
+Best so far remains:
+
+- `val_bpb = 1.026098` (baseline-level), status unchanged.
+
+Working tree is back to commit `ba0d37f` (plus untracked `metrics.json`), ready for the next experiment iteration.
+tokens used
+44,674
+Current loop state:
+
+- Resumed existing run history on branch `research-loops/may4` (no re-init/baseline needed).
+- Ran 2 new experiments, both completed successfully and were evaluated via `metrics.json` only.
+- Both were logged to `memory/results.tsv` and discarded (no `val_bpb` improvement).
+- Branch was reset after each non-improving run, per protocol.
+
+New logged rows:
+
+- `b68577c	1.026098	20.6	discard	apply weight decay to embedding and lm_head adamw groups`
+- `8c132be	1.026098	20.6	discard	increase lm_head init std from 0.001 to 0.01`
+
+Best so far remains:
+
+- `val_bpb = 1.026098` (baseline-level), status unchanged.
+
+Working tree is back to commit `ba0d37f` (plus untracked `metrics.json`), ready for the next experiment iteration.

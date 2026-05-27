@@ -1,0 +1,39 @@
+commit 381bdd5632b5beb2516d00f7472916d64ec010d3
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 19:50:14 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 19:50:14 2026 +0200
+
+    enable real grad accumulation on cpu fallback; tune global batch
+---
+ editable/config.toml | 2 +-
+ editable/train.py    | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ed53fdf..4a6ddcd 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 65536
+ device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4..37f5e90 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,8 @@ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++# Honor configured global batch size so grad accumulation can work on CPU fallback.
++runtime_total_batch_size = CONFIG.total_batch_size
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()

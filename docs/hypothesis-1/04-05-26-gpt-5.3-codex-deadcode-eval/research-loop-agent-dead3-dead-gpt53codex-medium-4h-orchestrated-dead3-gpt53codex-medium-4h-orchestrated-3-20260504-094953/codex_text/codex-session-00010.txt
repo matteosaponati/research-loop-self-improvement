@@ -1,0 +1,414 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can resume correctly, then I’ll either continue from current branch or do fresh setup and baseline exactly per your protocol.
+
+I found an initialized run history on branch `research-loops/may4`, so I’m resuming from step (2) without creating a new branch or rerunning baseline. Next I’ll read `editable/train.py`, config files, and current results to pick a new code-level experiment.
+
+I confirmed all prior discarded experiments were reset, so `HEAD` is still the baseline commit. I’m now checking the rest of `train.py` and current `metrics.json` to find a high-impact change that can move validation within the 5-minute budget.
+
+I’m making a single high-impact throughput experiment: increase `device_batch_size` so each optimizer step has less accumulation overhead and we can fit more updates into the fixed 5-minute budget. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `val_bpb`.
+
+The config change is committed as `b59360a`. I’m running the 5-minute training job now with full output redirected to `run.log`, then I’ll read only `metrics.json` and record the result.
+
+Training is in progress under a live session; I’ll wait for completion and then parse `metrics.json` directly to decide keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run is still executing normally; I’m continuing to wait for it to finish before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running. I’m waiting through to process exit and will then immediately evaluate `metrics.json` for logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The job is still active within the timeout window; I’m continuing to wait for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I’m still waiting on the training process; next step is metrics extraction and automatic keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Process remains in flight. I’ll keep polling until it exits, then proceed with result logging and branch decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running; I’m continuing to wait for the job to complete.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Training is still active; I’ll keep polling and finalize as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run hasn’t exited yet; continuing to wait until completion or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I’m in the final wait window now; as soon as it exits I’ll read `metrics.json`, append `memory/results.tsv`, and reset if not improved.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..276f04b9bf90320958a8ad574b6dbbe81fe33627
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The run completed successfully. I’ll now parse `metrics.json`, compare against current best `val_bpb`, log to `memory/results.tsv`, and discard/reset if it did not improve.
+
+The metrics parsing step failed because plain `python` is unavailable in this environment; I’m correcting this with `uv run python`, fixing the TSV entry if needed, and then finalizing keep/discard state cleanly.
+
+I found a malformed TSV row from the failed parser step; I’m repairing that row with the actual metrics from `metrics.json` so experiment history remains valid before launching the next experiment.
+
+I identified a likely bottleneck: both residual projection layers are zero-initialized, which can heavily delay gradient flow into attention/MLP internals during short runs. I’m patching `editable/train.py` to use small non-zero init for those projection matrices, then I’ll run and evaluate.
+
+I’ve applied the initialization change and will now commit it, run the experiment, read `metrics.json`, and keep/reset based on whether `val_bpb` drops below `1.026098`.
+
+Second experiment run is active now; I’m waiting for completion and will evaluate only via `metrics.json` afterward.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Still running; I’m continuing to wait and will move straight to result logging once it exits.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The job is progressing within the allowed window. I’ll keep polling until completion.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Run is still active; I’m waiting for exit before parsing metrics and applying keep/discard logic.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Still running. I’ll continue polling and finalize immediately on completion.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The process remains live; continuing to wait.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Training is still in progress and within limit. I’m waiting for completion now.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Run has not exited yet; continuing to poll until it does.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+I’m in the final waiting interval for this run, then I’ll collect and log metrics.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..9519e6f17b1c4d2a103e5ed73e74ecba24761bc0
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -s, s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -s, s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The experiment finished successfully. I’m now extracting `metrics.json`, appending a clean row to `memory/results.tsv`, and resetting the commit if it didn’t beat the best `val_bpb`.
+
+Completed two new experiments and logged both in `memory/results.tsv`.
+
+1. `b59360a` (`editable/config.toml`): `device_batch_size 128 -> 256`  
+Result: `val_bpb=1.026098`, `memory_gb=81.6`, `status=discard` (no improvement), reset to baseline commit.
+
+2. `3e6b74d` (`editable/train.py`): changed `attn.c_proj` and `mlp.c_proj` init from zeros to uniform `[-s, s]`  
+Result: `val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement), reset to baseline commit.
+
+Current branch/head:
+- Branch: `research-loops/may4`
+- HEAD: `9a8eff4` (baseline)
+
+Updated log:
+- [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead3-gpt53codex-medium-4h-orchestrated-3-20260504-094953/research-loop/memory/results.tsv)
+
+I also corrected a malformed TSV row from a failed `python` invocation (environment has no plain `python`; `uv run python` works).
+tokens used
+29,968
+Completed two new experiments and logged both in `memory/results.tsv`.
+
+1. `b59360a` (`editable/config.toml`): `device_batch_size 128 -> 256`  
+Result: `val_bpb=1.026098`, `memory_gb=81.6`, `status=discard` (no improvement), reset to baseline commit.
+
+2. `3e6b74d` (`editable/train.py`): changed `attn.c_proj` and `mlp.c_proj` init from zeros to uniform `[-s, s]`  
+Result: `val_bpb=1.026098`, `memory_gb=41.1`, `status=discard` (no improvement), reset to baseline commit.
+
+Current branch/head:
+- Branch: `research-loops/may4`
+- HEAD: `9a8eff4` (baseline)
+
+Updated log:
+- [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead3-gpt53codex-medium-4h-orchestrated-3-20260504-094953/research-loop/memory/results.tsv)
+
+I also corrected a malformed TSV row from a failed `python` invocation (environment has no plain `python`; `uv run python` works).

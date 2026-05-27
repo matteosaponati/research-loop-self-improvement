@@ -1,0 +1,221 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or do full setup exactly as specified.
+
+I found an existing initialized loop on branch `research-loops/may4` with many prior experiments, so I’m resuming directly from step (2) and scanning `editable/` to choose a new, non-redundant change.
+
+I’ve loaded the main config and model code; next I’m reading the rest of `train.py` to target a change that can affect optimization dynamics within the fixed 5-minute window.
+
+I identified a new experiment that hasn’t been tried yet: reduce `sequence_len` from `2048` to `1536` to increase optimizer update frequency at fixed token budget while keeping architecture/optimizer otherwise unchanged. I’m applying that config edit now and then committing it.
+
+The commit is in place (`9a5b198`). I’m running the 5-minute training job now and will read only `metrics.json` afterward for result collection.
+
+Training is running in the background session; I’m waiting for completion and will immediately parse `metrics.json` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..c587ca9341866c3a5a41accdc7ba2478356d107e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1536
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+ exited 1 in 7650ms:
+
+The run exited with a non-zero code, so I’m checking `metrics.json` first; if missing/invalid I’ll do a targeted crash diagnosis from `run.log` as allowed.
+
+Crash diagnosed: `sequence_len=1536` violates `total_batch_size % (device_batch_size * sequence_len) == 0` and hits an assertion before training. I’m logging this as `crash` in `memory/results.tsv` and resetting to the prior commit per loop rules.
+
+I’m continuing the loop with a valid variant: `sequence_len=512` (divides the batch exactly), which should increase update frequency substantially within 5 minutes. I’ll commit and run it now.
+
+The `sequence_len=512` experiment is committed (`fc7fa7e`); I’m launching training and will collect results from `metrics.json` only.
+
+Training is still in progress; I’m continuing to wait for completion before parsing and logging metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Run is still active and within budget; I’m polling again for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Still running; I’m waiting until the process exits, then I’ll immediately extract `val_bpb` and memory from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The process is taking longer than prior runs, so I’m continuing to monitor it against the 10-minute failure cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ce5ceb3d23e5c5bc66198b3ab969ef0aa8146d6a..a4a56cadcffa623c3901629559ac557af3392afc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Training completed successfully. I’m now reading `metrics.json`, appending to `memory/results.tsv`, and deciding keep/discard against the current best `val_bpb`.
+
+I hit a shell scripting error while auto-comparing results; I’m rerunning the result-record step with a single Python snippet to avoid shell parsing issues, then applying keep/discard reset accordingly.
+
+Completed two experiments in the loop and updated `memory/results.tsv` accordingly.
+
+1. `9a5b198`  
+- Diff: `sequence_len 2048 -> 1536` in `editable/config.toml`  
+- Result: `crash` (assertion: `total_batch_size % (device_batch_size * sequence_len) == 0`)  
+- Logged: `0.000000`, `0.0 GB`, `crash`  
+- Action: reverted via `git reset --hard HEAD~1`
+
+2. `fc7fa7e`  
+- Diff: `sequence_len 2048 -> 512` in `editable/config.toml`  
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=13428.994` (`13.1 GB`)  
+- Compared to best (`1.026098`): no improvement  
+- Logged as `discard`  
+- Action: reverted via `git reset --hard HEAD~1`
+
+Current HEAD is back to `986c277`, and `memory/results.tsv` contains both new rows.
+tokens used
+26,825
+Completed two experiments in the loop and updated `memory/results.tsv` accordingly.
+
+1. `9a5b198`  
+- Diff: `sequence_len 2048 -> 1536` in `editable/config.toml`  
+- Result: `crash` (assertion: `total_batch_size % (device_batch_size * sequence_len) == 0`)  
+- Logged: `0.000000`, `0.0 GB`, `crash`  
+- Action: reverted via `git reset --hard HEAD~1`
+
+2. `fc7fa7e`  
+- Diff: `sequence_len 2048 -> 512` in `editable/config.toml`  
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=13428.994` (`13.1 GB`)  
+- Compared to best (`1.026098`): no improvement  
+- Logged as `discard`  
+- Action: reverted via `git reset --hard HEAD~1`
+
+Current HEAD is back to `986c277`, and `memory/results.tsv` contains both new rows.

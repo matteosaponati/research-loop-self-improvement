@@ -1,0 +1,230 @@
+I’m starting the research loop by checking whether prior memory exists so I can either resume or do full setup, then I’ll establish the branch state and run or continue experiments accordingly.
+
+I found an existing initialized loop on `research-loops/may4` with many completed runs, so I’m resuming from the current branch and current best (`val_bpb=1.026098`). Next I’m reading all `editable/` files to propose a new code change.
+
+I’ve loaded the training code and config; I’m now checking the rest of `train.py` (loop/scheduling/metrics writeout) so I can make a targeted experiment with minimal risk of crashes.
+
+I found we’re currently on commit `65ec9fb` (clean `editable/` tree), so I’ll run one high-signal architecture experiment next: switch the MLP from `relu^2` to `silu` to test whether smoother nonlinearity improves validation within the fixed 5-minute budget.
+
+I’ve committed the SiLU experiment (`81472cd`) and will run training now with output redirected to `run.log`, then read only `metrics.json` to decide keep vs revert.
+
+Training is running in the background session; I’m waiting for completion and will collect metrics immediately when it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run is still in progress; I’m continuing to wait and will parse `metrics.json` as soon as the process returns.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still running; I’m polling again and then moving straight to result logging and keep/discard handling.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m still waiting on the training process; once it exits I’ll read `metrics.json`, append `memory/results.tsv`, and decide whether to reset this commit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The run has not finished yet; I’m continuing to poll in place rather than inspecting logs, to stay within the results-collection rule.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Training is still active; I’m waiting for termination and then will immediately evaluate keep/discard from `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m at the tail end of this run window; polling again now for process exit and metric extraction.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The process is still alive, so I’m continuing to wait up to the enforced 10-minute timeout boundary.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b9f45c7ceb0d8d7cae865ab04d8b3f5c995c71b2
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The run finished successfully; I’m now reading `metrics.json`, appending a TSV row, and resetting this commit if it did not beat the current best `val_bpb`.
+
+The environment doesn’t expose `python` directly, so I’m rerunning the result-recording step with `uv run python` and then applying keep/discard reset logic.
+
+I logged the result and reset to the previous commit because it didn’t improve. I’m proceeding with the next experiment now: shorten warmdown from `0.5` to `0.2` to keep learning rates higher for longer in the 5-minute window.
+
+I committed experiment `8f90e80` and I’m launching the next 5-minute training run now; after completion I’ll record metrics and keep/revert based on `val_bpb`.
+
+The second run is in progress in session `75055`; I’m waiting for completion before reading `metrics.json` and updating `memory/results.tsv`.
+
+Experiment loop is active and continuing.
+
+Completed this cycle:
+- Resumed existing run state from `memory/results.tsv` on branch `research-loops/may4`.
+- Ran experiment `81472cd`: changed MLP activation `relu^2 -> silu` in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/train.py).
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb` ≈ `41.1 GB`.
+- Logged to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv) as `discard`.
+- Reverted commit (`git reset --hard HEAD~1`) because no improvement.
+
+Now running next experiment:
+- Commit `8f90e80`: reduced `warmdown_ratio` `0.5 -> 0.2` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/config.toml).
+- Training process is currently running (session `75055`).
+diff --git a/editable/config.toml b/editable/config.toml
+index 215c23fb192cea6660438338b20d5f373233f7bf..5472ec8901025e77d86a64d64b230883df70c48c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+tokens used
+39,160
+Experiment loop is active and continuing.
+
+Completed this cycle:
+- Resumed existing run state from `memory/results.tsv` on branch `research-loops/may4`.
+- Ran experiment `81472cd`: changed MLP activation `relu^2 -> silu` in [`editable/train.py`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/train.py).
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb` ≈ `41.1 GB`.
+- Logged to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/memory/results.tsv) as `discard`.
+- Reverted commit (`git reset --hard HEAD~1`) because no improvement.
+
+Now running next experiment:
+- Commit `8f90e80`: reduced `warmdown_ratio` `0.5 -> 0.2` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead10-gpt53codex-medium-4h-orchestrated-10-20260504-211956/research-loop/editable/config.toml).
+- Training process is currently running (session `75055`).

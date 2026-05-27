@@ -1,0 +1,532 @@
+I’m starting the research loop now by checking git state, whether `memory/results.tsv` already exists with runs, and whether data/tokenizer artifacts are present so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run history on `research-loops/may4`, so I’m resuming from the current branch and best recorded metric. Next I’ll read all in-scope `editable/` files and pick the next experiment based on what has already been tried.
+
+I’ve confirmed the current config is CPU-bound and most prior changes didn’t move `val_bpb` off `1.026098`. I’m now reading the rest of `train.py` to find a higher-leverage change point before making the next commit.
+
+I confirmed current `metrics.json` is still `1.026098`, so we have no improvement yet. I’ll now make one targeted config experiment, commit it, run training, then keep or reset based on the new `metrics.json`.
+
+I’m applying a combined schedule/capacity change in `editable/config.toml` to alter optimization dynamics more substantially than prior single-parameter tweaks: shorter sequence length with slightly deeper model to increase update frequency while preserving stability on CPU.
+
+The experiment commit is in place (`1734769`) with the diff shown above. I’m starting the 5-minute training run now and will read only `metrics.json` afterward for result collection.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it approaches the 10-minute cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Still running normally; I’m continuing to wait for termination and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Run is still active and within budget; I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+I’m continuing to wait for completion; once it exits I’ll immediately collect the metrics and decide keep versus discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Still in progress; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Run remains active; I’m waiting for process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Still running and below the failure cutoff; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+I’m continuing to wait for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+Still active; one more poll should get completion near the 5-minute training stop plus startup/eval time.
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 0e25eaeb531d93cff1372cc67ebf5e3788770397..6d7704742346e49c6f40588004293a97e6bb8923
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 256
++sequence_len = 128
+ total_batch_size = 1024
+ device_batch_size = 4
+ dataloader_buffer_size = 16
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 4
++depth = 6
+ aspect_ratio = 32
+ head_dim = 64
+ mlp_hidden_multiplier = 4
+
+
+The run completed successfully. I’m now reading `metrics.json`, appending the TSV row, and then resetting the commit if it did not beat the best `val_bpb`.
+
+I logged the result and discarded the commit since `val_bpb` stayed equal to best. I’m launching a new experiment now: switch transformer matrix optimization from Muon groups to AdamW groups to test whether the current optimizer is the bottleneck on CPU.
+
+The optimizer swap patch is committed (`2d9c566`). I’m running the next 5-minute experiment now and will evaluate from `metrics.json` only.
+
+Training is in progress; I’m monitoring and will collect metrics as soon as it exits.
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+Run is still active and within limits; I’m continuing to poll until completion.
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+Still running; I’m waiting for finish and then applying keep/discard logic.
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+I’m still monitoring the same run; it should exit shortly after the 300s training budget plus eval overhead.
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+diff --git a/editable/train.py b/editable/train.py
+index ccce45fc73fa26ffba0b6a98eca9b20c873260b8..064781350156996c48c44ca618991d8d190c6c4d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -241,12 +241,11 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        # CPU runs in this harness have shown flat learning with Muon; test AdamW on matrix params.
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+The run finished successfully; I’m now extracting `metrics.json`, appending `memory/results.tsv`, and reverting if it didn’t improve best `val_bpb`.
+
+Completed two new experiments and logged both to `memory/results.tsv`:
+
+- `1734769` (`sequence_len=128`, `depth=6`) → `val_bpb=1.026098`, `memory_gb=0.0`, `discard`
+- `2d9c566` (switch matrix params from Muon to AdamW) → `val_bpb=1.026098`, `memory_gb=0.0`, `discard`
+
+Both were auto-reverted after logging (branch head is back to `168861d`).  
+Current best remains `val_bpb=1.026098` from commit `0da5bb2` in the TSV history.
+tokens used
+31,369
+Completed two new experiments and logged both to `memory/results.tsv`:
+
+- `1734769` (`sequence_len=128`, `depth=6`) → `val_bpb=1.026098`, `memory_gb=0.0`, `discard`
+- `2d9c566` (switch matrix params from Muon to AdamW) → `val_bpb=1.026098`, `memory_gb=0.0`, `discard`
+
+Both were auto-reverted after logging (branch head is back to `168861d`).  
+Current best remains `val_bpb=1.026098` from commit `0da5bb2` in the TSV history.

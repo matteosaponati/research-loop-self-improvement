@@ -1,0 +1,292 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume immediately or perform fresh setup exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving directly to proposing the next experiment after reading `editable/*` and prior results.
+
+I’ve loaded prior results and core config; next I’m inspecting the scheduler and optimizer logic in the rest of `train.py` to pick a higher-impact change than the failed LR tweaks.
+
+I identified that previous optimizer/schedule tweaks produced identical outcomes, so I’m switching to a higher-leverage change: increasing model depth to test a capacity vs. throughput tradeoff within the same 5-minute budget. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `val_bpb`.
+
+I’ve committed the depth change (`4f0351b`) and I’m launching the timed training run now with full log redirection; after completion I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+The run is in progress under timeout control; I’m waiting for completion and will treat timeout/nonzero as failure per your rules.
+
+Training is still running; I’m continuing to wait and will immediately parse `metrics.json` once it exits.
+
+Still in-flight. I’m polling again and then recording the result row plus keep/discard decision.
+
+I’m still waiting on the run completion; once the process returns I’ll avoid log inspection and collect metrics directly from `metrics.json`.
+
+Run is taking longer than expected end-to-end but still within the 10-minute cap; I’m continuing to monitor until it exits or times out.
+
+I’m polling again; if this hits the 610s timeout wrapper it will be marked as failure and reverted.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the experiment record to `memory/results.tsv`, and then applying keep/discard by comparing against the current best `val_bpb`.
+
+The shell lacks plain `python`, so I’m rerunning the metrics extraction with `uv run python` and then finalizing keep/discard state.
+
+This experiment did not improve `val_bpb`, so I’m reverting the code commit while keeping the recorded result in `memory/results.tsv`, then proceeding to the next iteration.
+
+I’ve reset to the best commit and will continue with another experiment. Next I’ll target a model-behavior change (not just schedule) to try to move `val_bpb` off this plateau.
+
+I confirmed the deeper model changed throughput/memory but not validation, so I’m now testing an architectural change in `editable/train.py`: replacing `ReLU^2` with `GELU` in the MLP.
+
+I’ve applied the activation edit and I’m committing it now, then starting the next 5-minute training run.
+
+The GELU experiment is running under timeout guard; I’m waiting for completion and will collect metrics from `metrics.json` only.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still running. I’m continuing to poll and will record keep/discard immediately after exit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run is still active and within budget; I’m polling again.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m continuing to wait for process completion; next step is metrics parse and branch advance/revert decision.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still in-flight, likely near completion. I’m polling until exit or timeout.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..25639804d04f284a1f6d09aba510f644249a8554
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -134,7 +134,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+`val_bpb` stayed flat again, so I’m resetting this commit and continuing the loop from the best state.
+
+I’m running a diagnostic experiment next: set all learning rates to `0.0` to verify whether `val_bpb` is actually sensitive to training in this harness. If it remains unchanged, we’ll know the bottleneck is elsewhere.
+
+I’ve patched the zero-LR diagnostic and I’m committing/running it now to test whether the metric reacts at all.
+
+The zero-LR diagnostic run is in progress under timeout control; I’ll collect metrics and decide keep/discard once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..86d204c8084b7d4b41aa5ae014c3de8f80859574
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.0
++unembedding_lr = 0.0
++matrix_lr = 0.0
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running; I’m continuing to wait and will only read `metrics.json` after completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..86d204c8084b7d4b41aa5ae014c3de8f80859574
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.0
++unembedding_lr = 0.0
++matrix_lr = 0.0
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run remains active and within cap; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..86d204c8084b7d4b41aa5ae014c3de8f80859574
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.0
++unembedding_lr = 0.0
++matrix_lr = 0.0
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m still waiting for completion; next update will include the parsed metric and whether this confirms a training-insensitivity issue.
+
+Experiment loop is actively running.
+
+Current state:
+- Resumed from existing branch/results (no re-init).
+- Completed and logged:
+  - `4f0351b` (`depth=10`): `val_bpb=1.026098`, `61.9 GB`, `discard`
+  - `09e26f8` (MLP `ReLU^2 -> GELU`): `val_bpb=1.026098`, `41.1 GB`, `discard`
+- Reset back to best commit each time (`80daec7`) after non-improving runs.
+- Started a diagnostic run at commit `e68d30d` (all LRs set to `0.0`) to test whether `val_bpb` is sensitive to learning at all.
+- That run is still in progress right now (under `timeout 610s`, logging to `run.log`).
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..86d204c8084b7d4b41aa5ae014c3de8f80859574
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.0
++unembedding_lr = 0.0
++matrix_lr = 0.0
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+tokens used
+50,842
+Experiment loop is actively running.
+
+Current state:
+- Resumed from existing branch/results (no re-init).
+- Completed and logged:
+  - `4f0351b` (`depth=10`): `val_bpb=1.026098`, `61.9 GB`, `discard`
+  - `09e26f8` (MLP `ReLU^2 -> GELU`): `val_bpb=1.026098`, `41.1 GB`, `discard`
+- Reset back to best commit each time (`80daec7`) after non-improving runs.
+- Started a diagnostic run at commit `e68d30d` (all LRs set to `0.0`) to test whether `val_bpb` is sensitive to learning at all.
+- That run is still in progress right now (under `timeout 610s`, logging to `run.log`).

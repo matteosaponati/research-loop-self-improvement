@@ -1,0 +1,139 @@
+Starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs, verify git state/branch, and then either resume or initialize baseline exactly per your procedure.
+
+This workspace is already initialized (`research-loops/may4` with populated `memory/results.tsv`), so I’m resuming directly from step (2) and loading `editable/` plus prior results to pick the next experiment.
+
+I found a stable baseline at `val_bpb=1.026098` with many flat results, so I’ll inspect current `train.py` and config to target a change that affects optimization dynamics without breaking the CPU fallback path.
+
+I’m running a focused optimization experiment: reduce effective batch size to increase update frequency within the same 5-minute budget, which can help optimization on CPU fallback where large batches may be too conservative. I’ll patch `editable/config.toml`, commit, run, then score from `metrics.json`.
+
+The change is committed (`4d2231c`). I’m launching the 5-minute training run now with full log redirection, then I’ll read `metrics.json` and decide keep vs reset.
+
+Training is running in the background; I’ll wait for completion and enforce the 10-minute hard cap.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running; continuing to wait for completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run is still active; I’m continuing to monitor it and will stop it if it crosses 10 minutes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+No completion yet; waiting again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I’m still waiting on the training process; once it exits I’ll parse `metrics.json` only and log the outcome.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run remains active; continuing monitoring.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I couldn’t query elapsed time from the session ID directly, so I’m continuing bounded polling and will terminate if it doesn’t finish within the allowed window.
+
+The process is still running and non-interactive, so I’ll keep polling a bit longer before force-killing by command name if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed53fdf480f5173142c264be805f966fc3aed98a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 2
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+This has exceeded expected runtime behavior, so I’m terminating the run as a failure per the 10-minute rule, then I’ll treat it as a crash and revert.

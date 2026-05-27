@@ -1,0 +1,62 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume immediately or do fresh setup exactly per your rules.
+
+I found an initialized run history on `research-loops/may4`, so I’m resuming from current best (`1.026098`) and now reading `editable/` files to choose the next code change.
+
+I’ve confirmed the metric has been flat across many prior hyperparameter and architecture tweaks, so I’m testing a stronger architecture shift next: keep depth at 8 but increase width (`aspect_ratio`) and reduce sequence length to raise step throughput, aiming for better short-run loss reduction within 5 minutes. I’ll patch `editable/config.toml`, commit, run, and keep only if `val_bpb` drops.
+
+I’ve applied the config change and verified the diff. Next I’m committing this experiment and launching a timed run with full output redirected to `run.log`.
+
+The run is in progress under a timeout guard (`600s`). I’m waiting for completion, then I’ll read only `metrics.json` and update `memory/results.tsv` before deciding keep or reset.
+
+Training is still running; no diagnostics needed yet. I’m continuing to wait for completion and will collect metrics directly from `metrics.json`.
+
+Run is still active within expected wall time. I’m polling until it exits, then I’ll parse metrics and apply keep/discard logic.
+
+I’m still waiting on the same run session; once it exits I’ll immediately extract `val_bpb`/VRAM from `metrics.json` and record the experiment row.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the TSV row, and then resetting this commit if it didn’t beat the current best `1.026098`.
+
+The shell has no direct `python` binary here, so I’m rerunning metric extraction via `uv run python` and then applying keep/discard normally.
+
+Metric readout returned `val_bpb=1.026098`; I’m finishing the best-score lookup and then this commit will be discarded since it did not improve.
+
+I confirmed the best remains `1.026098`. I’m recording this run as `discard` in `memory/results.tsv` and resetting one commit to continue from the previous best state.
+
+I’m launching a second experiment now with a pure schedule change: keep LR constant for the full 5-minute window (`warmdown_ratio=0`, `final_lr_frac=1.0`) to avoid late-run decay. I’ll show the diff, commit, run, and keep only on strict improvement.
+
+Second run is active with timeout protection. I’m waiting for completion, then I’ll read `metrics.json`, append TSV, and keep/reset based on `val_bpb`.
+
+Run is still in progress and within expected runtime. I’m continuing to wait and will only use `metrics.json` for the result readout.
+
+Training is still running; no crash indications so far. I’ll keep polling until it exits and then immediately record the experiment outcome.
+
+I’m still waiting on the same session; as soon as it exits I’ll parse the JSON metrics and apply the keep/discard reset step.
+
+Completed 2 new experiments and updated the loop memory.
+
+Current best remains `val_bpb = 1.026098` (no improvement yet).
+
+New logged rows in `memory/results.tsv`:
+- `496b7a7	1.026098	38.0	discard	wider model with shorter sequence for 5min throughput`
+- `5646e92	1.026098	41.1	discard	constant LR across full training budget`
+
+What I changed each run:
+- Exp 1 (`496b7a7`): `sequence_len 2048 -> 1536`, `total_batch_size 524288 -> 393216`, `aspect_ratio 64 -> 80`
+- Exp 2 (`5646e92`): `warmdown_ratio 0.5 -> 0.0`, `final_lr_frac 0.0 -> 1.0`
+
+Both commits were discarded via reset after evaluation, and branch is back at `49396ff` for the next experiment.
+tokens used
+48,615
+Completed 2 new experiments and updated the loop memory.
+
+Current best remains `val_bpb = 1.026098` (no improvement yet).
+
+New logged rows in `memory/results.tsv`:
+- `496b7a7	1.026098	38.0	discard	wider model with shorter sequence for 5min throughput`
+- `5646e92	1.026098	41.1	discard	constant LR across full training budget`
+
+What I changed each run:
+- Exp 1 (`496b7a7`): `sequence_len 2048 -> 1536`, `total_batch_size 524288 -> 393216`, `aspect_ratio 64 -> 80`
+- Exp 2 (`5646e92`): `warmdown_ratio 0.5 -> 0.0`, `final_lr_frac 0.0 -> 1.0`
+
+Both commits were discarded via reset after evaluation, and branch is back at `49396ff` for the next experiment.

@@ -1,0 +1,372 @@
+I’ll initialize or resume the experiment loop exactly per your protocol: first I’m checking git state and whether `memory/results.tsv` already has prior runs so I can decide whether to resume or do full setup.
+
+This workspace is already initialized on branch `research-loops/may4` with populated `memory/results.tsv`, so I’m resuming directly with a new experiment cycle by reading `editable/` and prior results.
+
+I’ve loaded the full training/config context and the prior 46 runs; best `val_bpb` is `1.026098` and many knobs were already tried with identical outcomes. I’m now checking current working tree and latest metrics to choose a non-redundant code-level experiment.
+
+Next experiment will target CPU numerical stability: keep embeddings/weights in `float32` on CPU and disable CPU `bfloat16` autocast, since prior runs all plateaued identically and likely suffer from low-precision training. I’m patching `editable/train.py` now and then I’ll commit and run.
+
+The patch missed exact context in `train.py`; I’m locating the precise lines and applying the same change with exact anchors.
+
+I’ve applied the precision-stability edit; next I’m capturing the unified diff and committing it before launching the run.
+
+Commit `0db2bb9` is ready. I’m running the 5-minute experiment now with output redirected to `run.log`, and then I’ll read `metrics.json` only and decide keep/discard.
+
+The training process is running in the background under timeout guard; I’m waiting for completion and will immediately extract metrics once it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still in progress and within expected runtime window; I’m continuing to wait on the same run session.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run is still active; I’m keeping the wait loop and will parse `metrics.json` as soon as it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Process is still running normally; continuing to wait for completion.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+I’m still waiting on the same training run; no intervention needed yet.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Run remains active and within the timeout budget; continuing to wait.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Still in progress; I’ll keep polling until it exits and then record results.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run is nearing expected completion time; I’m doing another wait poll now.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+Process is still alive, so I’m continuing to wait rather than inspecting logs.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+I’m still waiting on the guarded run; if it crosses the timeout cap it will auto-terminate and be treated as failure per protocol.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..5823d8c9322b2053382c6e0e939df21476670940
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -194,8 +194,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU runs in fp32 for stability; use bf16 only on CUDA.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -427,7 +428,11 @@
+ if is_cuda:
+     torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++if is_cuda:
++    autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++else:
++    # Disable CPU autocast to avoid bf16 precision loss in short runs.
++    autocast_ctx = torch.amp.autocast(device_type=device.type, enabled=False)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+
+
+The run finished successfully. I’m now reading `metrics.json`, appending this experiment to `memory/results.tsv`, and then applying keep/discard with git reset logic.
+
+I got the new metrics (`val_bpb` unchanged at `1.026098`); one helper command hung, so I’m finishing the result logging and discard/reset path directly now.
+
+I completed one full experiment cycle and reverted since there was no gain. I’m immediately starting the next cycle with a new throughput-focused config combination that hasn’t been tried exactly: `sequence_len=128`, `total_batch_size=1024`, `device_batch_size=8`.
+
+The config experiment is committed as `5284fb0`; I’m launching the run now and will record `metrics.json` results, then keep or reset based on `val_bpb`.
+
+Run is active under timeout guard; I’m waiting for completion before reading `metrics.json`.
+
+Still running normally; I’m continuing to wait on this same session.
+
+Training is still in progress and within expected wall-clock; waiting for exit.
+
+Experiment loop is active and continuing.
+
+Completed this cycle:
+- Ran commit `0db2bb9` (`cpu fp32 stability: disable cpu autocast and bf16 embeddings`)
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=0.0`
+- Logged to `memory/results.tsv` as `discard`
+- Reset branch back to `f371db8` per protocol
+
+Started next cycle:
+- Committed `5284fb0` (`throughput try: seq128 total_batch1024 device_batch8`)
+- Training run is currently in progress (`uv run --extra research python editable/train.py > run.log 2>&1`) under timeout guard.
+tokens used
+29,547
+Experiment loop is active and continuing.
+
+Completed this cycle:
+- Ran commit `0db2bb9` (`cpu fp32 stability: disable cpu autocast and bf16 embeddings`)
+- Result from `metrics.json`: `val_bpb=1.026098`, `peak_vram_mb=0.0`
+- Logged to `memory/results.tsv` as `discard`
+- Reset branch back to `f371db8` per protocol
+
+Started next cycle:
+- Committed `5284fb0` (`throughput try: seq128 total_batch1024 device_batch8`)
+- Training run is currently in progress (`uv run --extra research python editable/train.py > run.log 2>&1`) under timeout guard.

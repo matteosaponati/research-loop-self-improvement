@@ -1,0 +1,37 @@
+commit f42b7f7a080ee674f5aa91c134f1689f66000a86
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 16:10:46 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 16:10:46 2026 +0200
+
+    switch mlp to swiglu gating
+---
+ editable/train.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..d8c9640 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,11 +130,11 @@ class MLP(nn.Module):
+         super().__init__()
+         hidden_dim = config.mlp_hidden_multiplier * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@ class GPT(nn.Module):
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head

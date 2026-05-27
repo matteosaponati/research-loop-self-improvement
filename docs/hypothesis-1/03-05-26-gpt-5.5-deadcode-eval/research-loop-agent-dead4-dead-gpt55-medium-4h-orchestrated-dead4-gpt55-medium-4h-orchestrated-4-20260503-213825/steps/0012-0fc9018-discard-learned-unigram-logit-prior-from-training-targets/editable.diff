@@ -1,0 +1,61 @@
+commit 0fc901873cb7470deabb1b17d74310fb44739345
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Sun May 3 22:55:07 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Sun May 3 22:55:07 2026 +0200
+
+    add learned unigram logit prior
+---
+ editable/train.py | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..968bd06 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@ class GPT(nn.Module):
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +265,7 @@ class GPT(nn.Module):
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -518,6 +520,7 @@ t_start_training = time.time()
+ smooth_train_loss = 0
+ total_training_time = 0
+ step = 0
++token_counts = torch.zeros(vocab_size, dtype=torch.float32, device=device)
+ 
+ while True:
+     torch.cuda.synchronize()
+@@ -544,6 +547,9 @@ while True:
+     model.zero_grad(set_to_none=True)
+ 
+     train_loss_f = train_loss.item()
++    with torch.no_grad():
++        valid_targets = y[y != CONFIG.ignore_index]
++        token_counts += torch.bincount(valid_targets, minlength=vocab_size).to(token_counts.dtype)
+ 
+     # Fast fail: abort if loss is exploding or NaN
+     if math.isnan(train_loss_f) or train_loss_f > LOSS_FAIL_THRESHOLD:
+@@ -585,6 +591,11 @@ while True:
+ print()  # newline after \r training log
+ 
+ total_tokens = step * CONFIG.total_batch_size
++with torch.no_grad():
++    token_probs = (token_counts + 1.0) / (token_counts.sum() + vocab_size)
++    unigram_bias = token_probs.log()
++    model_for_bias = model._orig_mod if hasattr(model, "_orig_mod") else model
++    model_for_bias.logit_bias.copy_(unigram_bias - unigram_bias.mean())
+ 
+ # Final eval
+ model.eval()

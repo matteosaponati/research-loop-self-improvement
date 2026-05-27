@@ -1,0 +1,459 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can resume correctly, then I’ll set up branch/baseline only if needed.
+
+I found prior experiment rows, so I’m resuming directly from the current branch/state without reinitializing. Next I’ll read `editable/` files and diagnose why every run has crashed so far.
+
+I have enough context and will now diagnose the current crash by inspecting `run.log`, since `metrics.json` has been missing in all previous attempts. Then I’ll make a minimal fix in `editable/train.py`, commit, and run the next experiment.
+
+I identified the concrete failure: pinned-memory allocation in the dataloader is still touching CUDA even before training begins. I’m applying a CPU-safe fallback in `editable/train.py` (device selection, pinned-memory guard, and CUDA-call guards), then I’ll commit and run the next experiment.
+
+The patch is committed (`f9f02ae`). I’m launching the full 5-minute run now and will collect results only from `metrics.json` unless it crashes.
+
+Training is running in the background session; I’m waiting for completion and will parse `metrics.json` immediately after.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..0f179a92c7c15a18abd8d399479a412d247c78d7
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -7,6 +7,7 @@
+ import json
+ import os
+ import sys
++from contextlib import nullcontext
+ from pathlib import Path
+ 
+ METRICS_PATH = Path("metrics.json")
+@@ -413,11 +414,34 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
++if torch.cuda.is_available():
++    torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++cuda_requested = CONFIG.device == "cuda"
++use_cuda = cuda_requested and torch.cuda.is_available()
++effective_device = "cuda" if use_cuda else "cpu"
++if cuda_requested and not use_cuda:
++    print("CUDA requested but unavailable; falling back to CPU.")
++
++if not use_cuda:
++    # immutable.prepare.make_dataloader uses pin_memory=True unconditionally.
++    # Disable it in CPU fallback to avoid CUDA driver init in torch.empty(..., pin_memory=True).
++    _torch_empty = torch.empty
++
++    def _empty_no_pin(*args, **kwargs):
++        if kwargs.get("pin_memory"):
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _empty_no_pin
++
++device = torch.device(effective_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=effective_device, dtype=autocast_dtype)
++    if use_cuda
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,7 +499,7 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and use_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+@@ -485,7 +509,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=effective_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +544,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +575,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +622,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=effective_device,
+     )
+ 
+ # Final summary
+@@ -604,7 +630,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if use_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+The run exited non-zero, so I’m checking `metrics.json` first; if missing, I’ll do targeted crash diagnosis from `run.log`.
+
+The crash moved earlier: CUDA reports “available” but fails on first real CUDA allocation in `model.to_empty`. I’m logging this run as a crash, resetting to the previous commit per loop rules, then I’ll add a stricter CUDA usability probe before selecting device.
+
+Reset is complete (`HEAD` back to `374038c`). I’m now patching `editable/train.py` with a CUDA usability probe (real allocation test) plus CPU-safe guards, then I’ll rerun.
+
+I’ve committed the stricter fallback (`12b27a7`) and I’m running the next experiment now under the same 5-minute budget.
+
+This run also exited non-zero quickly; I’m checking `metrics.json` and then the crash traceback to decide whether to keep or reset.
+
+The fallback now reaches training, but crashes on CPU dtype mismatch (`bfloat16` embeddings vs `float32` linear weights). I’ll log this crash, reset, then patch initialization so bf16 embedding casting only happens on CUDA.
+
+I reset to `374038c` and I’m applying an updated combined patch now: CUDA usability probe, CPU pinned-memory guard, and conditional bf16 embedding cast to avoid CPU dtype errors.
+
+I committed the revised fix as `b7e55da` and I’m running it now to see if we can get the first non-crashing metrics.
+
+The process is still running past the startup phase, which is a good sign. I’m continuing to wait for completion and will read `metrics.json` as soon as it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..828f2a9301a8844ee0a80c9ffe34f116147a59f3
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -7,6 +7,7 @@
+ import json
+ import os
+ import sys
++from contextlib import nullcontext
+ from pathlib import Path
+ 
+ METRICS_PATH = Path("metrics.json")
+@@ -186,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Cast embeddings to bf16 only on CUDA to avoid CPU dtype mismatches.
++        if self.transformer.wte.weight.is_cuda:
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -413,11 +415,45 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def detect_usable_cuda(requested_device: str) -> bool:
++    if requested_device != "cuda" or not torch.cuda.is_available():
++        return False
++    try:
++        x = torch.empty(1, device="cuda")
++        del x
++        torch.cuda.synchronize()
++        return True
++    except Exception:
++        return False
++
++use_cuda = detect_usable_cuda(CONFIG.device)
++effective_device = "cuda" if use_cuda else "cpu"
++if not use_cuda and CONFIG.device == "cuda":
++    print("CUDA requested but unavailable or unusable; falling back to CPU.")
++if use_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
++
++if not use_cuda:
++    # immutable.prepare.make_dataloader allocates with pin_memory=True.
++    # Disable pinned memory in CPU fallback to avoid CUDA driver interaction.
++    _torch_empty = torch.empty
++
++    def _empty_no_pin(*args, **kwargs):
++        if kwargs.get("pin_memory"):
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _empty_no_pin
++
++device = torch.device(effective_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=effective_device, dtype=autocast_dtype)
++    if use_cuda
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,7 +511,7 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and use_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+@@ -485,7 +521,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=effective_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +556,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +587,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +634,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=effective_device,
+     )
+ 
+ # Final summary
+@@ -604,7 +642,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if use_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+This run was killed (`exit 137`), likely resource-related. I’m confirming from `metrics.json`/`run.log`, then I’ll log and reset before trying a smaller CPU-safe configuration.
+
+I confirmed there’s no traceback, just an OOM-style kill during startup/training setup on CPU-sized workload. I’m recording this crash, resetting, and then I’ll run a new experiment that combines the robust fallback with a much smaller config to get a complete run.
+
+I’m now constructing the next experiment from scratch: restoring the stable fallback code into `train.py` and shrinking `config.toml` aggressively for CPU feasibility.
+
+I’ve staged a combined robustness+downsizing experiment and will commit it now, then launch the run.
+
+Launching experiment `47a6ddb` now. If it completes, I’ll log `val_bpb` and decide keep/reset from the metrics file.
+
+The run is active; I’m waiting for completion before reading `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..828f2a9301a8844ee0a80c9ffe34f116147a59f3
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -7,6 +7,7 @@
+ import json
+ import os
+ import sys
++from contextlib import nullcontext
+ from pathlib import Path
+ 
+ METRICS_PATH = Path("metrics.json")
+@@ -186,8 +187,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Cast embeddings to bf16 only on CUDA to avoid CPU dtype mismatches.
++        if self.transformer.wte.weight.is_cuda:
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -413,11 +415,45 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def detect_usable_cuda(requested_device: str) -> bool:
++    if requested_device != "cuda" or not torch.cuda.is_available():
++        return False
++    try:
++        x = torch.empty(1, device="cuda")
++        del x
++        torch.cuda.synchronize()
++        return True
++    except Exception:
++        return False
++
++use_cuda = detect_usable_cuda(CONFIG.device)
++effective_device = "cuda" if use_cuda else "cpu"
++if not use_cuda and CONFIG.device == "cuda":
++    print("CUDA requested but unavailable or unusable; falling back to CPU.")
++if use_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
++
++if not use_cuda:
++    # immutable.prepare.make_dataloader allocates with pin_memory=True.
++    # Disable pinned memory in CPU fallback to avoid CUDA driver interaction.
++    _torch_empty = torch.empty
++
++    def _empty_no_pin(*args, **kwargs):
++        if kwargs.get("pin_memory"):
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _empty_no_pin
++
++device = torch.device(effective_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=effective_device, dtype=autocast_dtype)
++    if use_cuda
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,7 +511,7 @@
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and use_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+@@ -485,7 +521,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=effective_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +556,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +587,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if use_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +634,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=effective_device,
+     )
+ 
+ # Final summary
+@@ -604,7 +642,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if use_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+Crash root cause is now clear: globally monkeypatching `torch.empty` interferes with `torch.compile` internals (fake tensor/inductor path), which retriggers CUDA checks. I’m logging this crash, resetting, and switching to a scoped pin-memory patch only around dataloader/eval construction.
+
+Current loop status:
+
+- Resumed existing branch `research-loops/may4` from prior memory.
+- Ran and logged 4 new crash experiments, each appended to [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv):
+  - `f9f02ae` crash: CUDA unavailable still hit at first allocation.
+  - `12b27a7` crash: CPU fallback reached train loop, then dtype mismatch.
+  - `b7e55da` crash: fallback worked, default config got killed (`exit 137`).
+  - `47a6ddb` crash: global `torch.empty` patch conflicted with torch inductor/fake tensor path.
+
+- Per loop rules, each crash was logged and then reset back to starting commit (`374038c`), so HEAD is currently clean at `374038c`.
+
+Key diagnosis:
+
+- The machine’s CUDA is intermittently/unavailable, so all viable runs must be CPU-safe.
+- Global monkeypatch of `torch.empty` is not safe because it breaks compiler internals.
+
+Next change I would run immediately:
+
+1. Re-apply CUDA-usability fallback in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/train.py) with:
+   - scoped (temporary) pin-memory patch only during dataloader/eval construction,
+   - conditional bf16 embedding cast only on CUDA.
+2. Keep the smaller CPU config in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/config.toml).
+3. Run again and record first successful `metrics.json` baseline.
+tokens used
+45,029
+Current loop status:
+
+- Resumed existing branch `research-loops/may4` from prior memory.
+- Ran and logged 4 new crash experiments, each appended to [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/memory/results.tsv):
+  - `f9f02ae` crash: CUDA unavailable still hit at first allocation.
+  - `12b27a7` crash: CPU fallback reached train loop, then dtype mismatch.
+  - `b7e55da` crash: fallback worked, default config got killed (`exit 137`).
+  - `47a6ddb` crash: global `torch.empty` patch conflicted with torch inductor/fake tensor path.
+
+- Per loop rules, each crash was logged and then reset back to starting commit (`374038c`), so HEAD is currently clean at `374038c`.
+
+Key diagnosis:
+
+- The machine’s CUDA is intermittently/unavailable, so all viable runs must be CPU-safe.
+- Global monkeypatch of `torch.empty` is not safe because it breaks compiler internals.
+
+Next change I would run immediately:
+
+1. Re-apply CUDA-usability fallback in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/train.py) with:
+   - scoped (temporary) pin-memory patch only during dataloader/eval construction,
+   - conditional bf16 embedding cast only on CUDA.
+2. Keep the smaller CPU config in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead1-gpt53codex-medium-4h-orchestrated-1-20260504-094953/research-loop/editable/config.toml).
+3. Run again and record first successful `metrics.json` baseline.

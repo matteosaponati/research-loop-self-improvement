@@ -1,0 +1,135 @@
+commit f371db8a20861079b6e0f38ebdebd5efb8f3b518
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 10:21:32 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 10:21:32 2026 +0200
+
+    disable compile on cpu and guard cuda paths
+---
+ editable/config.toml | 18 +++++++++---------
+ editable/train.py    | 35 +++++++++++++++++++++++++++++------
+ 2 files changed, 38 insertions(+), 15 deletions(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index ff74137..4290cfa 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -1,23 +1,23 @@
+ # Runtime environment
+ hf_hub_disable_progress_bars = "1"
+ seed = 42
+-device = "cuda"
++device = "cpu"
+ matmul_precision = "high"
+ autocast_dtype = "bfloat16"
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
+-dataloader_buffer_size = 1000
+-tokenizer_batch_size = 128
++sequence_len = 256
++total_batch_size = 8192
++device_batch_size = 8
++dataloader_buffer_size = 128
++tokenizer_batch_size = 32
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
+-head_dim = 128
++depth = 4
++aspect_ratio = 16
++head_dim = 32
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..772a95a 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -46,6 +46,14 @@ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+ 
++if CONFIG.device != "cuda":
++    # Disable torch.compile in CPU fallback mode to avoid inductor CUDA init paths.
++    def _no_compile(fn=None, **kwargs):
++        if fn is None:
++            return lambda f: f
++        return fn
++    torch.compile = _no_compile
++
+ from immutable import prepare
+ 
+ prepare.DATA_DIR = os.path.expanduser(str(prepare.DATA_DIR))
+@@ -413,11 +421,13 @@ class MuonAdamW(torch.optim.Optimizer):
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ device = torch.device(CONFIG.device)
++is_cuda = device.type == "cuda"
++if is_cuda:
++    torch.cuda.manual_seed(CONFIG.seed)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -475,9 +485,20 @@ optimizer = model.setup_optimizer(
+     muon_beta2=CONFIG.muon_beta2,
+ )
+ 
+-if COMPILE_MODEL:
++if COMPILE_MODEL and is_cuda:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
++if not is_cuda:
++    _torch_empty = torch.empty
++
++    def _cpu_safe_empty(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs = dict(kwargs)
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _cpu_safe_empty
++
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+     CONFIG.device_batch_size,
+@@ -520,7 +541,8 @@ total_training_time = 0
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +572,8 @@ while True:
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if is_cuda:
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -604,7 +627,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = (torch.cuda.max_memory_allocated() / 1024 / 1024) if is_cuda else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),

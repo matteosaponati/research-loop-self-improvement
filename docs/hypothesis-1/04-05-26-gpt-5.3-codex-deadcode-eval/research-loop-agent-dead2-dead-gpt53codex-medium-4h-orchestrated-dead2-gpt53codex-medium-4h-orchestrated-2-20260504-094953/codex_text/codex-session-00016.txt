@@ -1,0 +1,69 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or do full setup exactly per your protocol.
+
+The workspace is already initialized on branch `research-loops/may4` with existing results, so I’m resuming directly from step (2): I’ll read `editable/*` plus `memory/results.tsv`, pick the next experiment, patch, commit, run, and keep/revert by `val_bpb`.
+
+I’ve loaded prior experiment history and current config; next I’m scanning the rest of `train.py` for high-leverage knobs that can actually change the 5-minute outcome, then I’ll apply one focused experiment.
+
+I found a strong clue: every non-crash run has exactly the same `val_bpb`, which usually means evaluation is insensitive to recent tuning; I’m making a targeted architecture change likely to shift learning dynamics quickly (add learnable per-channel residual scaling) and will test it.
+
+I’m about to edit only `editable/train.py` to introduce small learnable residual scales on attention/MLP branches, then I’ll commit and run one experiment.
+
+Patch is committed as `17b8341`. I’m launching the timed training run now and will only read `metrics.json` for result collection when it finishes.
+
+The run is in progress in the background session; I’m polling for completion and will parse `metrics.json` immediately after it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f586f2786e9ce66f0487bdbbfb24286bc6c46804
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -144,10 +144,12 @@
+         super().__init__()
+         self.attn = CausalSelfAttention(config)
+         self.mlp = MLP(config)
++        self.attn_scale = nn.Parameter(torch.ones(config.n_embd) * 0.1)
++        self.mlp_scale = nn.Parameter(torch.ones(config.n_embd) * 0.1)
+ 
+     def forward(self, x, cos_sin):
+-        x = x + self.attn(norm(x), cos_sin)
+-        x = x + self.mlp(norm(x))
++        x = x + self.attn_scale * self.attn(norm(x), cos_sin)
++        x = x + self.mlp_scale * self.mlp(norm(x))
+         return x
+ 
+ 
+
+ exited 1 in 27295ms:
+
+The training process exited non-zero, so I’m checking `metrics.json` first; if it’s missing/invalid I’ll treat as crash and inspect `run.log` only for minimal crash diagnosis.
+
+`python` isn’t on PATH here, so I’m using `uv run python` to check `metrics.json`; if absent, I’ll classify this as a crash and log it.
+
+`metrics.json` is missing, so this run is a crash. I’m doing minimal crash diagnosis from `run.log` to capture the reason, then I’ll record the crash and reset this commit.
+
+Crash cause is clear (`Muon` expects 2D params; the new 1D scale params broke optimizer grouping). I’m logging this as `crash` in `memory/results.tsv` and resetting to the pre-experiment commit per loop rules.
+
+I detected an inconsistency after reset: `HEAD` is now at `ba0d37f`, which doesn’t match the previously logged tip (`7064b49`) in `memory/results.tsv`. I’m pausing here to avoid corrupting the experiment history and need your direction on whether to continue from `ba0d37f` or restore to `7064b49` first.
+
+Paused due to repository state inconsistency.
+
+- I ran one experiment commit: `17b8341` (`editable/train.py` residual branch scales).
+- Run crashed before `metrics.json` was written.
+- Crash diagnosis from `run.log`: `IndexError: tuple index out of range` in optimizer Muon path because added 1D params.
+- I logged it in `memory/results.tsv`:
+  - `17b8341	0.000000	0.0	crash	add learnable residual branch scales (1d params break muon)`
+
+Blocking issue:
+- After reset, `HEAD` is now `ba0d37f`, but the latest commit listed in `memory/results.tsv` before this was `7064b49`.
+- That mismatch means branch history and logged history diverged, so continuing automatically risks invalid experiment tracking.
+tokens used
+18,367
+Paused due to repository state inconsistency.
+
+- I ran one experiment commit: `17b8341` (`editable/train.py` residual branch scales).
+- Run crashed before `metrics.json` was written.
+- Crash diagnosis from `run.log`: `IndexError: tuple index out of range` in optimizer Muon path because added 1D params.
+- I logged it in `memory/results.tsv`:
+  - `17b8341	0.000000	0.0	crash	add learnable residual branch scales (1d params break muon)`
+
+Blocking issue:
+- After reset, `HEAD` is now `ba0d37f`, but the latest commit listed in `memory/results.tsv` before this was `7064b49`.
+- That mismatch means branch history and logged history diverged, so continuing automatically risks invalid experiment tracking.

@@ -1,0 +1,132 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has runs so I can either resume immediately or do the one-time setup/baseline path exactly as specified.
+
+There is an existing `memory/results.tsv` with prior experiment rows, so I’m resuming from the current branch/state and moving directly to the next experiment cycle by reading `editable/` files plus the results history.
+
+I’ve got the full context and prior results; next I’m making one focused experiment to increase update frequency within the fixed 5-minute budget by halving `total_batch_size`, then I’ll commit, run, and score it from `metrics.json`.
+
+I’ve applied the config change; now I’m committing this experiment and launching the 5-minute run with logs redirected, then I’ll read only `metrics.json` for evaluation.
+
+The run is in progress under a 10-minute timeout guard; I’m waiting for completion and will parse `metrics.json` as soon as the process exits.
+
+Training is still running; I’m continuing to wait and will immediately record the result row once the process returns.
+
+Run is still active within limits; I’m polling again, then I’ll score and decide keep vs discard based on `val_bpb`.
+
+Still running; I’ll keep waiting until completion and then immediately update `memory/results.tsv` and branch state.
+
+The process hasn’t exited yet; I’m continuing to monitor and will proceed with metrics-only readout once done.
+
+I’m still waiting on the active training session; once it exits, I’ll extract `val_bpb` and finalize keep/discard handling.
+
+Training is near expected finish window; I’m polling until exit and then immediately logging the experiment row.
+
+The run completed successfully; I’m now reading `metrics.json`, appending the TSV result, and applying the keep/discard reset rule based on whether `val_bpb` improved.
+
+The shell lacks a direct `python` binary here, so I’m rerunning the metrics parsing via `uv run` and then finalizing the log/reset decision.
+
+Result is exactly tied with the best (`1.026098`), so this experiment is a discard; I’m appending it to `memory/results.tsv` and resetting one commit to return to the prior best state.
+
+I’m continuing the loop with a new experiment now: increase `matrix_lr` slightly (`0.04 -> 0.05`) to test faster matrix adaptation while keeping architecture fixed.
+
+The commit is in place; I’m launching the next timed run and will score it from `metrics.json` on completion.
+
+Run is active with the timeout guard; I’m monitoring until exit, then I’ll log keep/discard and reset if needed.
+
+Training is still in progress; I’m continuing to wait and will process results immediately after completion.
+
+The session is still running within expected timing; I’ll keep polling and then finalize the experiment record once it exits.
+
+I’m still waiting on the active run; next step is metrics extraction and immediate keep/discard branch handling.
+
+The run finished cleanly; I’m extracting `metrics.json` now, logging the row, and applying keep/discard against the current best.
+
+I have the new run metric and commit hash; I’m waiting for the best-so-far query to return, then I’ll write the TSV row and keep/revert accordingly.
+
+This run also ties the best (`1.026098`), so I’m marking it `discard`, appending to `memory/results.tsv`, and resetting to the previous commit.
+
+Completed and resumed the loop correctly from existing state on branch `research-loops/may4`, then ran two new experiments end-to-end (commit → run → metrics.json readout → TSV log → reset on non-improvement).
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..f5dba48 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..7cad84c 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+- `52f9ba2	1.026098	41.0	discard	halve total_batch_size to 262144 for more optimizer updates`
+- `0ed2986	1.026098	41.1	discard	increase matrix_lr to 0.05`
+
+Both matched the current best `val_bpb` (no improvement), so both were discarded and branch reset each time.  
+Current HEAD is back to `1240832`.
+tokens used
+40,372
+Completed and resumed the loop correctly from existing state on branch `research-loops/may4`, then ran two new experiments end-to-end (commit → run → metrics.json readout → TSV log → reset on non-improvement).
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..f5dba48 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..7cad84c 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+- `52f9ba2	1.026098	41.0	discard	halve total_batch_size to 262144 for more optimizer updates`
+- `0ed2986	1.026098	41.1	discard	increase matrix_lr to 0.05`
+
+Both matched the current best `val_bpb` (no improvement), so both were discarded and branch reset each time.  
+Current HEAD is back to `1240832`.

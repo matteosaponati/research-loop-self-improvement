@@ -1,0 +1,36 @@
+commit 2fc47460dbf013875257e0aa728c124ca59fc4d4
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 19:56:05 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 19:56:05 2026 +0200
+
+    Ablate Muon: use AdamW for matrix params
+---
+ editable/train.py | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..1956010 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -239,12 +239,14 @@ class GPT(nn.Module):
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        param_groups.append(dict(
++            kind='adamw',
++            params=matrix_params,
++            lr=matrix_lr,
++            betas=adam_betas,
++            eps=adam_eps,
++            weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]

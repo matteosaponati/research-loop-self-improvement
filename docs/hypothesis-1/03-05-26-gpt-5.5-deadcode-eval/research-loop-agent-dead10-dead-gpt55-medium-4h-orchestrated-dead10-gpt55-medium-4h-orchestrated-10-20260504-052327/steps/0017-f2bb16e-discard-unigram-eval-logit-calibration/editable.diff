@@ -1,0 +1,63 @@
+commit f2bb16eeb5220e5b60f32de3184cfbc0438b5285
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 07:09:44 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 07:09:44 2026 +0200
+
+    add unigram eval logit calibration
+---
+ editable/train.py | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..a60e4f6 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -166,6 +166,7 @@ class GPT(nn.Module):
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.register_buffer("cos", cos, persistent=False)
+         self.register_buffer("sin", sin, persistent=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size), persistent=False)
+ 
+     @torch.no_grad()
+     def init_weights(self):
+@@ -263,6 +264,7 @@ class GPT(nn.Module):
+ 
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
++        logits = logits + self.logit_bias
+         logits = logits.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+@@ -518,6 +520,7 @@ t_start_training = time.time()
+ smooth_train_loss = 0
+ total_training_time = 0
+ step = 0
++token_counts = torch.zeros(vocab_size, dtype=torch.float32, device=device)
+ 
+ while True:
+     torch.cuda.synchronize()
+@@ -525,6 +528,10 @@ while True:
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+             loss = model(x, y)
++        with torch.no_grad():
++            target_tokens = y.reshape(-1)
++            target_tokens = target_tokens[target_tokens != CONFIG.ignore_index]
++            token_counts += torch.bincount(target_tokens, minlength=vocab_size).to(token_counts.dtype)
+         train_loss = loss.detach()
+         loss = loss / grad_accum_steps
+         loss.backward()
+@@ -587,6 +594,12 @@ print()  # newline after \r training log
+ total_tokens = step * CONFIG.total_batch_size
+ 
+ # Final eval
++model_for_bias = model._orig_mod if hasattr(model, "_orig_mod") else model
++with torch.no_grad():
++    token_prior = (token_counts + 1.0) / (token_counts.sum() + vocab_size)
++    logit_bias = token_prior.log()
++    logit_bias = 0.25 * (logit_bias - logit_bias.mean()).clamp(-4.0, 4.0)
++    model_for_bias.logit_bias.copy_(logit_bias)
+ model.eval()
+ with autocast_ctx:
+     metric_value = evaluate_model(

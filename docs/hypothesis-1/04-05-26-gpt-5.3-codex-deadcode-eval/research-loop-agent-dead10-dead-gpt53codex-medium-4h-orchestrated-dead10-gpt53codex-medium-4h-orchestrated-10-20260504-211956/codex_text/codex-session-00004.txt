@@ -1,0 +1,162 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs so I can resume correctly, then I’ll inspect `editable/` and run the next experiment from the current best state.
+
+I found an active branch with prior experiments and results, so I’m resuming from that state and moving directly to a new experiment cycle. Next I’ll read `editable/train.py` and current config to choose a materially different change.
+
+I’ve loaded the current config and training implementation; all previous tweaks were mostly LR and depth moves with no gain. I’m now inspecting the remaining training loop section to target a change that affects optimization dynamics without increasing model size or runtime risk.
+
+I’m going to run a single high-signal optimizer experiment next: keep architecture fixed and switch off weight-decay decay so matrix regularization stays constant throughout the 5-minute budget. I’ll patch `editable/config.toml`, commit, run, and keep only if `val_bpb` improves.
+
+The config change is committed as `20cc769`; I’m starting the 5-minute training run now with output redirected to `run.log`, then I’ll read `metrics.json` and update `memory/results.tsv`.
+
+Training is in progress in the background; I’m polling for completion and will only touch `metrics.json` for result collection unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Run is still executing within budget. I’m continuing to wait for the process to exit, then I’ll parse `metrics.json` and decide keep/discard against the current best `1.026098`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+I’m still waiting on the training job; once it exits I’ll immediately extract `val_bpb` and VRAM from `metrics.json` and record the trial row.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+The run is taking expected wall-clock time including startup; I’m polling again and will proceed directly to scoring and branch decision as soon as it returns.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+I’m doing one more wait cycle; if this overruns ten minutes I’ll mark it failed per your rule, otherwise I’ll finalize metrics and log it.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e78906d7e9d1f5643fce263cf3032c460b12ebe2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+The run completed successfully and matched the best `val_bpb` (no improvement), so I’m recording it as `discard` and resetting the branch to the prior commit before starting the next idea.
+
+I’ve reverted to the stable commit and logged the discarded trial. I’m proceeding with a new experiment focused on faster early learning: increasing `init_lm_head_std` so the output head starts less near-zero.
+
+I committed experiment `65ec9fb` and I’m launching the next 5-minute run now; once finished I’ll score from `metrics.json`, log it, and keep/reset based on `val_bpb`.
+
+The second run is currently in progress; I’m leaving it running and will continue the same commit→run→log→keep/reset loop automatically as results arrive.
+
+Progress update:
+- Resumed existing loop from `research-loops/may4` with prior history in `memory/results.tsv`.
+- Ran experiment `20cc769` (`weight_decay_decay = false`), got `val_bpb = 1.026098`, `peak_vram_mb = 42060.45` (~`41.1` GB), logged as `discard`, then reset to previous commit.
+- Started next experiment `65ec9fb` (`init_lm_head_std = 0.01`); training is currently running (`uv run --extra research python editable/train.py > run.log 2>&1`).
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..215c23fb192cea6660438338b20d5f373233f7bf
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.01
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+tokens used
+33,379
+Progress update:
+- Resumed existing loop from `research-loops/may4` with prior history in `memory/results.tsv`.
+- Ran experiment `20cc769` (`weight_decay_decay = false`), got `val_bpb = 1.026098`, `peak_vram_mb = 42060.45` (~`41.1` GB), logged as `discard`, then reset to previous commit.
+- Started next experiment `65ec9fb` (`init_lm_head_std = 0.01`); training is currently running (`uv run --extra research python editable/train.py > run.log 2>&1`).

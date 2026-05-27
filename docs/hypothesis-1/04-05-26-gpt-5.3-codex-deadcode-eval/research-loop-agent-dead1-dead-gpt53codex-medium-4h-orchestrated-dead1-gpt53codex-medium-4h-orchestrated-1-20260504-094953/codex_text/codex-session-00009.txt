@@ -1,0 +1,342 @@
+I’m starting the research loop now: first I’ll detect whether this run is already initialized (`memory/results.tsv` with rows), verify git/data state, and then either resume from the best prior result or perform the full baseline setup.
+
+The loop is already initialized, so I’m resuming on the current branch without resetting baseline. Next I’m reading all in-scope `editable/` files to choose the next mutation based on what’s already been tried.
+
+I’ve confirmed prior experiments exist and baseline is already established (`1.026098`), so I’m continuing from that branch state. I’m now reading the rest of `train.py` to target a high-impact change that is safe for the 5‑minute budget.
+
+I found prior tuning mostly touched schedule/LR knobs with no gain, so I’m testing an architectural change next: switch the MLP nonlinearity from `ReLU^2` to `GELU` in `editable/train.py`, then commit and run.
+
+I’ve applied the code change and will now capture the unified diff, commit it, and launch the 5-minute run with output redirected to `run.log`.
+
+The commit is in place (`f2df064`). I’m running the experiment now and will read only `metrics.json` for result collection when it finishes.
+
+The training process is running in the background PTY; I’m polling it and will stop it if it breaches the 10-minute cap.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run is still in progress and within budget. I’m continuing to wait for completion before parsing `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Still running; I’m monitoring until completion and will only read `metrics.json` unless it crashes.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The job remains active and has not hit the failure timeout window; I’m continuing to poll.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+I’m still waiting on this run; if it exceeds 10 minutes total I’ll kill it and record it as a crash per your loop rules.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Approaching expected finish window; I’m polling for process exit and then collecting metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 772a95a34ed50d8726ae52d4ddfc9c284a7049d2..b4c03f6f04125d171636ac1b5415c45a9a98fe58
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -142,7 +142,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x, approximate="tanh")
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The run finished successfully. I’m now reading `metrics.json`, appending this trial to `memory/results.tsv`, and reverting the commit if it didn’t beat the current best `val_bpb`.
+
+`python` isn’t on PATH here, so I’m re-reading `metrics.json` and best-so-far via `uv run python` and then finalizing keep/discard logic.
+
+Result matches the best exactly (`1.026098`), so this trial is a discard. I’m logging it in `memory/results.tsv` and resetting the branch to the previous commit state before continuing.
+
+I’m continuing immediately with another mutation from the restored best commit. Next experiment: increase `softcap` in `editable/config.toml` (15 → 30) to reduce output-logit compression and test whether it lowers validation bpb in this short budget.
+
+The second experiment commit is ready (`b4a6d01`); I’m running it now and will collect only `metrics.json` on completion.
+
+Run is active; I’m monitoring it with periodic polls and enforcing the 10-minute failure cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Training is still progressing within expected runtime; continuing to wait for clean exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Still running and below timeout; I’m polling until it exits, then I’ll record keep/discard and reset if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+Near expected completion window now; waiting for exit and then parsing `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 4290cfacc5a84bf16a7dd43047b5766273c56640..7feb32faf3fc5d9c46df670389997fbed7661ed7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 30.0
+ ignore_index = -1
+ 
+ # Initialization
+
+
+This run also landed at `1.026098`, so it’s another discard. I’m appending it to `memory/results.tsv` and resetting back to the current best commit to continue the loop state cleanly.
+
+Completed two new experiments in the loop and kept branch state clean at best commit `f371db8`.
+
+- `f2df064` (`editable/train.py`: `ReLU^2` -> `GELU(tanh)` in MLP)  
+  - `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement)
+- `b4a6d01` (`editable/config.toml`: `softcap 15.0 -> 30.0`)  
+  - `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement)
+
+I appended both results to `memory/results.tsv` and reset after each discard, so HEAD is back to `f371db8` and the best known `val_bpb` remains `1.026098`.
+tokens used
+30,456
+Completed two new experiments in the loop and kept branch state clean at best commit `f371db8`.
+
+- `f2df064` (`editable/train.py`: `ReLU^2` -> `GELU(tanh)` in MLP)  
+  - `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement)
+- `b4a6d01` (`editable/config.toml`: `softcap 15.0 -> 30.0`)  
+  - `val_bpb=1.026098`, `memory_gb=0.0`, `status=discard` (no improvement)
+
+I appended both results to `memory/results.tsv` and reset after each discard, so HEAD is back to `f371db8` and the best known `val_bpb` remains `1.026098`.

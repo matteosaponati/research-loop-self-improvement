@@ -1,0 +1,27 @@
+commit 84a580b81ff3aac0f8d43c12e765f897f8dba5d4
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 20:43:14 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 20:43:14 2026 +0200
+
+    increase cpu fallback effective batch via grad accumulation
+---
+ editable/train.py | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 2118cd4..5eeb3bb 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -419,7 +419,10 @@ device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype, enabled=True)
+ runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-runtime_total_batch_size = min(CONFIG.total_batch_size, runtime_device_batch_size * CONFIG.sequence_len)
++runtime_total_batch_size = min(
++    CONFIG.total_batch_size,
++    runtime_device_batch_size * CONFIG.sequence_len * 8,
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()

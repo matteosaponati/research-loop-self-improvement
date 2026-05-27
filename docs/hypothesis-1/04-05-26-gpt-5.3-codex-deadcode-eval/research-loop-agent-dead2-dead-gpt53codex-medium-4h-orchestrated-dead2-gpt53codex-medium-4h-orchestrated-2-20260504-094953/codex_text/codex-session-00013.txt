@@ -1,0 +1,78 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs, verify git state/branch, and then either resume or initialize exactly per your setup rules.
+
+I found an existing initialized loop with many prior runs, so I’m resuming from the current branch without baseline/setup. Next I’ll read all `editable/` files and then choose one targeted change for the next experiment.
+
+I have the config and most of `train.py`; I’m grabbing the remainder of the training loop now so I can target changes that affect the 5-minute budget behavior directly.
+
+I’m moving to a stronger optimizer-schedule experiment: keep architecture fixed and change only update dynamics to make early training less aggressive and preserve learning rate late in the 5-minute window. I’ll patch `editable/config.toml`, show the unified diff, commit, run, and score via `metrics.json`.
+
+The config change is committed as `af9a591`; I’m running the 5-minute training job now and then I’ll read only `metrics.json` to decide keep vs reset.
+
+Training is in progress in the background. I’ll wait for completion and then collect `metrics.json` without reading the log.
+
+Run is still active; I’m continuing to wait for the process to exit before scoring the experiment.
+
+Still running. I’ll keep polling until completion and then immediately parse `metrics.json`.
+
+Process is still in flight; waiting again.
+
+I’m continuing to wait for the run to finish; once it exits I’ll record and compare the metric.
+
+The job is still executing; I’ll keep polling at 30-second intervals until it returns.
+
+Still running. If this crosses the 10-minute limit from launch, I’ll mark it failed and discard per your rule.
+
+I’m waiting for final exit now; next step is parsing `metrics.json` and updating `memory/results.tsv`.
+
+The run finished cleanly. I hit an environment detail (`python` not on PATH), so I’m reading `metrics.json` and prior best via `uv run python` now.
+
+Result matched the current best (`1.026098`), so I’m recording this as `discard` and resetting to the pre-experiment commit to continue the loop.
+
+I’m proceeding to the next experiment now: increase model width (`aspect_ratio`) to raise capacity while keeping depth fixed, then run and evaluate.
+
+Committed `d4bba40`; launching training run now and I’ll score from `metrics.json` once it exits.
+
+Run is active. I’m waiting for completion and will enforce the 10-minute cap through the existing timeout.
+
+Still running; continuing to poll until exit, then I’ll log and keep/reset based on `val_bpb`.
+
+Process is still in progress; waiting again.
+
+I’m still waiting on completion; next action is metric extraction and immediate logging.
+
+I have this run’s metric (`val_bpb 1.026098`); I’m waiting for the best-so-far query to return, then I’ll append and reset/discard accordingly.
+
+This experiment tied best again, so I’m recording it as `discard` and resetting to continue with the next idea.
+
+Experiment loop resumed from existing state (`research-loops/may4`, current base `ba0d37f`) and I ran 2 new experiments end-to-end.
+
+New experiment commits and outcomes logged to `memory/results.tsv`:
+
+1. `af9a591`  
+- Diff: optimizer/schedule retune in `editable/config.toml` (`matrix_lr 0.03`, `muon_initial_momentum 0.90`, `muon_beta2 0.99`, `warmup_ratio 0.03`, `warmdown_ratio 0.2`, `final_lr_frac 0.2`, longer momentum warmup, lower momentum start).  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21141.95` (`20.6 GB`)  
+- Status: `discard` (no improvement), reset branch back.
+
+2. `d4bba40`  
+- Diff: `editable/config.toml` changed `aspect_ratio = 64 -> 80`.  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25983.49` (`25.4 GB`)  
+- Status: `discard` (no improvement), reset branch back.
+
+Current git HEAD is back at `ba0d37f`, and `memory/results.tsv` is updated with both runs.
+tokens used
+45,735
+Experiment loop resumed from existing state (`research-loops/may4`, current base `ba0d37f`) and I ran 2 new experiments end-to-end.
+
+New experiment commits and outcomes logged to `memory/results.tsv`:
+
+1. `af9a591`  
+- Diff: optimizer/schedule retune in `editable/config.toml` (`matrix_lr 0.03`, `muon_initial_momentum 0.90`, `muon_beta2 0.99`, `warmup_ratio 0.03`, `warmdown_ratio 0.2`, `final_lr_frac 0.2`, longer momentum warmup, lower momentum start).  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=21141.95` (`20.6 GB`)  
+- Status: `discard` (no improvement), reset branch back.
+
+2. `d4bba40`  
+- Diff: `editable/config.toml` changed `aspect_ratio = 64 -> 80`.  
+- Result: `val_bpb=1.026098`, `peak_vram_mb=25983.49` (`25.4 GB`)  
+- Status: `discard` (no improvement), reset branch back.
+
+Current git HEAD is back at `ba0d37f`, and `memory/results.tsv` is updated with both runs.

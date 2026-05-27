@@ -1,0 +1,94 @@
+I’m starting by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume immediately or perform full setup with a fresh branch and baseline.
+
+I found an existing initialized loop with many prior experiments, so I’m resuming directly from the current branch and best score. Next I’ll inspect the `editable/` code and propose one new targeted change.
+
+I’ve finished scanning `editable/` and I’m going to run a single high-impact architectural test next: remove Q/K RMS normalization inside attention, since previous LR/schedule sweeps were flat and this normalization can bottleneck expressivity. I’ll patch `editable/train.py`, commit, run, then keep or reset based on `val_bpb`.
+
+I applied the code edit; next I’m committing it and launching the timed run, then I’ll read `metrics.json` and update `memory/results.tsv` accordingly.
+
+The experiment run is in progress now. I’ll wait for completion, then read only `metrics.json`, log the result, and automatically keep or revert this commit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5e76c5d24d9abbb58dcd8ad4fceceab7d53132ff
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -117,7 +117,6 @@
+ 
+         cos, sin = cos_sin
+         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
+-        q, k = norm(q), norm(k)
+ 
+         y = standard_attention(q, k, v)
+         y = y.contiguous().view(B, T, -1)
+
+
+Training hit the 5-minute budget window and is still finishing post-training work; I’m waiting for process exit before collecting metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5e76c5d24d9abbb58dcd8ad4fceceab7d53132ff
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -117,7 +117,6 @@
+ 
+         cos, sin = cos_sin
+         q, k = apply_rotary_emb(q, cos, sin), apply_rotary_emb(k, cos, sin)
+-        q, k = norm(q), norm(k)
+ 
+         y = standard_attention(q, k, v)
+         y = y.contiguous().view(B, T, -1)
+
+
+The run completed successfully; I hit a shell environment issue (`python` not on PATH), so I’m extracting `metrics.json` via `uv run python` and then logging/resetting based on the score.
+
+I logged that trial and reverted to the prior best state because `val_bpb` was unchanged. I’m launching a more radical optimizer experiment next: switch transformer matrix parameters from Muon to AdamW to test whether the flat results are optimizer-limited.
+
+I committed the optimizer swap. Running the 5-minute training now and I’ll keep or discard strictly by `val_bpb` from `metrics.json`.
+
+This run is still active after the timed training window, likely in finalization/eval; I’m waiting for clean process exit before reading metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5786eceded71054af74d1fe7256fe0d36692e95c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -239,12 +239,10 @@
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+         ]
+-        for shape in sorted({p.shape for p in matrix_params}):
+-            group_params = [p for p in matrix_params if p.shape == shape]
+-            param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
+-            ))
++        param_groups.append(dict(
++            kind='adamw', params=matrix_params, lr=matrix_lr,
++            betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
++        ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+             group["initial_lr"] = group["lr"]
+
+
+I got the result (`1.026098` again), so this experiment is a discard; I’m recording it and resetting to the previous kept commit before continuing with the next idea.
+
+Ran and logged two new experiments in the loop, both auto-discarded and reverted to the current best commit `ba0d37f`.
+
+New `memory/results.tsv` entries added:
+- `16d2580	1.026098	18.6	discard	remove qk rmsnorm in attention`
+- `7064b49	1.026098	20.7	discard	optimizer swap: matrix params from muon to adamw`
+
+Current branch/head:
+- `research-loops/may4`
+- `ba0d37f` (restored after both non-improving runs)
+
+I will continue iterating with new edits from this state.
+tokens used
+21,555
+Ran and logged two new experiments in the loop, both auto-discarded and reverted to the current best commit `ba0d37f`.
+
+New `memory/results.tsv` entries added:
+- `16d2580	1.026098	18.6	discard	remove qk rmsnorm in attention`
+- `7064b49	1.026098	20.7	discard	optimizer swap: matrix params from muon to adamw`
+
+Current branch/head:
+- `research-loops/may4`
+- `ba0d37f` (restored after both non-improving runs)
+
+I will continue iterating with new edits from this state.

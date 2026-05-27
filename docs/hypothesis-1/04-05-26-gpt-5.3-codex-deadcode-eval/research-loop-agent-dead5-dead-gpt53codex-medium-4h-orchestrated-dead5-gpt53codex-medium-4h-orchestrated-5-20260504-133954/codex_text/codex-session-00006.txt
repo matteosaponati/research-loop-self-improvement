@@ -1,0 +1,410 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume immediately or perform the one-time setup and baseline run exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving directly to proposing the next experiment after reviewing `editable/` and past results.
+
+I’ve loaded prior outcomes and current config; next I’m inspecting the scheduler and optimizer logic in `train.py` to pick a change that can actually move `val_bpb` instead of repeating no-op variants.
+
+The flat `val_bpb` across many diverse configs suggests updates may be ineffective. I’m now checking the custom optimizer implementation for a silent no-op or parameter-write bug, then I’ll patch that if found.
+
+I identified a high-probability failure mode: Muon may be the reason updates don’t move validation. I’m making a surgical experiment that keeps architecture constant but switches transformer matrix params to AdamW, then I’ll run and compare against the 1.026098 best.
+
+I’ve applied the code change and I’m now generating a unified diff and committing it before launching the 5-minute run.
+
+The experiment commit is ready; I’m running training now with full output redirected to `run.log`, and then I’ll read `metrics.json` only and update `memory/results.tsv`.
+
+Training is in progress under timeout control; I’m waiting for completion and will collect metrics as soon as it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+Run is still executing normally. I’m continuing to wait and will proceed directly to metrics parsing once the process ends.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+I’m still waiting on the run; once it finishes I’ll immediately parse `metrics.json`, log the TSV row, and keep or reset the commit based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+The job is still active within the allowed runtime window. I’ll keep polling and won’t inspect `run.log` unless there is a crash signal.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+Still in progress; waiting for process exit before reading `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+I’m continuing the run watch; next step remains metrics extraction and branch keep/discard decision.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..634641a8ebb1f340aadf203e2d6953e66bcf4f9b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -242,8 +242,9 @@
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+-                kind='muon', params=group_params, lr=matrix_lr,
+-                momentum=muon_initial_momentum, ns_steps=muon_ns_steps, beta2=muon_beta2, weight_decay=weight_decay,
++                # Experiment: use AdamW for matrix parameters instead of Muon.
++                kind='adamw', params=group_params, lr=matrix_lr,
++                betas=adam_betas, eps=adam_eps, weight_decay=weight_decay,
+             ))
+         optimizer = MuonAdamW(param_groups)
+         for group in optimizer.param_groups:
+
+
+The run finished successfully; I hit a local environment issue (`python` unavailable), so I’m using `uv run python` to parse `metrics.json` and append the result row.
+
+Result is equal to the best (`1.026098`), so this experiment is marked `discard`. I’m resetting code to the prior commit while preserving the appended `memory/results.tsv` entry.
+web search: 
+web search: 
+
+I’m continuing the loop with a throughput-to-optimization tradeoff experiment: cut `total_batch_size` to increase update frequency within 5 minutes (keeping sequence length fixed), then re-run and evaluate.
+
+I’ve made the batch-size change. Next I’m committing this experiment and launching the standard 5-minute training run with redirected logs.
+
+Second experiment run is now active; I’m waiting for completion under the 610s timeout, then I’ll read only `metrics.json` and apply keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run is still in progress; I’m continuing to poll and will process results immediately on exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Still running within expected wall time. I’m waiting for clean completion before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The process is still active; once it exits I’ll append the TSV row and either keep this commit or reset it.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+I’m still waiting on completion; no crash signals so far.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..387696ff3fa4c66f35e94d59e7621f1f530c50ca
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 131072
++device_batch_size = 64
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+Run completed successfully. I’m now reading `metrics.json`, logging to `memory/results.tsv`, and applying the keep/discard reset rule.
+
+This result is also equal to best, so I’m discarding it and resetting code to the prior state while preserving the logged TSV entry.
+
+Experiment loop is running and I completed 2 new experiments end-to-end (edit → commit → run → metrics.json → log → keep/discard → reset).
+
+Latest added rows in `memory/results.tsv`:
+- `63e8f7b	1.026098	41.2	discard	switch matrix optimizer from Muon to AdamW`
+- `2bee197	1.026098	20.6	discard	reduce total_batch_size to 131072 and device_batch_size to 64`
+
+Current branch state:
+- Code reset to baseline commit `80daec7` (as required for discarded/equal runs).
+- `memory/results.tsv` preserved with both new results appended.
+
+Observed pattern:
+- `val_bpb` remains exactly `1.026098` across all experiments so far, including very different memory/step profiles. This strongly suggests an underlying training/eval insensitivity issue rather than hyperparameter sensitivity.
+
+I will continue the loop with deeper debugging-oriented experiments targeting why `val_bpb` is invariant.
+tokens used
+45,692
+Experiment loop is running and I completed 2 new experiments end-to-end (edit → commit → run → metrics.json → log → keep/discard → reset).
+
+Latest added rows in `memory/results.tsv`:
+- `63e8f7b	1.026098	41.2	discard	switch matrix optimizer from Muon to AdamW`
+- `2bee197	1.026098	20.6	discard	reduce total_batch_size to 131072 and device_batch_size to 64`
+
+Current branch state:
+- Code reset to baseline commit `80daec7` (as required for discarded/equal runs).
+- `memory/results.tsv` preserved with both new results appended.
+
+Observed pattern:
+- `val_bpb` remains exactly `1.026098` across all experiments so far, including very different memory/step profiles. This strongly suggests an underlying training/eval insensitivity issue rather than hyperparameter sensitivity.
+
+I will continue the loop with deeper debugging-oriented experiments targeting why `val_bpb` is invariant.

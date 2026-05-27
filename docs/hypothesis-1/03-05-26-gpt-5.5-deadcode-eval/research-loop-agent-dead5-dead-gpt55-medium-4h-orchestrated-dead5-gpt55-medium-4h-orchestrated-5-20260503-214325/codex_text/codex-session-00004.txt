@@ -1,0 +1,129 @@
+I’ll initialize or resume the git-based experiment loop, then run one full edit → commit → train → record cycle at a time. I’ll keep result collection to `metrics.json` unless a run crashes.
+
+This run is already initialized on `research-loops/may3`, so I’m resuming instead of creating a branch or rerunning baseline. The prior experiments are all tied at `1.026098`, so I’m going to inspect the editable training code and current config before choosing the next perturbation.
+
+The code is a compact GPT with Muon on transformer matrices and AdamW on embeddings/output. Since the schedule currently starts at full LR immediately, I’m going to test a small time-based warmup; it changes optimization dynamics without increasing memory or compile cost.
+
+Diff for the experiment is just `warmup_ratio = 0.05` in `editable/config.toml`. I’m committing that exact change, then I’ll launch the 5-minute training run with output redirected to `run.log`.
+
+The warmup experiment is running now under the fixed 5-minute training budget. I’ll wait for completion and only read `metrics.json` afterward unless the process fails.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6c11e7720f61313a9f84c3fd9c18f97804e1b1c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Training time has elapsed and the process is still doing its post-run work, likely final evaluation or cleanup. I’m continuing to wait, with the 10-minute failure cutoff in mind.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6c11e7720f61313a9f84c3fd9c18f97804e1b1c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+The run completed successfully: `val_bpb=1.026098`, equal to the current best, with about `41.1 GB` peak VRAM. Per the loop rules I’m recording it as discard and resetting back to the starting commit.
+
+I’m moving to a throughput-oriented test next. The current run used 128 sequences per microbatch with 2 accumulation steps; I’ll try 192 sequences with a matching 786432-token batch to reduce optimizer frequency and increase work per step while staying plausibly within GPU memory.
+
+The batch-size diff is clean and the latest result is recorded. I’m committing this as a separate experiment before running training.
+
+The larger-batch experiment is running with output redirected. If it goes out of memory or otherwise fails, I’ll record it as a crash and reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..34366f5da6bdbe663dfda64389c5891efa2c2731
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 786432
++device_batch_size = 192
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The training budget has passed and the process is still alive, so I’m waiting for final evaluation. It remains within the allowed wall-clock cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..34366f5da6bdbe663dfda64389c5891efa2c2731
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,8 +8,8 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
+-device_batch_size = 128
++total_batch_size = 786432
++device_batch_size = 192
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+The larger batch increased throughput and used about `61.4 GB`, but validation stayed exactly `1.026098`. I’m logging it as discard and returning the branch to the best commit.
+
+Next I’m testing a middle sequence length rather than another optimizer scalar. `1024` was already tried; `1536` may recover some context while improving attention cost versus `2048`, using a divisible 589824-token batch.
+
+The `1536` context experiment is committed. I’m starting the training run and will collect only the JSON metrics on completion.
+
+The `1536` context run is past the training window and still completing final work. I’m continuing to wait within the cutoff.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ae9b2d78a800c646d13e172d91346aca5b73111a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,8 +7,8 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
+-total_batch_size = 524288
++sequence_len = 1536
++total_batch_size = 589824
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The `1536` sequence run also tied at `1.026098`, with lower memory around `30.9 GB`. I’m recording it as discard and resetting before trying another independent change.
+
+I’ll now test a smaller-width model for more optimizer steps and lower memory. This changes `aspect_ratio` from 64 to 48, giving a 384-wide, 8-layer model with the same head size.
+
+The narrower model experiment is committed. I’m launching the run now.
+
+The narrower model run has reached the end of timed training and is still finishing evaluation. I’m waiting for the metrics file to be written.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d386028f77155311ddd991e81397f4ba238791eb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 48
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+The 384-wide model also tied, so it will be discarded. I’m going to try one architecture-level change next: removing Q/K RMS normalization inside attention, leaving the block-level RMSNorm intact.

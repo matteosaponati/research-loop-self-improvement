@@ -1,0 +1,53 @@
+I’ll initialize or resume the research loop exactly per your protocol, then run the next experiment end-to-end: inspect current state, commit a targeted `editable/` change, run training for 5 minutes, read `metrics.json`, log to `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+I found an active branch with prior experiments and a populated `memory/results.tsv`, so I’m resuming step (2) directly. Next I’ll read all in-scope `editable/` files and pick a single high-signal change since many prior sweeps were flat.
+
+I’ve loaded the config and core model; next I’m checking the rest of `editable/train.py` for scheduler and optimizer dynamics to choose a non-redundant change versus prior attempts.
+
+I’m running a throughput-vs-context experiment next: set `sequence_len` to `1536` (between the tested `1024` and baseline `2048`) to target more optimizer steps while preserving longer context than the 1024 run. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `val_bpb`.
+
+The first edit command failed because `python` isn’t on PATH in this shell. I’ll apply the same config change using `sed`, then show the unified diff and commit.
+
+The experiment commit is in place (`87f45d7`). I’m launching the 5-minute run now with output redirected to `run.log`, then I’ll read `metrics.json` and record the result.
+
+Training is running in the background session; I’m waiting for completion and will only use `metrics.json` for result collection unless the run crashes.
+ exited 1 in 8202ms:
+
+The run exited early with a non-zero status, so I’m checking `metrics.json` first to confirm whether it produced valid metrics; if not, I’ll classify it as a crash and then inspect `run.log` only for brief diagnosis.
+
+`metrics.json` is missing, so this is a crash. I’m pulling a minimal traceback excerpt from `run.log` to capture the failure cause, then I’ll append it to `memory/results.tsv` and reset this commit.
+
+The crash was due to a hard constraint: `total_batch_size / (device_batch_size * sequence_len)` must be an integer, so `1536` is invalid with current batch settings. I’ve reverted to the last kept commit and will immediately run a valid follow-up experiment by changing optimizer dynamics instead of sequence length.
+
+The constant-weight-decay run is now in progress. I’ll wait for completion, extract `metrics.json`, log the row, and keep or discard via git reset based on `val_bpb`.
+
+Training finished successfully. I’m reading `metrics.json` now and applying the keep/discard decision against the current best (`1.026098`).
+
+Completed two experiments and logged both in `memory/results.tsv` while following the keep/reset loop.
+
+- Resumed existing run state on branch `research-loops/may4` (did not re-init baseline).
+- Read all in-scope files in `editable/` and prior results.
+- Experiment A (`87f45d7`): changed `sequence_len` `2048 -> 1536` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml).  
+  - Result: `crash` (`metrics.json` missing).  
+  - Diagnosis from `run.log`: assertion failure at grad accumulation divisibility (`total_batch_size % (device_batch_size * sequence_len) != 0`).  
+  - Logged and discarded.
+- Experiment B (`317844a`): changed `weight_decay_decay = true -> false` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml).  
+  - Metrics: `val_bpb=1.026098`, `peak_vram_mb=42060.4473` (`41.1 GB`).  
+  - Equal to best, so discarded.
+
+`memory/results.tsv` has been updated with both rows, and branch state is reset to the current best kept commit (`0d20b2e`).
+tokens used
+44,117
+Completed two experiments and logged both in `memory/results.tsv` while following the keep/reset loop.
+
+- Resumed existing run state on branch `research-loops/may4` (did not re-init baseline).
+- Read all in-scope files in `editable/` and prior results.
+- Experiment A (`87f45d7`): changed `sequence_len` `2048 -> 1536` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml).  
+  - Result: `crash` (`metrics.json` missing).  
+  - Diagnosis from `run.log`: assertion failure at grad accumulation divisibility (`total_batch_size % (device_batch_size * sequence_len) != 0`).  
+  - Logged and discarded.
+- Experiment B (`317844a`): changed `weight_decay_decay = true -> false` in [config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml).  
+  - Metrics: `val_bpb=1.026098`, `peak_vram_mb=42060.4473` (`41.1 GB`).  
+  - Equal to best, so discarded.
+
+`memory/results.tsv` has been updated with both rows, and branch state is reset to the current best kept commit (`0d20b2e`).

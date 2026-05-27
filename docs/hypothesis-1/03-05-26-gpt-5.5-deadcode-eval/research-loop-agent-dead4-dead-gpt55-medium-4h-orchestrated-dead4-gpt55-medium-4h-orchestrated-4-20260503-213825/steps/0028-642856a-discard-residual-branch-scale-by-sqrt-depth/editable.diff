@@ -1,0 +1,29 @@
+commit 642856aa4b736b1a423bcb0461e2a57971214683
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 00:28:27 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 00:28:27 2026 +0200
+
+    try residual branch scaling
+---
+ editable/train.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..b66ccf5 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -144,10 +144,11 @@ class Block(nn.Module):
+         super().__init__()
+         self.attn = CausalSelfAttention(config)
+         self.mlp = MLP(config)
++        self.resid_scale = (2 * config.n_layer) ** -0.5
+ 
+     def forward(self, x, cos_sin):
+-        x = x + self.attn(norm(x), cos_sin)
+-        x = x + self.mlp(norm(x))
++        x = x + self.resid_scale * self.attn(norm(x), cos_sin)
++        x = x + self.resid_scale * self.mlp(norm(x))
+         return x
+ 
+ 

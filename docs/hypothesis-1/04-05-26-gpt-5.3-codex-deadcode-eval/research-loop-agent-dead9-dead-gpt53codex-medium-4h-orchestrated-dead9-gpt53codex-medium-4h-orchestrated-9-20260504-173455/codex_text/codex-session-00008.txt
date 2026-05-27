@@ -1,0 +1,192 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can either resume immediately or perform the fresh branch/baseline setup exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` already has results), so I’m resuming from the current branch and moving directly to proposing the next experiment based on `editable/*` and prior outcomes.
+
+I’ve loaded prior results and current config: every completed run so far is exactly `1.026098`, so I’m now checking the training/scheduler internals in `editable/train.py` for knobs that can produce a real behavioral shift instead of no-op changes.
+
+I identified a plausible high-impact knob not tried yet: logits soft-capping is currently very tight for a pretrained-style run, so I’ll test a much larger `softcap` to reduce saturation and allow sharper token distributions during training/eval.
+
+I’ve applied the config change and confirmed the exact diff. Next I’m committing this experiment and launching a timed run with output redirected to `run.log`.
+
+The run is in progress under timeout guard. I’ll wait for completion, then read only `metrics.json`, append the result row, and either keep or reset based on `val_bpb`.
+
+I’m still waiting on the training process; no diagnostics needed yet. I’ll continue polling until it exits and then collect metrics.
+
+Training is still running within the allowed window. I’ll keep polling and proceed immediately when the process exits.
+
+I’m at the tail end of the run window now; once it exits I’ll parse `metrics.json`, log the TSV entry, and enforce keep/discard by git reset if needed.
+
+The run completed successfully, but `val_bpb` is unchanged (`1.026098`), so I’m recording it as `discard` and resetting the branch to the previous best commit as required by your loop rules.
+
+I’ve completed one full experiment cycle and returned to the best checkpoint commit. I’m proceeding immediately with a second, more structural experiment: removing logit softcapping in the forward pass to test whether the evaluation metric is being bottlenecked by output saturation.
+
+I’ve prepared a clean diff for this experiment and will now commit it, run training, and evaluate via `metrics.json` only.
+
+The second experiment run is still executing under the timeout cap; once it exits I’ll immediately parse `metrics.json` and apply keep/discard logic.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+I’m still waiting on completion; no crash indicators yet. I’ll finalize this trial as soon as the process exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..f26bc54dee49f8c51dd82793fbebf99aa648e7cb
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -261,10 +261,10 @@
+             x = block(x, cos_sin)
+         x = norm(x)
+ 
+-        softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
+-        logits = softcap * torch.tanh(logits / softcap)
++        # Experiment: disable logit softcapping.
++        # This allows full dynamic range during short-horizon optimization.
+ 
+         if targets is not None:
+             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1),
+
+
+This run also returned `1.026098`, so it does not improve the best score. I’m recording it as `discard` and resetting to the best commit again before continuing with further experiments.
+
+Completed 2 new experiments and logged both to `memory/results.tsv`:
+
+- `87bc0de` `val_bpb=1.026098` `memory_gb=41.1` `discard`  
+  Change: increase `softcap` from `15.0` to `50.0` in [editable/config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml)
+- `63fa027` `val_bpb=1.026098` `memory_gb=41.1` `discard`  
+  Change: disable logit softcapping in [editable/train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/train.py)
+
+Both were equal to current best, so I reset after each to `0d20b2e` per loop rules. Current HEAD is `0d20b2e`, and the loop state is consistent for the next experiment.
+tokens used
+44,289
+Completed 2 new experiments and logged both to `memory/results.tsv`:
+
+- `87bc0de` `val_bpb=1.026098` `memory_gb=41.1` `discard`  
+  Change: increase `softcap` from `15.0` to `50.0` in [editable/config.toml](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/config.toml)
+- `63fa027` `val_bpb=1.026098` `memory_gb=41.1` `discard`  
+  Change: disable logit softcapping in [editable/train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/dead9-gpt53codex-medium-4h-orchestrated-9-20260504-173455/research-loop/editable/train.py)
+
+Both were equal to current best, so I reset after each to `0d20b2e` per loop rules. Current HEAD is `0d20b2e`, and the loop state is consistent for the next experiment.

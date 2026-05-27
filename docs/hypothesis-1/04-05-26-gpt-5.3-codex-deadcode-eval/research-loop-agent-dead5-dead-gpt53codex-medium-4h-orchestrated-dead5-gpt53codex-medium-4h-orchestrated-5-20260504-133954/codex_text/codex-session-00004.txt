@@ -1,0 +1,134 @@
+Starting the research loop now: I’ll check whether `memory/results.tsv` already has runs, then either resume or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized loop with prior runs, so I’m resuming from the current branch/state and moving directly to a new experiment cycle by reading `editable/` files and current git status.
+
+I’ve confirmed we’re resuming on `research-loops/may4` and noticed current config has all learning rates set to zero, which likely explains the flat results. I’ll inspect the rest of `train.py` and then make a targeted fix experiment to restore meaningful optimization.
+
+I now have full training-loop context. Next I’m checking the known-good baseline config from commit `80daec7`, then I’ll apply one focused hyperparameter experiment, commit, run, and keep/reset based on `val_bpb`.
+
+I’m editing `editable/config.toml` to undo the zero-LR diagnostic state and restore trainable learning rates, then I’ll commit this as the next experiment and run it.
+
+The diff is committed (`a5fb95c`). I’m running the 5-minute training job now and will read only `metrics.json` afterward for result collection.
+
+Training is in progress; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 86d204c8084b7d4b41aa5ae014c3de8f80859574..67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.0
+-unembedding_lr = 0.0
+-matrix_lr = 0.0
++embedding_lr = 0.6
++unembedding_lr = 0.004
++matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 86d204c8084b7d4b41aa5ae014c3de8f80859574..67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.0
+-unembedding_lr = 0.0
+-matrix_lr = 0.0
++embedding_lr = 0.6
++unembedding_lr = 0.004
++matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run finished successfully. I’m now reading `metrics.json`, computing keep/discard against the best prior `val_bpb`, appending the TSV row, and resetting the commit if it didn’t improve.
+
+The environment lacks a plain `python` executable, so I’m rerunning the same result-recording step with `uv run python`.
+
+I’ve logged and discarded that run per protocol; HEAD is back to `e68d30d` and results memory is updated. I’m launching another experiment with a meaningful trainable setup (restore non-zero LRs plus warmup and non-zero final LR floor) to search for any `val_bpb` movement.
+
+The second experiment commit is ready (`9f87f41`); I’m running the training job now, then I’ll collect `metrics.json`, append TSV, and keep/reset automatically based on improvement.
+
+Training is still running; I’m waiting for process exit, then I’ll finalize logging and branch decision for this commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 86d204c8084b7d4b41aa5ae014c3de8f80859574..29f61646a8c34b134128e83fb8c3eddde34b7af5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.0
+-unembedding_lr = 0.0
+-matrix_lr = 0.0
++embedding_lr = 0.6
++unembedding_lr = 0.004
++matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Completed two full experiment cycles and logged both results.
+
+- Resumed existing run memory from `memory/results.tsv` (no re-init, no new branch, no baseline rerun).
+- Read in-scope files: `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`.
+- Ran strict loop: edit → commit → train (5 min) → read `metrics.json` → log to TSV → keep/discard by best `val_bpb`.
+
+Experiments executed:
+1. `a5fb95c`  
+   - Change: restored non-zero LRs in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/editable/config.toml)  
+   - Result: `val_bpb=1.026098`, `memory_gb=41.1`  
+   - Status: `discard` (no improvement)
+
+2. `9f87f41`  
+   - Change: restored non-zero LRs + `warmup_ratio=0.02` + `final_lr_frac=0.2` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/editable/config.toml)  
+   - Result: `val_bpb=1.026098`, `memory_gb=41.1`  
+   - Status: `discard` (no improvement)
+
+State now:
+- HEAD reset back to `e68d30d` after discards.
+- Results appended in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/memory/results.tsv).
+- `metrics.json` currently present as untracked artifact from the latest run.
+tokens used
+42,158
+Completed two full experiment cycles and logged both results.
+
+- Resumed existing run memory from `memory/results.tsv` (no re-init, no new branch, no baseline rerun).
+- Read in-scope files: `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`.
+- Ran strict loop: edit → commit → train (5 min) → read `metrics.json` → log to TSV → keep/discard by best `val_bpb`.
+
+Experiments executed:
+1. `a5fb95c`  
+   - Change: restored non-zero LRs in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/editable/config.toml)  
+   - Result: `val_bpb=1.026098`, `memory_gb=41.1`  
+   - Status: `discard` (no improvement)
+
+2. `9f87f41`  
+   - Change: restored non-zero LRs + `warmup_ratio=0.02` + `final_lr_frac=0.2` in [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/editable/config.toml)  
+   - Result: `val_bpb=1.026098`, `memory_gb=41.1`  
+   - Status: `discard` (no improvement)
+
+State now:
+- HEAD reset back to `e68d30d` after discards.
+- Results appended in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/dead5-gpt53codex-medium-4h-orchestrated-5-20260504-133954/research-loop/memory/results.tsv).
+- `metrics.json` currently present as untracked artifact from the latest run.

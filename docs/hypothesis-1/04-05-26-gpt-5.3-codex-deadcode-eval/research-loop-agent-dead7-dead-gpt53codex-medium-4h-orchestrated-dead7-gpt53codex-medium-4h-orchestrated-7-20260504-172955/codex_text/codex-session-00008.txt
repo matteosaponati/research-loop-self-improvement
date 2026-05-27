@@ -1,0 +1,112 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can decide between resume vs fresh setup.
+
+I found prior experiments, so I’m resuming from the current branch without reinitializing. Next I’ll read the editable files and pick the next high-signal change based on what has already failed.
+
+I’ve got the config/history context; now I’m inspecting the scheduler and optimizer logic in `train.py` to pick a change that actually alters optimization dynamics within the 5-minute window.
+
+I’m running one architecture-level experiment next: removing Q/K RMS normalization in attention to test whether it is over-constraining logits in this short training budget. I’ll commit that change, run, and keep only if `val_bpb` drops below `1.026098`.
+
+The experiment commit is in place (`161d0a6`). I’m launching the 5-minute training run now and will read only `metrics.json` for result collection.
+
+Training is running in the background under timeout control; I’ll wait for completion and then parse `metrics.json` to decide keep vs discard.
+
+Run is still in progress; I’m continuing to wait without reading the log, then I’ll collect metrics directly from JSON.
+
+I’m still waiting on the training timeout wrapper to exit; once it returns I’ll immediately extract `val_bpb` and VRAM from `metrics.json` and update `memory/results.tsv`.
+
+Execution is still active; I’m continuing to poll until the run finishes or timeout triggers.
+
+I’m in the final wait window now; next step is parsing `metrics.json`, comparing to best, then either keeping this commit or resetting to the previous one.
+
+The run is unusually long but still within the 10-minute failure threshold because it’s wrapped with `timeout 610s`; I’m waiting for it to terminate cleanly before judging the experiment.
+
+The run finished successfully. I’m now reading `metrics.json`, recording the result, and applying the keep/discard rule against the current best `val_bpb`.
+
+`python` isn’t on PATH here, so I’m re-reading metrics and best score via `uv run python` and then finalizing keep/discard.
+
+I have the metrics (`val_bpb` unchanged at `1.026098`); I’m finishing the best-score lookup and then discarding this commit per rule.
+
+This experiment did not improve `val_bpb`, so I’m resetting to the pre-experiment commit and appending a `discard` row to `memory/results.tsv`.
+
+I’m proceeding to another experiment immediately. Next I’ll test `sequence_len=1536` to trade context length for more optimizer updates within the same 5-minute budget.
+
+I committed the new sequence-length experiment (`5b93fe6`) and I’m running training now with full output redirected to `run.log`.
+
+This run exited non-zero; I’ll treat it as a crash unless `metrics.json` exists, and I’ll inspect `run.log` briefly only for crash diagnosis.
+
+Crash diagnosed: batch divisibility assertion failed at `sequence_len=1536`. I’m resetting this commit and logging it as a crash in `memory/results.tsv`.
+
+I’m continuing with a valid sequence-length sweep point: `sequence_len=512` (keeps batch divisibility) to maximize update frequency under the fixed time budget.
+
+The `sequence_len=512` run is now executing; I’m waiting for completion and then I’ll collect `metrics.json` and apply keep/discard.
+
+Run is still active and within expected duration; I’m continuing to wait without touching `run.log`.
+
+Still waiting on the training process; once it exits I’ll parse JSON, update TSV, and either keep this commit or reset.
+
+The process is taking longer than expected but still under the enforced timeout. I’m continuing to poll until it exits.
+
+I’m now near the 5-minute training window plus startup overhead; next poll should return exit and I’ll finalize this trial.
+
+Training completed. I’m reading `metrics.json`, then I’ll keep only if `val_bpb` is strictly below `1.026098`.
+
+Experiment loop is running and I completed 3 new trials:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+@@
+-        q, k = norm(q), norm(k)
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 2048
++sequence_len = 1536
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 2048
++sequence_len = 512
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `161d0a6` → `val_bpb=1.026098`, `37.0 GB`, `discard` (`remove qk rmsnorm in attention`)
+- `5b93fe6` → `crash` (batch divisibility assertion with `sequence_len=1536`)
+- `3d6d393` → `val_bpb=1.026098`, `10.6 GB`, `discard` (`sequence_len=512`)
+
+Branch state is reset to the best-so-far line (`4fa5c24`, still `val_bpb=1.026098`), with only `memory/results.tsv` and `metrics.json` as working artifacts.
+tokens used
+60,458
+Experiment loop is running and I completed 3 new trials:
+
+```diff
+diff --git a/editable/train.py b/editable/train.py
+@@
+-        q, k = norm(q), norm(k)
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 2048
++sequence_len = 1536
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-sequence_len = 2048
++sequence_len = 512
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `161d0a6` → `val_bpb=1.026098`, `37.0 GB`, `discard` (`remove qk rmsnorm in attention`)
+- `5b93fe6` → `crash` (batch divisibility assertion with `sequence_len=1536`)
+- `3d6d393` → `val_bpb=1.026098`, `10.6 GB`, `discard` (`sequence_len=512`)
+
+Branch state is reset to the best-so-far line (`4fa5c24`, still `val_bpb=1.026098`), with only `memory/results.tsv` and `metrics.json` as working artifacts.

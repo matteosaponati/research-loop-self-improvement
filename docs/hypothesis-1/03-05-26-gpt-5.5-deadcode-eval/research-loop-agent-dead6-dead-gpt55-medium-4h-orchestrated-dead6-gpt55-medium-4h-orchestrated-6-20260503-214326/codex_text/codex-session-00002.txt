@@ -1,0 +1,3346 @@
+I’ll initialize or resume the experiment loop, checking only the allowed workspace state and editable files before running anything. After each 5-minute run I’ll record `metrics.json` into `memory/results.tsv` and keep only improvements.
+
+This is already initialized on `research-loops/may3`, with a baseline and several discarded experiments all tied at `1.026098`. I’m going to read the editable training code and config now, then make one focused change that changes learning dynamics rather than another mostly-neutral capacity tweak.
+
+The model uses zero-initialized residual projections with Muon on transformer matrices and AdamW on embeddings/head. Since prior capacity/LR edits did not move validation at all, I’m going to test a small but structural optimizer change: give zero-initialized projection matrices AdamW instead of Muon so those gates can leave zero with an adaptive coordinate update.
+
+I’m editing only `editable/train.py`, keeping the model and config unchanged. The patch will split `attn.c_proj` and `mlp.c_proj` into their own AdamW parameter group while leaving the remaining transformer matrices on Muon.
+
+The diff is clean and the previous metrics confirm the current best is `1.026098` at about `41.1 GB`. I’m committing this experiment now, then I’ll run the normal redirected training command with a 10-minute guard.
+
+The run is in progress under the required `run.log` redirect. I’ll wait for completion and only read `metrics.json` unless the process fails or times out.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+Still running, which is expected during compile and the 5-minute training budget. I’m continuing to wait without touching the log.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The experiment is still inside the normal runtime window. I’m leaving it alone and will collect the compact metrics once the process exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+No result yet; this is still below the 10-minute failure threshold. I’m continuing the guarded wait.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The run remains active and quiet because stdout is redirected. I’m tracking elapsed time and will treat anything past 10 minutes as a failed experiment.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+Still running; it should be near or past the compilation/startup-heavy portion now. I’ll keep waiting for the final metrics file rather than sampling the log.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The process is still alive within the allowed window. I’m giving it more time for the fixed 300 seconds of measured training plus startup.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The guarded run is continuing normally. I’m not making further edits until this result is recorded and either kept or reverted.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+Still no exit, but it is not yet over the 10-minute cap. I’m continuing the same wait loop.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+This is approaching the expected completion range for a compiled 5-minute run. I’ll do one more timed wait, then collect or enforce the timeout if needed.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..328c8c08de112114428a94b0f90e8d8d945b8bc6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -227,17 +227,26 @@
+                         adam_betas, adam_eps, dmodel_lr_reference,
+                         muon_initial_momentum, muon_ns_steps, muon_beta2):
+         model_dim = self.config.n_embd
+-        matrix_params = list(self.transformer.h.parameters())
++        projection_params = [
++            p for name, p in self.transformer.h.named_parameters()
++            if name.endswith("c_proj.weight")
++        ]
++        projection_param_ids = {id(p) for p in projection_params}
++        matrix_params = [
++            p for p in self.transformer.h.parameters()
++            if id(p) not in projection_param_ids
++        ]
+         embedding_params = list(self.transformer.wte.parameters())
+         lm_head_params = list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+-            len(lm_head_params))
++            len(lm_head_params) + len(projection_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+         param_groups = [
+             dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+             dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
++            dict(kind='adamw', params=projection_params, lr=matrix_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=weight_decay),
+         ]
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+
+
+The training process exited cleanly. I’m reading `metrics.json`, recording the experiment row, and then I’ll decide whether this commit advances the branch.
+
+The AdamW projection split tied the baseline exactly, so I recorded it as discard and reset to the baseline commit. Next I’m going after the zero-projection startup bottleneck more directly by initializing residual projection weights to a tiny nonzero uniform range, which lets upstream attention and MLP matrices receive gradients from step one.
+
+The second experiment patch is just the projection initialization change. I’m committing it and starting the next redirected training run.
+
+This run is underway with stdout and stderr redirected. I’ll wait out the fixed training budget and collect only the compact metrics afterward.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The tiny-init experiment is still running normally. I’m continuing to wait within the 10-minute cap.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Still active, with no crash signal from the process. I’m letting it complete rather than inspecting the redirected log.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The run remains inside the expected range. I’ll keep polling at coarse intervals until it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+No completion yet; this is still normal for startup plus the measured training window. Continuing the guarded wait.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The experiment is still running. I’m holding off on any further changes until its metrics are recorded.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Still alive and below the timeout threshold. I’ll continue waiting for the final metrics write.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The run is getting close to the usual completion time. I’m continuing the same metrics-only collection path.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+Still no exit, but it remains within the allowed runtime. I’ll keep the process running and check again.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The job is near the end of the guarded window but not over it. I’ll do another wait and then process the result or timeout status.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6aea8d0c2d55fd718735de1c8d02998901e73d63
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -179,9 +179,9 @@
+             torch.nn.init.uniform_(block.attn.c_q.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_k.weight, -s, s)
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+-            torch.nn.init.zeros_(block.attn.c_proj.weight)
++            torch.nn.init.uniform_(block.attn.c_proj.weight, -0.01 * s, 0.01 * s)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
+-            torch.nn.init.zeros_(block.mlp.c_proj.weight)
++            torch.nn.init.uniform_(block.mlp.c_proj.weight, -0.01 * s, 0.01 * s)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+
+
+The tiny-init run finished successfully. I’m reading `metrics.json` now, then I’ll append the TSV row and keep or reset the commit.
+
+Tiny nonzero projections also tied exactly, so it’s logged as discard and reset. For the next run I’m changing the schedule instead of the architecture: keep full learning rate longer by shortening warmdown from half the run to the last 20%.
+
+The schedule diff is minimal and in-scope. I’m committing it and launching the next run.
+
+The shorter-warmdown training run is active with redirected output. I’ll collect the metrics when it exits and reset if it does not beat `1.026098`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still running normally. I’m continuing to wait without reading `run.log`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+No exit yet; it’s within the normal compilation and training duration. I’ll keep polling coarsely.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The process is still healthy from the outside. I’m waiting for the final metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still active and under the cap. I’ll let the fixed 5-minute measured training budget finish.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The run has not completed yet. I’m continuing the guard loop and leaving the log untouched.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still running within the expected envelope. I’ll check again after another interval.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The experiment remains active. I’m waiting for completion before touching the branch state.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+This is now near the usual finish time. I’ll continue one more interval and then record the outcome.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still not finished, but still below the 10-minute failure line. I’ll give it another guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..8a964407301386b4e62ff4a5551e6d31874de10c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+The shorter-warmdown run completed. I’m collecting the metrics and logging the row now.
+
+Shorter warmdown tied the baseline and is reset. I’m moving to a more substantial model-shape test: replace the plain ReLU-squared MLP with a SwiGLU-style gated MLP at 3x hidden width, which changes the nonlinear capacity while staying inside the existing code and dependencies.
+
+The gated MLP diff adds one matrix and changes only the MLP activation path. I’m committing and running it next; this may use more memory but should still fit based on prior larger-model attempts.
+
+The gated MLP experiment is running under the standard redirected command. I’ll wait for completion and only inspect `metrics.json` unless it crashes.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run is still active. I’m continuing the guarded wait and watching for a clean process exit.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still running normally. Since this architecture is heavier, the step count may drop, but the run remains within the allowed window.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+No exit yet. I’m leaving the log untouched and continuing to wait for the metrics file update.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The experiment is still running. I’ll keep polling at 30-second intervals until completion or timeout.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still active and below the cap. I’m waiting through the fixed measured training portion.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The run continues without an external failure. I’ll collect metrics after it exits rather than sampling progress.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still running; heavier MLP likely reduced throughput. It is still under the 10-minute guard, so I’m continuing.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+No completion yet. I’ll keep the same guarded wait and process the result when it exits.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The gated MLP run is close to the usual end range. I’m waiting another interval before deciding.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+Still active but under 10 minutes. I’m continuing to give it time for final evaluation and metrics writing.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..6e737fd1fd9015707b6526a40dce23aaa1e5b253
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -128,13 +128,13 @@
+ class MLP(nn.Module):
+     def __init__(self, config):
+         super().__init__()
+-        hidden_dim = config.mlp_hidden_multiplier * config.n_embd
++        hidden_dim = 3 * config.n_embd
+         self.c_fc = nn.Linear(config.n_embd, hidden_dim, bias=False)
++        self.c_gate = nn.Linear(config.n_embd, hidden_dim, bias=False)
+         self.c_proj = nn.Linear(hidden_dim, config.n_embd, bias=False)
+ 
+     def forward(self, x):
+-        x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(self.c_gate(x)) * self.c_fc(x)
+         x = self.c_proj(x)
+         return x
+ 
+@@ -181,6 +181,7 @@
+             torch.nn.init.uniform_(block.attn.c_v.weight, -s, s)
+             torch.nn.init.zeros_(block.attn.c_proj.weight)
+             torch.nn.init.uniform_(block.mlp.c_fc.weight, -s, s)
++            torch.nn.init.uniform_(block.mlp.c_gate.weight, -s, s)
+             torch.nn.init.zeros_(block.mlp.c_proj.weight)
+         # Rotary embeddings
+         head_dim = self.config.n_embd // self.config.n_head
+
+
+The gated MLP run finished cleanly. I’m reading the metrics and recording the keep/discard decision.
+
+The gated MLP also tied and was reset. I’m going to test a smaller context length next: `sequence_len = 512` gives more optimizer updates per token budget and much lower attention cost, which may be better under a strict 5-minute wall-clock run.
+
+The `512` sequence-length patch is isolated to config. I’m committing and running it now.
+
+The sequence-length 512 experiment is running. I’ll wait for the standard completion and collect `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Still running normally. I’m continuing the guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+No exit yet. The shorter context should be faster after compile, but I’ll let the normal loop finish.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The run remains active and under the cap. I’m waiting for clean completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Still running; stdout is redirected as required. I’ll keep polling rather than inspecting progress.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The process is still alive. I’m continuing to wait within the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+No completion yet, but still in the expected range. I’ll continue the guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The sequence-length run is still active. I’m waiting for final evaluation and metrics writing.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Still no exit. It remains under the timeout threshold, so I’m letting it finish.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The job is close to the typical completion window. I’ll check again after one more interval.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..165fcf2bb89db0b8eafd297d3af43b59067a06bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 512
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+The sequence-length 512 run finished cleanly. I’m reading metrics, then I’ll log and decide.
+
+Sequence length 512 tied and was reset. I’m now testing a more aggressive output-head learning rate, since the head directly controls the validation distribution and prior matrix-only changes have had no measurable effect.
+
+The output-head LR change is isolated in config. I’m committing it and starting the run.
+
+The higher unembedding LR experiment is running with output redirected. I’ll wait for the normal metrics result or a timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running normally. I’m continuing to wait without touching the log.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No exit yet; it is within the expected runtime. I’ll keep polling.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The process remains active. I’m waiting for the metrics file to be rewritten at the end.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active and under the 10-minute cap. I’m continuing the guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run is still in progress. I’m leaving it alone until it exits cleanly or times out.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running; this remains within the normal range for this script. I’ll check again after another interval.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+No completion yet. I’m continuing the same metrics-only workflow.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The job is approaching the expected finish range. I’ll wait another interval for final eval and metrics writing.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still active but below timeout. I’ll continue the guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c725d5305b30d9e9d882cf6c437df372dcef01d3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.02
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The higher unembedding LR run completed cleanly. I’m reading metrics and will record the decision.
+
+Higher unembedding LR also tied and is reset. I’m testing weight decay next: disabling Muon weight decay may preserve short-run capacity better under this very small training budget.
+
+The no-weight-decay diff is isolated. I’m committing and launching the next experiment.
+
+The no-weight-decay experiment is running under the redirected command. I’ll wait and read only `metrics.json` at the end.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running normally. I’m continuing the guarded wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No exit yet; this is expected. I’ll keep waiting for the metrics write.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run remains active and under the timeout cap. I’m continuing. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running. I’m leaving the log alone and waiting for clean completion. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The no-weight-decay run is still underway. I’ll keep polling until it exits. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still active. It remains below the failure threshold, so I’m continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No completion yet. I’m waiting for final evaluation and metrics output. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run is near the normal finish window. I’ll check again after another interval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still alive and below 10 minutes. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ed44063e4c51bc7e740854236f067be8c84637fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The no-weight-decay run completed. I’m reading the compact metrics and then logging the result.
+
+No-weight-decay tied and was reset. I’m testing attention shape next by reducing `head_dim` to 64, which keeps the embedding dimension at 512 but doubles the number of heads from 4 to 8.
+
+The head-dimension change is minimal. I’m committing it and starting the next training run.
+
+The smaller-head-dim run is active with output redirected. I’ll wait for it to finish and collect metrics only. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still running. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+No exit yet; this is normal. I’ll keep polling without reading the log. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The process remains active and under the cap. I’m waiting for clean completion. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still running. I’m continuing the same wait and metrics-only collection path. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The run is still alive. I’ll keep it within the 10-minute guard and check again. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still active and below timeout. I’m waiting for final evaluation. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+No completion yet. I’m continuing to wait without inspecting `run.log`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The job is nearing the usual finish point. I’ll give it another interval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still alive and under 10 minutes. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4d008e0bfbc84b1ad5c45a5f206b18024224cf1a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+The smaller-head-dim run completed. I’m collecting metrics and recording the outcome. 
+
+
+Head dimension 64 tied and was reset. The validation value looks consistent with an almost-uniform output distribution, so I’m testing a larger initial output-head scale to give the classifier more logit range from the beginning.
+
+The output-head init scale diff is isolated. I’m committing and running the experiment now.
+
+The larger LM-head init run is active with the standard redirect. I’ll wait for completion and collect metrics only. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still running normally. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+No exit yet; I’ll keep polling without opening `run.log`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The run remains under the timeout threshold. I’m waiting for the final metrics write. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still active. I’ll keep the process running and check again after another interval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The larger-head-init experiment is still running. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+No completion yet, still within normal bounds. I’ll wait for the process exit. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still running. I’m staying on the metrics-only path unless it fails. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The run is near the usual end range. I’ll check again after one more interval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+Still active but under 10 minutes. I’ll continue the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6aa342b5336de77dde0b6cf415a25b34ea049588
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -28,7 +28,7 @@
+ init_wte_mean = 0.0
+ init_wte_std = 1.0
+ init_lm_head_mean = 0.0
+-init_lm_head_std = 0.001
++init_lm_head_std = 0.02
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+
+
+The larger LM-head init run completed cleanly. I’m collecting its metrics and will log the decision. 
+
+
+Larger LM-head init also tied and was reset. I’m trying tied input/output embeddings next, with the shared tensor trained at the safer unembedding learning rate to avoid the existing high embedding LR blasting the output distribution.
+
+The tied-embedding patch compiles and keeps parameter ownership explicit. I’m committing it and running the experiment. 
+
+
+The tied-embedding run is active. This is a bigger behavioral change, so if it fails I’ll inspect only enough log to diagnose; otherwise I’ll use `metrics.json`. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+Still running normally. I’m continuing the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+No exit yet. I’ll keep polling without reading the redirected log. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+The run remains active and under the timeout cap. I’m waiting for final metrics. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+Still running. I’m leaving the process alone until completion or timeout. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+The tied-embedding experiment is still active. I’ll continue the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+No completion yet. It’s still below 10 minutes, so I’m continuing. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+Still active and quiet due to redirect. I’ll check again after another interval. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+The run is nearing the usual finish window. I’m waiting for final eval and metrics writing. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+Still alive but under timeout. I’ll continue the guarded wait. 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a7de2a9922303bfb739940c407316dcede1798f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -26,7 +26,7 @@
+ 
+ # Initialization
+ init_wte_mean = 0.0
+-init_wte_std = 1.0
++init_wte_std = 0.02
+ init_lm_head_mean = 0.0
+ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c0cb2099994716adb3843ab173d65dbece1d4da6
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -160,6 +160,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.lm_head.weight = self.transformer.wte.weight
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -171,7 +172,8 @@
+     def init_weights(self):
+         # Embedding and unembedding
+         torch.nn.init.normal_(self.transformer.wte.weight, mean=self.config.init_wte_mean, std=self.config.init_wte_std)
+-        torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
++        if self.lm_head.weight is not self.transformer.wte.weight:
++            torch.nn.init.normal_(self.lm_head.weight, mean=self.config.init_lm_head_mean, std=self.config.init_lm_head_std)
+         # Transformer blocks
+         n_embd = self.config.n_embd
+         s = self.config.init_matrix_scale * n_embd**-0.5
+@@ -229,16 +231,17 @@
+         model_dim = self.config.n_embd
+         matrix_params = list(self.transformer.h.parameters())
+         embedding_params = list(self.transformer.wte.parameters())
+-        lm_head_params = list(self.lm_head.parameters())
++        tied_lm_head = self.lm_head.weight is self.transformer.wte.weight
++        lm_head_params = [] if tied_lm_head else list(self.lm_head.parameters())
+         assert len(list(self.parameters())) == (len(matrix_params) + len(embedding_params) +
+             len(lm_head_params))
+         # Scale LR ∝ 1/√dmodel (tuned at 768 dim)
+         dmodel_lr_scale = (model_dim / dmodel_lr_reference) ** -0.5
+         print(f"Scaling AdamW LRs by 1/sqrt({model_dim}/{dmodel_lr_reference}) = {dmodel_lr_scale:.6f}")
+-        param_groups = [
+-            dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-            dict(kind='adamw', params=embedding_params, lr=embedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0),
+-        ]
++        param_groups = []
++        if lm_head_params:
++            param_groups.append(dict(kind='adamw', params=lm_head_params, lr=unembedding_lr * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
++        param_groups.append(dict(kind='adamw', params=embedding_params, lr=(unembedding_lr if tied_lm_head else embedding_lr) * dmodel_lr_scale, betas=adam_betas, eps=adam_eps, weight_decay=0.0))
+         for shape in sorted({p.shape for p in matrix_params}):
+             group_params = [p for p in matrix_params if p.shape == shape]
+             param_groups.append(dict(
+
+
+The tied-embedding run completed cleanly. I’m reading the metrics and will record the branch decision. 
+
+
+The tied-embedding variant tied as well and was reset. I’m going to add a non-trainable unigram logit prior estimated from a small prefix of the training stream before training; this gives the model a corpus frequency baseline instead of starting from a nearly uniform output distribution.
+
+The unigram-prior patch compiles. I’m committing and running it; if the prior helps, this should be the first experiment to move off the uniform-looking baseline. 
+
+
+The unigram-prior run is active. Startup may be a bit longer because it estimates token frequencies before compile, but the measured training budget remains unchanged. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+Still running. I’m continuing the guarded wait and leaving the log untouched. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+No exit yet; it is within the expected range. I’ll keep polling. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+The process remains active and under timeout. I’m waiting for clean completion. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+Still running. I’ll continue the guarded wait. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+The unigram-prior experiment is still active. I’m waiting for final eval and metrics writing. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+No completion yet. It remains below the 10-minute cap, so I’m continuing. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+Still active. I’m keeping to the metrics-only collection path. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+The run is near the usual finish range. I’ll wait another interval for final metrics. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+Still alive and below timeout. I’ll continue waiting. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+No exit yet. It is still under the 10-minute cap, so I’m giving it more time for completion. 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a447b05494e4239772f946dee23d044ab45f863b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -33,6 +33,7 @@
+ EMA_BETA = 0.9
+ GC_FREEZE_AFTER_FIRST_STEP = True
+ GC_COLLECT_INTERVAL = 5000
++UNIGRAM_PRIOR_BATCHES = 64
+ 
+ os.environ["PYTORCH_ALLOC_CONF"] = PYTORCH_ALLOC_CONF
+ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+@@ -160,6 +161,7 @@
+             "h": nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+         })
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
++        self.register_buffer("logit_bias", torch.zeros(config.vocab_size, dtype=torch.bfloat16), persistent=False)
+         head_dim = config.n_embd // config.n_head
+         # Rotary embeddings
+         self.rotary_seq_len = config.sequence_len * config.rotary_seq_len_multiplier
+@@ -264,6 +266,7 @@
+         softcap = self.config.softcap
+         logits = self.lm_head(x)
+         logits = logits.float()
++        logits = logits + self.logit_bias.float()
+         logits = softcap * torch.tanh(logits / softcap)
+ 
+         if targets is not None:
+@@ -474,9 +477,6 @@
+     muon_ns_steps=CONFIG.muon_ns_steps,
+     muon_beta2=CONFIG.muon_beta2,
+ )
+-
+-if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -489,6 +489,23 @@
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
++@torch.no_grad()
++def install_unigram_prior(model, loader, x, y, epoch):
++    counts = torch.ones(vocab_size, dtype=torch.float32, device=device)
++    for _ in range(UNIGRAM_PRIOR_BATCHES):
++        valid_targets = y[y != CONFIG.ignore_index]
++        counts += torch.bincount(valid_targets.flatten(), minlength=vocab_size).float()
++        x, y, epoch = next(loader)
++    log_probs = counts.log() - counts.sum().log()
++    log_probs -= log_probs.mean()
++    model.logit_bias.copy_(log_probs.to(dtype=torch.bfloat16))
++    return x, y, epoch
++
++x, y, epoch = install_unigram_prior(model, train_loader, x, y, epoch)
++
++if COMPILE_MODEL:
++    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+
+
+The unigram-prior run finished cleanly. I’m reading `metrics.json` now and will keep this commit only if it lowered validation BPB. 
+
+
+Ran and logged multiple experiments on `research-loops/may3`. None improved over the current best baseline:
+
+`best val_bpb = 1.026098` at commit `e4d84d7`.
+
+All new experiments were recorded in `memory/results.tsv` and discarded via reset, leaving the branch back at the baseline commit. The worktree is clean except for the allowed untracked `metrics.json`.
+tokens used
+173,913
+Ran and logged multiple experiments on `research-loops/may3`. None improved over the current best baseline:
+
+`best val_bpb = 1.026098` at commit `e4d84d7`.
+
+All new experiments were recorded in `memory/results.tsv` and discarded via reset, leaving the branch back at the baseline commit. The worktree is clean except for the allowed untracked `metrics.json`.

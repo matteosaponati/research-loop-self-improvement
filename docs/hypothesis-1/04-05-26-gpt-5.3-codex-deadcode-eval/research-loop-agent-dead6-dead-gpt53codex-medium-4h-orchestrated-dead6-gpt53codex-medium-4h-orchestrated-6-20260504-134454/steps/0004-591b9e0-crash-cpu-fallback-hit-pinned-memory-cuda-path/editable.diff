@@ -1,0 +1,55 @@
+commit 591b9e00d308cbf79edda92fd6a73fe374126417
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Mon May 4 13:48:58 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Mon May 4 13:48:58 2026 +0200
+
+    train: fallback to cpu when cuda allocation is unavailable
+---
+ editable/train.py | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..dc55b3f 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -40,6 +40,7 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = CONFIG.hf_hub_disable_progress_bars
+ import gc
+ import math
+ import time
++from contextlib import nullcontext
+ from dataclasses import dataclass, asdict
+ 
+ import torch
+@@ -415,9 +416,20 @@ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+ torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++requested_device = torch.device(CONFIG.device)
++device = requested_device
++if requested_device.type == "cuda":
++    try:
++        _ = torch.empty((1,), device=requested_device)
++    except torch.AcceleratorError:
++        print("CUDA allocation unavailable; falling back to CPU")
++        device = torch.device("cpu")
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=device.type, dtype=autocast_dtype)
++    if device.type == "cuda"
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -485,7 +497,7 @@ train_loader = prepare.make_dataloader(
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=device.type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
