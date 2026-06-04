@@ -1,0 +1,620 @@
+I’ll initialize the experiment workspace state (results file presence, branch/data checks), run the baseline once if needed, then proceed with the first edit-and-run cycle and log each result to `memory/results.tsv` in the required format.
+
+I’ve confirmed we’re continuing from an existing run history on `research-loops/may1`. Next I’m checking where hyperparameters are consumed in `editable/train.py` so I can make a single, likely-effective edit and avoid unnecessary churn.
+
+I’m starting with a low-risk hyperparameter change that can materially alter optimization quality without changing model shape too much: halving `sequence_len` to `1024` to increase effective update frequency under the fixed 5-minute budget. I’ll patch, commit, run, then log and keep/revert by result.
+
+The run is underway; I’m polling it now and will grab `val_bpb`/`peak_vram_mb` from `run.log` as soon as it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2dc8d5975ba239e40d2c5e0bcb56e825299f747a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -7,7 +7,7 @@
+ h100_bf16_peak_flops = 989500000000000.0
+ 
+ # Data and run budget
+-sequence_len = 2048
++sequence_len = 1024
+ total_batch_size = 524288
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+
+
+Run finished; I’m pulling the final metrics from `run.log` now to decide keep/revert for this experiment.
+
+The first append command failed because this environment shell doesn’t have `python` on PATH. I’ll re-log the same row using pure shell arithmetic.
+
+First experiment was worse than best (`1.052877` vs `1.002124`), so I logged it as `discard` and reverted the branch back to `97b3592`. Next I’ll run a new edit-driven experiment.
+
+I moved to testing a Muon optimizer tuning (`muon_ns_steps=1`) because it hasn’t been explored yet and can change step dynamics substantially. Applying this as a single config edit, then I’ll run and score it.
+
+Second run is in progress. I’m polling for completion and will immediately extract the final `val_bpb` / `peak_vram_mb` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..6b834e1c0d6def29747ef0d316a4d60d493a3f15
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 1
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..6b834e1c0d6def29747ef0d316a4d60d493a3f15
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 1
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..6b834e1c0d6def29747ef0d316a4d60d493a3f15
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 1
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..6b834e1c0d6def29747ef0d316a4d60d493a3f15
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -41,7 +41,7 @@
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 1
+ muon_beta2 = 0.95
+ 
+ # Schedules
+
+
+Run is finished. Pulling results now and then I’ll log/revert based on comparison with the current best (`1.002124`).
+
+I’m trying a batch-size scaling change next: increasing `total_batch_size` to 786,432 (same device batch) to alter noise/throughput under the same 5‑minute time budget. I’ll commit and evaluate this single change.
+
+Experiment 3 is running now. I’ll wait for it to finish and then extract metrics exactly as requested.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..ac206085e4cbe3adc4e3758ac43d54290093d446
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..ac206085e4cbe3adc4e3758ac43d54290093d446
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..ac206085e4cbe3adc4e3758ac43d54290093d446
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..ac206085e4cbe3adc4e3758ac43d54290093d446
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Third run finished; extracting final metrics from `run.log` now.
+
+This run also regressed (`1.021590`), so I’ve logged it as `discard` and I’m reverting this edit before the next trial.
+
+I’m moving to another optimizer sweep (`muon_beta2`) since it hasn’t helped at 0.98 and might still benefit from a lower value. One change, then rerun.
+
+Continuing with the optimizer sweep; polling this run now and capturing final metrics once done.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..fc7ed3401068d6d7eb87b1fc51b90d5f7327bd9d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..fc7ed3401068d6d7eb87b1fc51b90d5f7327bd9d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+Run is still active after ~4 minutes; I’ll sample once more and then finalize results.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..fc7ed3401068d6d7eb87b1fc51b90d5f7327bd9d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+No improvement from lowering `muon_beta2` (`1.038362`). Logging done as `discard`; I’ll revert and continue with another targeted change.
+
+Next I’m testing attention geometry rather than optimizer: set `head_dim` to `64`, which doubles attention heads while keeping total width unchanged, a change not covered in prior trials.
+
+I accidentally introduced trailing blank lines in the previous patch; I’ll clean that and set `head_dim = 64` before running.
+
+I’m correcting the malformed section by targeting the exact `head_dim` line and removing accidental extra whitespace.
+
+Run is in progress; I’ll sample until completion and then log the resulting score.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..e9dad6054b8f90f8d04516d4cf3583d8e23d622b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..e9dad6054b8f90f8d04516d4cf3583d8e23d622b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..e9dad6054b8f90f8d04516d4cf3583d8e23d622b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 64
+-head_dim = 128
++head_dim = 64
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Still finishing; I’m polling one more time for the final status.
+
+Head-dimension change also regressed (`1.028971`), so it’s logged as `discard` and I’m reverting before continuing with the next trial.
+
+I’m trying a conservative learning-rate adjustment next: lowering `matrix_lr` to `0.03`, since higher values were not helpful and this can often stabilize larger updates in this setup. I’ll correct the file then run.
+
+Running the `matrix_lr` lower-rate trial now.
+
+Trial is still running; I’ll check once more and then process results.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..c85e04ed061cbae2b1f705513d3a97784247cbdb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..c85e04ed061cbae2b1f705513d3a97784247cbdb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’ve exhausted several optimizer/path tweaks without gains, so I’m testing a runtime change: enabling `torch.compile` dynamic mode (`COMPILE_DYNAMIC = True`) to see if execution behavior changes under fixed 5‑minute constraints.
+
+Running with dynamic compile now; I’ll wait for completion and then extract the logged summary.
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..8f53b522b3d5fd55641662509825fda5bd2cdc36
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -21,7 +21,7 @@
+ 
+ PYTORCH_ALLOC_CONF = "expandable_segments:True"
+ COMPILE_MODEL = True
+-COMPILE_DYNAMIC = False
++COMPILE_DYNAMIC = True
+ 
+ TIME_BUDGET_SECONDS = 300
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..8f53b522b3d5fd55641662509825fda5bd2cdc36
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -21,7 +21,7 @@
+ 
+ PYTORCH_ALLOC_CONF = "expandable_segments:True"
+ COMPILE_MODEL = True
+-COMPILE_DYNAMIC = False
++COMPILE_DYNAMIC = True
+ 
+ TIME_BUDGET_SECONDS = 300
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..8f53b522b3d5fd55641662509825fda5bd2cdc36
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -21,7 +21,7 @@
+ 
+ PYTORCH_ALLOC_CONF = "expandable_segments:True"
+ COMPILE_MODEL = True
+-COMPILE_DYNAMIC = False
++COMPILE_DYNAMIC = True
+ 
+ TIME_BUDGET_SECONDS = 300
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..8f53b522b3d5fd55641662509825fda5bd2cdc36
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -21,7 +21,7 @@
+ 
+ PYTORCH_ALLOC_CONF = "expandable_segments:True"
+ COMPILE_MODEL = True
+-COMPILE_DYNAMIC = False
++COMPILE_DYNAMIC = True
+ 
+ TIME_BUDGET_SECONDS = 300
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+
+
+Dynamic-compile mode also regressed (`1.015764`), and is logged as `discard`; I’ll revert and continue with one further structured hyperparameter variant.
+
+I’ll now test a schedule smoothing change: extend Muon momentum warmup from `100` to `200` steps, which may reduce optimizer shock early in fixed-time training.
+
+That warmup extension also worsened (`1.034867`). Logged as `discard`; I’m backtracking to the best-known commit for another attempt.
+
+Given repeated optimizer-only changes were all worse, I’m trying one architecture-width adjustment that keeps compute roughly similar: setting `aspect_ratio` to `80` (model width increases to `640`). This is one of the fewer remaining high-uncertainty but potentially impactful knobs.
+
+The width-up experiment is running; I’ll wait for completion and report the extracted final score.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..f034c92c97bceb258f54a81217f2302f45bcd373
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 80
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..f034c92c97bceb258f54a81217f2302f45bcd373
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 80
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..f034c92c97bceb258f54a81217f2302f45bcd373
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 80
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+`aspect_ratio=80` regressed and used more memory. I’ve logged it as `discard` and reverted. I’ll do one last structured run with a conservative learning-rate tweak (`embedding_lr` up modestly).
+
+Running this LR trial now; I’ll fetch final summary metrics as soon as it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..336051b5c2f2e24a2f9d9bbb2644c755e29b6f20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.75
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..336051b5c2f2e24a2f9d9bbb2644c755e29b6f20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.75
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..336051b5c2f2e24a2f9d9bbb2644c755e29b6f20
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.75
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.0
+
+
+Result for `embedding_lr=0.75` is `1.015199` (worse). I’ll mark as `discard`, revert, and summarize the full experimental run state.
+
+I’ll try one more low-impact architecture-indirect change before stopping: lowering `rotary_base` to `5000`, then re-run and record the result.
+
+Final planned variant is running; I’ll collect and log the final metrics now if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2f86f022645083541fbe8bfd84bccfe43282d06e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -20,7 +20,7 @@
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+-rotary_base = 10000.0
++rotary_base = 5000.0
+ softcap = 15.0
+ ignore_index = -1
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 2b7a24218094d8b1baff4e85c9dfd2b044e7c20f..2f86f022645083541fbe8bfd84bccfe43282d06e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -20,7 +20,7 @@
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+-rotary_base = 10000.0
++rotary_base = 5000.0
+ softcap = 15.0
+ ignore_index = -1
+ 
+
+
+I’ve completed this run cycle with no better-than-best result. I also need a quick cleanup pass on `memory/results.tsv` because one earlier append partially failed and left a malformed duplicate line; I’ll correct that row and then report final status.
+
+I’m doing a final status check so I can report exact repository state, branch, and what’s currently recorded in `memory/results.tsv`.
+
+Loop status:
+- I detected existing `memory/results.tsv` with prior rows, so I did **not** create a new branch or rerun baseline.
+- Current branch is `research-loops/may1`.
+- Best result currently remains unchanged:
+
+| commit | val_bpb | memory_gb | status | description |
+|---|---:|---:|---|---|
+| [97b3592](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) | 1.002124 | 41.1 | keep | shorten Muon momentum warmup to 100 |
+
+New experiments run (all worse than best, so reverted):
+
+1. [22177d9](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — halve `sequence_len` to 1024 → `1.052877` (discard)
+2. [b2bbec2](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set Muon `ns_steps` to `1` → `1.021905` (discard)
+3. [ad01693](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase total batch to `786432` → `1.021590` (discard)
+4. [3047196](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set Muon `beta2` to `0.9` → `1.038362` (discard)
+5. [ea9f910](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `head_dim` to `64` → `1.028971` (discard)
+6. [e0ea870](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `matrix_lr` to `0.03` → `1.054989` (discard)
+7. [213d437](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — enable dynamic compile → `1.015764` (discard)
+8. [aec6e42](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — extend Muon momentum warmup to `200` → `1.034867` (discard)
+9. [60edc8d](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase `aspect_ratio` to `80` → `1.022173` (discard)
+10. [430530f](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase `embedding_lr` to `0.75` → `1.015199` (discard)
+11. [826770f](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `rotary_base` to `5000` → `1.023283` (discard)
+
+Result log is updated in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv), and no improvements beat the current best yet.
+
+1. Continue with broader architecture/code edits (e.g., optimizer step variants, norm/activation changes, block math tweaks).  
+2. Continue with longer LR/schedule sweeps (keeping `muon_momentum_warmup=100`).  
+3. Stop and report here, or let me switch to a new search direction.
+tokens used
+75,931
+Loop status:
+- I detected existing `memory/results.tsv` with prior rows, so I did **not** create a new branch or rerun baseline.
+- Current branch is `research-loops/may1`.
+- Best result currently remains unchanged:
+
+| commit | val_bpb | memory_gb | status | description |
+|---|---:|---:|---|---|
+| [97b3592](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) | 1.002124 | 41.1 | keep | shorten Muon momentum warmup to 100 |
+
+New experiments run (all worse than best, so reverted):
+
+1. [22177d9](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — halve `sequence_len` to 1024 → `1.052877` (discard)
+2. [b2bbec2](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set Muon `ns_steps` to `1` → `1.021905` (discard)
+3. [ad01693](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase total batch to `786432` → `1.021590` (discard)
+4. [3047196](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set Muon `beta2` to `0.9` → `1.038362` (discard)
+5. [ea9f910](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `head_dim` to `64` → `1.028971` (discard)
+6. [e0ea870](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `matrix_lr` to `0.03` → `1.054989` (discard)
+7. [213d437](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — enable dynamic compile → `1.015764` (discard)
+8. [aec6e42](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — extend Muon momentum warmup to `200` → `1.034867` (discard)
+9. [60edc8d](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase `aspect_ratio` to `80` → `1.022173` (discard)
+10. [430530f](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — increase `embedding_lr` to `0.75` → `1.015199` (discard)
+11. [826770f](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) — set `rotary_base` to `5000` → `1.023283` (discard)
+
+Result log is updated in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv), and no improvements beat the current best yet.
+
+1. Continue with broader architecture/code edits (e.g., optimizer step variants, norm/activation changes, block math tweaks).  
+2. Continue with longer LR/schedule sweeps (keeping `muon_momentum_warmup=100`).  
+3. Stop and report here, or let me switch to a new search direction.

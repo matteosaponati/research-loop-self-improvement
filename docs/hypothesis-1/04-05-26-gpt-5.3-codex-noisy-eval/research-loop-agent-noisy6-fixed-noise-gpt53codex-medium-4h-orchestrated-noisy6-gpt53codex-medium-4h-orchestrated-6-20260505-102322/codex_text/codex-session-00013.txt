@@ -1,0 +1,120 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize branch/memory and run the baseline exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` already populated on branch `research-loops/may5`), so I’m resuming from current state and moving directly to a new experiment by reading current code/config/results.
+
+I identified the current best (`0.985879`) and will run a small local search around that setting by slightly lowering `final_lr_frac` from `0.60` to `0.58` in `editable/config.toml`, then commit and benchmark it.
+
+The experiment commit is in place (`0656b26`). I’m launching the 5-minute training run now and will only read `metrics.json` afterward unless it crashes.
+
+Training is running under a timeout guard; I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index e4938f035b80f5544789567266809773a3e6c7d0..2459c8a809d283d9e12dfbf2fdcaf7a4a72f5072
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.03
+-final_lr_frac = 0.6
++final_lr_frac = 0.58
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The timed training phase has likely finished and it may be in final evaluation; I’m polling once more for process exit before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index e4938f035b80f5544789567266809773a3e6c7d0..2459c8a809d283d9e12dfbf2fdcaf7a4a72f5072
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.03
+-final_lr_frac = 0.6
++final_lr_frac = 0.58
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+The run completed successfully, but `python` isn’t on PATH in this environment, so I’m re-reading metrics and best score with `uv run python` now.
+
+I have the new metric (`val_bpb 1.051905`, clearly worse). I’m finishing the best-score query, then I’ll log this as `discard` and reset to the previous commit.
+diff --git a/editable/config.toml b/editable/config.toml
+index e4938f035b80f5544789567266809773a3e6c7d0..2459c8a809d283d9e12dfbf2fdcaf7a4a72f5072
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.03
+-final_lr_frac = 0.6
++final_lr_frac = 0.58
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I recorded and discarded that experiment, and reset to the prior best commit (`7493978`). I’m immediately starting the next trial with a nearby LR tweak: `unembedding_lr` from `0.0030` to `0.0029`.
+
+Second experiment is committed (`bdfeba1`); running the 5-minute training benchmark now and then I’ll evaluate from `metrics.json` only.
+
+Training is in progress; I’m waiting for completion under the timeout guard, then I’ll parse metrics and decide keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index e4938f035b80f5544789567266809773a3e6c7d0..0001ea2464f38ffe78d4550eaf3516d0c53495f6
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.003
++unembedding_lr = 0.0029
+ matrix_lr = 0.034
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Completed two new experiments and applied keep/discard logic correctly.
+
+- Current branch/head: `research-loops/may5` at commit `7493978` (best-so-far preserved).
+- Best `val_bpb` remains `0.985879`.
+
+New experiments logged to `memory/results.tsv`:
+
+1. `0656b26`  
+   - Change: `final_lr_frac 0.60 -> 0.58`  
+   - Result: `val_bpb=1.051905`, `memory_gb=41.1`  
+   - Status: `discard`  
+   - Action: reset to previous commit
+
+2. `bdfeba1`  
+   - Change: `unembedding_lr 0.0030 -> 0.0029`  
+   - Result: `val_bpb=1.036855`, `memory_gb=41.1`  
+   - Status: `discard`  
+   - Action: reset to previous commit
+
+`memory/results.tsv` has been updated with both rows.
+tokens used
+20,166
+Completed two new experiments and applied keep/discard logic correctly.
+
+- Current branch/head: `research-loops/may5` at commit `7493978` (best-so-far preserved).
+- Best `val_bpb` remains `0.985879`.
+
+New experiments logged to `memory/results.tsv`:
+
+1. `0656b26`  
+   - Change: `final_lr_frac 0.60 -> 0.58`  
+   - Result: `val_bpb=1.051905`, `memory_gb=41.1`  
+   - Status: `discard`  
+   - Action: reset to previous commit
+
+2. `bdfeba1`  
+   - Change: `unembedding_lr 0.0030 -> 0.0029`  
+   - Result: `val_bpb=1.036855`, `memory_gb=41.1`  
+   - Status: `discard`  
+   - Action: reset to previous commit
+
+`memory/results.tsv` has been updated with both rows.

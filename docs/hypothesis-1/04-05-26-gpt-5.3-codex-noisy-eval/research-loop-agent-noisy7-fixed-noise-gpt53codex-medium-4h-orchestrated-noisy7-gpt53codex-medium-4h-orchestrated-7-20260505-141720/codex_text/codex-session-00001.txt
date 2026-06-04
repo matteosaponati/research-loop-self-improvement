@@ -1,0 +1,278 @@
+I’m starting the research loop by checking the current git state and whether `memory/results.tsv` already has prior runs so I can resume correctly or initialize from scratch.
+
+No prior results file exists, so I’ll initialize a fresh run: pick a date tag branch, verify artifacts in `.local`, then create baseline memory and run the first 5-minute baseline experiment.
+
+The data/tokenizer links are present but empty, so after creating the research branch I’ll run `immutable/prepare.py` to materialize required artifacts before baseline training.
+
+Branch is created. I’ve started dataset/tokenizer preparation and I’m waiting for it to finish before initializing memory and running the baseline.
+
+Preparation completed successfully. I’m now initializing `memory/results.tsv` and launching the baseline 5-minute training run with output redirected to `run.log`.
+
+Baseline run is in progress; I’ll wait for completion, then read `metrics.json` and record the baseline row in `memory/results.tsv`.
+
+Training is still running within the expected window; I’m continuing to wait and will capture metrics immediately when it exits.
+
+I’m still waiting on the baseline process; next step is metrics extraction only from `metrics.json` per your rule once it exits.
+
+Baseline finished. I hit a local `python` binary absence, so I’m re-reading `metrics.json` via `uv run python` and then logging the baseline row.
+
+Baseline is recorded at `1.036831` bpb. Next I’m reading the `editable/` code and config to choose a targeted experiment, then I’ll patch, commit, run, and compare.
+
+I’ve reviewed the config and model core; next I’m inspecting the scheduler/loop section to pick a high-impact change that improves quality within the fixed 5-minute budget.
+
+I found the main leverage point in this 5-minute regime: LR currently decays for half the run down to zero, which is likely too aggressive. I’m editing `editable/config.toml` to keep learning rates higher later (`warmdown_ratio` smaller and non-zero `final_lr_frac`) for better short-horizon optimization.
+
+I’ve applied the schedule tweak and I’m now committing it, then I’ll run the experiment and compare `val_bpb` against the baseline.
+
+Experiment run is active. I’ll wait for completion, then read `metrics.json`, append the TSV row, and keep or reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run is still within expected duration; once it exits I’ll parse metrics and immediately decide keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..08cc52ccf0b4a96fbcb6a11d624c789910b61c92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This experiment improved strongly (`1.036831 → 1.018334`), so I’m keeping it and launching the next test from this new best: add a small LR warmup (`warmup_ratio=0.02`) to reduce early-step instability.
+
+I’m committing this warmup variant and then running another 5-minute train/eval cycle.
+
+Warmup experiment is running now; I’ll collect metrics and keep or reset strictly based on `val_bpb` vs current best `1.018334`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1e078ca7ac6a3faaf0a169796cec0c5dc2fce3ee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run is still active and within budget; I’m continuing to wait for completion before reading `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1e078ca7ac6a3faaf0a169796cec0c5dc2fce3ee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1e078ca7ac6a3faaf0a169796cec0c5dc2fce3ee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run improved again to `0.995128`, so I’m keeping it and recording it as the new best before starting another variant from this checkpoint.
+
+Next experiment: I’m testing an even shorter decay window (`warmdown_ratio=0.1`) while keeping the successful warmup and LR floor, to preserve higher LR longer in the 5-minute budget.
+
+The third variant run is in progress. I’ll finalize this cycle by reading `metrics.json`, appending `memory/results.tsv`, and resetting if it does not beat `0.995128`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running normally; I’m waiting for termination and then applying keep/discard immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e66358bfe1003c648db2f12c806c98e1194b1a3a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.1
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This run is taking longer than expected wall time; I’m checking one more interval and will kill it if it crosses the 10-minute limit.
+
+Run exited successfully. I’m now reading `metrics.json`, logging this result, and then either keeping the commit or resetting to the current best commit.
+
+Completed 4 experiments end-to-end and updated the loop state.
+
+Current branch/head:
+- `research-loops/may5`
+- `b88aca6` (best so far)
+
+Best result so far:
+- `val_bpb = 0.995128` (improved from baseline `1.036831`)
+- `peak_vram = 41.1 GB`
+
+Logged results:
+- [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/memory/results.tsv)
+
+Rows now:
+- `0cf2df4  1.036831  41.1  keep     baseline`
+- `4519f40  1.018334  41.1  keep     shorter warmdown + nonzero lr floor`
+- `b88aca6  0.995128  41.1  keep     add 2pct lr warmup`
+- `956ea2d  1.035481  41.1  discard  shorten warmdown to 10pct`
+
+Edits applied in `editable/config.toml` and retained in best commit:
+- [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/editable/config.toml)
+- `warmup_ratio = 0.02`
+- `warmdown_ratio = 0.2`
+- `final_lr_frac = 0.2`
+
+I also correctly reset after the non-improving run to keep the branch on the best checkpoint.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1e078ca7ac6a3faaf0a169796cec0c5dc2fce3ee
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmup_ratio = 0.02
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+tokens used
+54,413
+Completed 4 experiments end-to-end and updated the loop state.
+
+Current branch/head:
+- `research-loops/may5`
+- `b88aca6` (best so far)
+
+Best result so far:
+- `val_bpb = 0.995128` (improved from baseline `1.036831`)
+- `peak_vram = 41.1 GB`
+
+Logged results:
+- [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/memory/results.tsv)
+
+Rows now:
+- `0cf2df4  1.036831  41.1  keep     baseline`
+- `4519f40  1.018334  41.1  keep     shorter warmdown + nonzero lr floor`
+- `b88aca6  0.995128  41.1  keep     add 2pct lr warmup`
+- `956ea2d  1.035481  41.1  discard  shorten warmdown to 10pct`
+
+Edits applied in `editable/config.toml` and retained in best commit:
+- [`editable/config.toml`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/editable/config.toml)
+- `warmup_ratio = 0.02`
+- `warmdown_ratio = 0.2`
+- `final_lr_frac = 0.2`
+
+I also correctly reset after the non-improving run to keep the branch on the best checkpoint.

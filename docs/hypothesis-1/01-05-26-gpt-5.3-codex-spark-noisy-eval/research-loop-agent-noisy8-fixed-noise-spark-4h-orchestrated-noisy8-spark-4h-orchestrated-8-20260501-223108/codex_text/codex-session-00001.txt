@@ -1,0 +1,145 @@
+I’ll follow your loop protocol exactly: first I’ll detect whether this run is fresh or resumed, set up the experiment branch/tag, verify data prep, then execute the baseline and start the edit→run→log cycle. I’ll keep edits confined to `editable/`.
+
+I’ve created the experiment branch and initialized `memory/results.tsv`. Next I’m running the baseline `editable/train.py` directly and will log its `val_bpb`/VRAM into the table.
+
+Baseline finished successfully with `val_bpb=1.021205`. I’ll now append this baseline entry to `memory/results.tsv`, then start the first experimental variant.
+
+I’m proposing Experiment 1: switch the MLP activation from `ReLU^2` to `SiLU` to reduce training loss smoothness without changing model size or batch schedule. I’ll apply a one-file edit, record the diff, then run and evaluate.
+
+Experiment 1 is committed as `b683343`. I’ll run it with the same 5-minute budget, then parse `val_bpb` and VRAM from `run.log` and update `memory/results.tsv`.
+
+Experiment 2 is increasing `depth` from 8 to 10 (which also increases model width slightly via `n_embd`). I’ve applied that config change and will log its diff, commit, and evaluate.
+
+Running the new configuration now.
+
+Experiment 2 now targets optimization regularization: setting `weight_decay=0.0` to reduce shrinkage pressure. I’ll commit and run this candidate next.
+
+Experiment improved baseline: `val_bpb` dropped to `1.005681` at equal memory (`41.1 GB`), so this commit is being kept. I’ll continue from this best commit with a second improvement-focused change.
+
+Running the warmdown adjustment now; this tests whether keeping learning rate higher for longer improves short-horizon fit.
+
+I kept the best checkpoint at `2412cd7`. Next test is a small schedule tweak: set `final_lr_frac = 0.1` so LR won’t decay all the way to zero by the end.
+
+Running this LR-floor experiment now.
+
+Next I'll try an optimization-dynamics change with lower optimizer step size noise: reduce `embedding_lr` from `0.6` to `0.5` while keeping weight decay disabled. Then I’ll evaluate once.
+
+Running this learning-rate adjustment now.
+
+I’m testing a matrix-learning-rate increase (`matrix_lr 0.05`) because with weight decay removed the optimizer may benefit from a slightly stronger Muon update.
+
+Running this change now.
+
+This one is slightly worse than best (`1.011778` > `1.005681`), so it’s discarded and I’ll revert to the kept commit.
+
+Next I’ll test a throughput/optimization-behavior variant: halve `total_batch_size` to `262144` (reducing grad accumulation to 1 step per update) while keeping the current best optimizer settings.
+
+Running the halved total-batch experiment now.
+
+I’ll now test a mild width increase while staying within likely memory budget: `aspect_ratio` 70 (so `n_embd = 560`, `depth` stays 8). If it improves, we keep; if not, revert.
+
+Running wider model variant (`aspect_ratio = 70`) now.
+
+The wider run has finished; I’m extracting validation metrics and memory from `run.log` next.
+
+I haven’t found improvements from LR/size tweaks yet, so I’ll test another activation-family change: replace `x.square()` with `F.gelu` at MLP nonlinearity to probe for small quality gains.
+
+Running GELU activation variant now.
+
+Next I’m testing optimizer momentum scheduling for the Muon path by shortening `muon_momentum_warmup_steps` to 100, since the run only spans about 900 steps and may benefit from reaching target momentum earlier.
+
+Running this momentum warmup experiment now.
+
+We now have a new best (`1.002124`). I’ll try one finer optimizer tweak next: raise Muon momentum targets (`start 0.9`, `end 0.98`) while keeping the faster warmup.
+
+I’ve applied the momentum-bound change and will evaluate it via the required 5-minute run.
+
+I’ll try one more momentum-adjacent variation from the current best: lower `warmdown_ratio` to `0.3` while keeping Muon warmup at 100 and no weight decay.
+
+Running the LR warmdown 0.3 test.
+
+I’m testing whether a slightly lower head/tie embedding LR helps with the current best schedule by changing `unembedding_lr` from `0.004` to `0.003`.
+
+Running lower unembedding LR experiment.
+
+I’ll do one more targeted tune likely to affect short-run convergence: increase `muon_beta2` to `0.98` while keeping the current best warmup/decay settings.
+
+Running this Muon β2 variant now.
+
+Final candidate in this pass: reduce `muon_initial_momentum` to `0.9` (with warmup still 100) to damp early updates and see if it improves the last-mile loss.
+
+I’ll try one more high-impact optimizer control parameter: increase `adam_beta1` from `0.8` to `0.9` while keeping all other settings at the current best point.
+
+Running the `adam_beta1` variant now.
+
+I’ll do one batching variant: increase `device_batch_size` from `128` to `256` (keeping `total_batch_size` at `524288`) so each optimizer step uses one larger micro-step.
+
+Running this batching change now.
+
+I’ll test one learning-rate scaling sweep point by changing `dmodel_lr_reference` from `768` to `1024` (which increases scaled Adam/AdamW rates) to see if short-run convergence improves below current best.
+
+Running the higher LR-reference variant now.
+
+I’ll do one final momentum-shape trial: increase `muon_ns_steps` from `5` to `10`, maintaining the best-found warmup and LR settings, to see if smoother Muon updates improve bpb.
+
+Running Muon nS-steps variant.
+
+Current loop status: best run so far is `97b3592` with `val_bpb=1.002124` at `41.1 GB`. I’ll capture the current `memory/results.tsv` so you can see the full keep/discard trail.
+
+I’ll run one final small LR-tail variant (`final_lr_frac = 0.05`) from current best settings in case it gives another small improvement below 1.002.
+
+Completed the loop and continued until no better `val_bpb` was found below the current best.
+
+Current best experiment is on branch `research-loops/may1` at commit [`97b3592`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/97b3592) (short hash):
+- `val_bpb`: `1.002124`
+- `memory_gb`: `41.1`
+- `status`: `keep`
+- `training_seconds`: `300.2` (target 300s run), `peak_vram`: `42060.4 MB`
+
+Applied best-keeping config changes (in `editable/config.toml`):
+- `weight_decay = 0.0` ([commit `2412cd7`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/editable/config.toml))
+- `muon_momentum_warmup_steps = 100` ([commit `97b3592`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/editable/config.toml))
+
+All experiment outcomes are logged in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) with keep/discard status.
+
+If you want, I can keep running further experiments from this best commit to push `val_bpb` lower.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2b7a24218094d8b1baff4e85c9dfd2b044e7c20f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+tokens used
+167,244
+Completed the loop and continued until no better `val_bpb` was found below the current best.
+
+Current best experiment is on branch `research-loops/may1` at commit [`97b3592`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/97b3592) (short hash):
+- `val_bpb`: `1.002124`
+- `memory_gb`: `41.1`
+- `status`: `keep`
+- `training_seconds`: `300.2` (target 300s run), `peak_vram`: `42060.4 MB`
+
+Applied best-keeping config changes (in `editable/config.toml`):
+- `weight_decay = 0.0` ([commit `2412cd7`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/editable/config.toml))
+- `muon_momentum_warmup_steps = 100` ([commit `97b3592`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/editable/config.toml))
+
+All experiment outcomes are logged in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-spark-4h-orchestrated-8-20260501-223108/research-loop/memory/results.tsv) with keep/discard status.
+
+If you want, I can keep running further experiments from this best commit to push `val_bpb` lower.

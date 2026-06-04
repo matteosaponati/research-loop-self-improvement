@@ -1,0 +1,128 @@
+I’m starting the research loop by checking git state, whether prior results already exist, and whether setup has already been initialized so I can either resume or run the baseline path correctly.
+
+I found an existing initialized run (`research-loops/may5`) with prior results, so I’m resuming from step (2): I’ll read `editable/` and `memory/results.tsv`, pick the next experiment, patch, commit, run, then keep/reset based on `val_bpb`.
+
+I’ve loaded prior results and configs; next I’m checking the scheduler/optimizer logic in `train.py` to pick a targeted change rather than blindly tuning one scalar.
+
+I identified a new axis that hasn’t been tested yet: keeping weight decay constant instead of decaying it. I’m making a minimal config-only change (`weight_decay_decay = false`), committing, and running one full 5-minute trial.
+
+The patch is committed as `9d2a7c0`; I’m now running the experiment with log redirection and will evaluate strictly from `metrics.json` when it finishes.
+
+Training is in progress under a 620s timeout guard; I’m waiting for completion, then I’ll parse `metrics.json`, append `memory/results.tsv`, and keep/reset based on comparison to the current best.
+
+Run is still active and within expected wall-clock; I’m continuing to wait for process exit before collecting metrics.
+
+Still running normally. I’ll keep polling and move directly to result logging once the process exits.
+
+Execution is ongoing; no crash signal so far. I’m continuing to wait for completion.
+
+Training is still in-flight; I’ll keep polling until it exits and then immediately score it from `metrics.json`.
+
+Still running and within budget. Continuing to wait for final exit code.
+
+The job is still active; once it finishes I’ll parse metrics and apply keep/discard logic immediately.
+
+Run is continuing; I’m polling again for completion.
+
+Still executing. I’ll keep waiting; next step is result extraction and branch decision.
+
+Training is near expected completion window; I’m polling for final termination now.
+
+The run completed successfully. I’m now reading `metrics.json`, appending this trial to `memory/results.tsv`, and then either keeping the commit or resetting if it didn’t beat the current best `val_bpb`.
+
+I hit an environment issue (`python` isn’t on PATH outside `uv`), and my helper script therefore didn’t append the result row. I’m correcting this now by reading `metrics.json` via `uv run ...`, logging the missing row for commit `9d2a7c0`, and then continuing with the next experiment.
+
+The discarded run is now correctly logged. I’m proceeding to the next experiment from current best commit `c5eeea1`, targeting optimizer dynamics: faster Muon momentum ramp to reach high momentum earlier in the 5-minute window.
+
+I’ve committed `bb5bb75` with only the momentum warmup change. Running the full timed training now.
+
+Second run is in progress under timeout protection; I’m waiting for completion and will again collect only from `metrics.json`.
+
+Still running normally. I’m continuing to poll until exit.
+
+Run is active and within expected timing; I’ll keep waiting.
+
+Training continues without failure indications. Polling again.
+
+Still in-flight; once done I’ll immediately score and apply keep/reset.
+
+Run is still executing. Continuing to wait.
+
+Execution remains healthy and near completion window. Polling again for final status.
+
+Still running; I’ll keep waiting for process exit.
+
+Run is still active and within limits. One more poll.
+
+Training is near the expected end; I’m polling for final completion now.
+
+The run finished cleanly. I’m extracting metrics, logging this commit in `memory/results.tsv`, and applying keep/discard against the best `val_bpb` so far.
+
+I’m continuing the loop from `c5eeea1`. Next experiment will adjust `unembedding_lr` slightly downward (0.004 → 0.003) to test if a gentler output-head update improves validation entropy.
+
+Patch `bb5de24` is committed. Launching the next timed run now.
+
+Third run is in progress with timeout guard; I’ll wait for completion and then log from `metrics.json` only.
+
+Run is still active and healthy. Continuing to wait.
+
+Still running within expected timing; polling again.
+
+Execution remains in-flight. I’m continuing to wait for process exit.
+
+Run is proceeding normally; I’ll keep polling.
+
+Still active and within wall-clock budget. Polling again.
+
+The run is still in progress; I’m waiting for completion before scoring.
+
+Execution continues without failure signal. Continuing to poll.
+
+Still running and close to completion window; polling for final status now.
+
+Run is near expected finish; one more poll for exit.
+
+The run completed. I’m now extracting metrics, recording `bb5de24` in `memory/results.tsv`, and applying keep/discard.
+
+Completed 3 experiments and advanced the branch.
+
+Current branch/head: `research-loops/may5` at `bb5de24`  
+Current best `val_bpb`: **0.998101**
+
+Newly logged results in `memory/results.tsv`:
+- `9d2a7c0` → `1.008445`, `41.1 GB`, `discard` (`weight_decay_decay=false`)
+- `bb5bb75` → `1.033969`, `41.1 GB`, `discard` (`muon_momentum_warmup_steps=120`)
+- `bb5de24` → **`0.998101`**, `41.1 GB`, `keep` (`unembedding_lr=0.003`)
+
+Kept change diff (winning commit):
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.004
++unembedding_lr = 0.003
+```
+
+I also corrected a logging hiccup caused by `python` not being on PATH (used `uv run ... python` for metrics parsing). Loop is now in a consistent keep/revert state with the new best committed.
+tokens used
+47,656
+Completed 3 experiments and advanced the branch.
+
+Current branch/head: `research-loops/may5` at `bb5de24`  
+Current best `val_bpb`: **0.998101**
+
+Newly logged results in `memory/results.tsv`:
+- `9d2a7c0` → `1.008445`, `41.1 GB`, `discard` (`weight_decay_decay=false`)
+- `bb5bb75` → `1.033969`, `41.1 GB`, `discard` (`muon_momentum_warmup_steps=120`)
+- `bb5de24` → **`0.998101`**, `41.1 GB`, `keep` (`unembedding_lr=0.003`)
+
+Kept change diff (winning commit):
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-unembedding_lr = 0.004
++unembedding_lr = 0.003
+```
+
+I also corrected a logging hiccup caused by `python` not being on PATH (used `uv run ... python` for metrics parsing). Loop is now in a consistent keep/revert state with the new best committed.

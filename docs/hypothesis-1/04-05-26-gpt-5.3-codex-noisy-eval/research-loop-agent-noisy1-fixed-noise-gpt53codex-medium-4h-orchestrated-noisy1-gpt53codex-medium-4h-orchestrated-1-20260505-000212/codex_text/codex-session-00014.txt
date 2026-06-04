@@ -1,0 +1,48 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize the branch/memory and run the baseline exactly as specified.
+
+I found an initialized run (`memory/results.tsv` already has results), so I’m resuming directly from step (2): reading `editable/*` and prior results to choose the next experiment.
+
+I’ve identified the current best as `0.988015` on commit `1216f34`; next I’ll run a focused local search around that setup with one small hyperparameter change and keep/discard based on `metrics.json`.
+
+I’m making a single-parameter perturbation from the best config: slightly lowering `matrix_lr` to `0.0445` to test whether the longer momentum warmup benefits from a gentler Muon step size.
+
+The change is committed (`b668836`); I’m running the 5-minute training job now and will read only `metrics.json` for decisioning.
+
+Training is in progress; I’m waiting for completion and will stop only if it crosses the 10-minute failure threshold.
+
+Run is still active and within budget; I’m continuing to wait for completion before collecting metrics.
+
+Still running normally. I’m polling again and will enforce the 10-minute cap if needed.
+
+The process is taking longer than expected, likely startup/compile overhead; I’m checking again and will terminate if it reaches the 10-minute limit.
+
+Training completed successfully. I’m now reading `metrics.json`, recording the result in `memory/results.tsv`, and then either keeping the commit or resetting based on whether `val_bpb` improved.
+
+I’ve reverted to the best commit and logged the discard. I’m launching another experiment now by increasing `muon_momentum_warmup_steps` from `60` to `80` to test a smoother momentum ramp.
+
+Commit `d64ce5c` is ready; I’m running the training job again and will keep/discard strictly from `metrics.json`.
+
+Second run is in progress and healthy so far; continuing to wait.
+
+This run is again taking longer wall-clock due startup/overhead; I’m polling and will enforce the 10-minute cap if it reaches that threshold.
+
+The run finished; I’m extracting metrics, logging to `memory/results.tsv`, and then either keeping or resetting the commit.
+
+Experiment loop resumed from existing state and I ran 2 new experiments end-to-end (edit → commit → run → log → keep/discard).
+
+Results added to `memory/results.tsv`:
+- `b668836` `val_bpb=1.043880` `discard` — lowered `matrix_lr` to `0.0445`
+- `d64ce5c` `val_bpb=1.022663` `discard` — increased `muon_momentum_warmup_steps` to `80`
+
+Both were worse than current best `0.988015`, so I reset after each discard.  
+Current HEAD is back at best commit: `1216f34`.
+tokens used
+27,079
+Experiment loop resumed from existing state and I ran 2 new experiments end-to-end (edit → commit → run → log → keep/discard).
+
+Results added to `memory/results.tsv`:
+- `b668836` `val_bpb=1.043880` `discard` — lowered `matrix_lr` to `0.0445`
+- `d64ce5c` `val_bpb=1.022663` `discard` — increased `muon_momentum_warmup_steps` to `80`
+
+Both were worse than current best `0.988015`, so I reset after each discard.  
+Current HEAD is back at best commit: `1216f34`.

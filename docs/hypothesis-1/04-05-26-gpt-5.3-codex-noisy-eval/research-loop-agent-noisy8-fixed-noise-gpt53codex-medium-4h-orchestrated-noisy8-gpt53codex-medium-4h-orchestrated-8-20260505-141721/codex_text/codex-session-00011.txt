@@ -1,0 +1,35 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or perform the required fresh setup path.
+
+I found an initialized run history, so I’m resuming from the existing branch and moving directly to a new experiment. Next I’ll read `editable/` files and current config to pick a targeted change.
+
+I’ve confirmed we’re on the current best kept commit and have full config context. I’ll quickly scan the rest of `train.py` for schedule and optimizer hooks, then apply one small high-leverage config change and run.
+
+I’m going to run a schedule experiment: add a short warmup and reduce warmdown so high LR is sustained longer in the 5-minute window. I’ll patch `editable/config.toml`, show the diff, commit, run, and then decide keep vs reset from `metrics.json`.
+
+The patch is in place and the diff is clean. I’m committing this experiment and launching a timed run with output redirected to `run.log`.
+
+The run is active in the background. I’m waiting for completion, then I’ll read `metrics.json`, append `memory/results.tsv`, and keep or discard based on `val_bpb`.
+
+I’m still waiting on the training process; no action needed yet. I’ll poll again and finalize as soon as it exits.
+
+Training is still in progress. I’m continuing to poll until exit, then I’ll record the result and branch decision immediately.
+
+Run is still active; I’m polling again.
+
+Still running. I’ll keep polling and then perform result logging/reset logic once it exits.
+
+This is taking longer than the prior fast runs, likely spending extra time outside the 5-minute training window. I’m continuing to monitor and will treat timeout as failure if it reaches the 10-minute cap.
+
+I’m still waiting on the same run session; once it exits I’ll immediately parse `metrics.json` and update `memory/results.tsv`.
+
+I’m at the tail end of the timeout window and still monitoring this run process. Next poll should determine completion or timeout failure.
+
+The session’s stdin is closed, so the process likely exited; I’m retrieving final status now and then recording the result.
+
+The training process is still alive and `metrics.json` is not yet written. I’m enforcing the 10-minute rule now by checking elapsed runtime and killing the run if it crossed 600 seconds.
+
+I’ve started a timed poll to avoid busy-checking; I’ll either collect metrics on completion or terminate at the 10-minute mark if still running.
+
+`metrics.json` is now present, so the run reached summary output; I’m waiting briefly for process exit, then I’ll read metrics and finalize keep/discard.
+
+The process exceeded 10 minutes (`611s`), so per your rules I’m terminating it and marking this experiment as a failure even though metrics appeared. Next I’ll log it as `crash` and reset to the previous kept commit.

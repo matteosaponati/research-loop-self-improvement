@@ -1,0 +1,70 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from that state or initialize branch/results and run the baseline exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` has prior experiments), so I’m resuming directly from the current branch and now reading `editable/` plus prior results to choose the next experiment.
+
+I’ve identified the current best (`0.995128`) and I’m now checking git state to ensure we branch-forward correctly from the active commit before applying the next single-variable experiment.
+
+I’m testing a late-training LR floor increase to keep optimization pressure higher in this short 5-minute regime: I’ll change only `final_lr_frac` in `editable/config.toml`, commit, and run.
+
+The patch is committed as `935ddbb`; I’m launching the timed training run now with full log redirection and will read only `metrics.json` for result collection.
+
+The run is in progress. I’ll keep polling until completion or timeout, then parse `metrics.json` and decide keep/discard automatically.
+
+Training is still running within the 10-minute cap; I’m continuing to wait and will process results as soon as the process exits.
+
+I’m still waiting on the same run; next step after exit is metrics parse, TSV log append, and git reset if not improved.
+
+The run should be near completion now; I’m polling again and then immediately recording/acting on the outcome.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the result row, and enforcing keep/discard by comparing against the current best `val_bpb`.
+
+This trial regressed (`1.019874`), so I’m reverting branch state to the prior best commit and immediately launching the next experiment iteration.
+
+I’ve reset to `b88aca6`. Next experiment is a smaller optimizer tweak: increase `muon_momentum_end` from `0.95` to `0.96` to stabilize late updates without changing LR schedule.
+
+Second run is now active on commit `e22769a`; I’ll wait for completion, then record and keep/revert automatically based on `val_bpb`.
+
+The run is still progressing normally within the timeout window; I’m continuing to wait and will apply keep/discard as soon as it exits.
+
+I’m still waiting on the same training process; once it returns, I’ll parse `metrics.json` and update `memory/results.tsv` immediately.
+
+This second trial also regressed (`1.009678`), so I’m resetting back to the best checkpoint commit and keeping both results logged in `memory/results.tsv`.
+
+Completed 2 new experiments and logged both to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/memory/results.tsv).
+
+Current best remains:
+- `b88aca6` with `val_bpb=0.995128`
+
+New runs:
+1. `935ddbb` (`final_lr_frac: 0.2 -> 0.3`)  
+- Result: `val_bpb=1.019874`, `memory_gb=41.1`, `status=discard`
+- Branch reset back after logging.
+
+2. `e22769a` (`muon_momentum_end: 0.95 -> 0.96`)  
+- Result: `val_bpb=1.009678`, `memory_gb=41.1`, `status=discard`
+- Branch reset back after logging.
+
+Repo state now:
+- HEAD is back at `b88aca6`
+- `metrics.json` is present (latest run output)
+- No retained code changes in `editable/` from discarded trials.
+tokens used
+49,220
+Completed 2 new experiments and logged both to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-gpt53codex-medium-4h-orchestrated-7-20260505-141720/research-loop/memory/results.tsv).
+
+Current best remains:
+- `b88aca6` with `val_bpb=0.995128`
+
+New runs:
+1. `935ddbb` (`final_lr_frac: 0.2 -> 0.3`)  
+- Result: `val_bpb=1.019874`, `memory_gb=41.1`, `status=discard`
+- Branch reset back after logging.
+
+2. `e22769a` (`muon_momentum_end: 0.95 -> 0.96`)  
+- Result: `val_bpb=1.009678`, `memory_gb=41.1`, `status=discard`
+- Branch reset back after logging.
+
+Repo state now:
+- HEAD is back at `b88aca6`
+- `metrics.json` is present (latest run output)
+- No retained code changes in `editable/` from discarded trials.

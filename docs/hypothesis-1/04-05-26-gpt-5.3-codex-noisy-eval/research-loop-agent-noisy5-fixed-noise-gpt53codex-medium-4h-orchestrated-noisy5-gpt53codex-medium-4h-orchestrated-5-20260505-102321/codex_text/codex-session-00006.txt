@@ -1,0 +1,133 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs, then either resume or do the full setup sequence exactly as specified.
+
+I found an existing initialized run history on branch `research-loops/may5`, so I’m resuming from the current best (`1.023195`) and moving directly to the next experiment cycle. I’ll now read `editable/` files and propose a new targeted tweak.
+
+I’ve reviewed the training/config code and prior results; most LR schedule tweaks regressed, while only the embedding/unembedding LR increase helped. Next I’ll try a small regularization change (`weight_decay` down) to pair with that winning LR setting, then commit and run.
+
+I’m editing `editable/config.toml` now with a single controlled change: reduce `weight_decay` from `0.2` to `0.15` to test if slightly less decay improves short-horizon convergence.
+
+The change is committed (`2fee6b2`). I’m launching the 5-minute training run now and will read `metrics.json` when it finishes.
+
+Training is running in the background session; I’ll wait for completion and then collect only `metrics.json` for evaluation.
+diff --git a/editable/config.toml b/editable/config.toml
+index d9e38ceecf00bbf5ddc07ec67906536b3c2f52eb..c92e880593ea36b7b2d17ca58d3a8d2097321dc7
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.7
+ unembedding_lr = 0.006
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run is still active after 5 minutes elapsed wait time; I’m polling once more and will treat it as failure only if wall-clock exceeds 10 minutes.
+
+The run completed successfully but regressed (`val_bpb` worsened). I’m discarding this commit, resetting to the prior best state, and then appending the experiment outcome to `memory/results.tsv`.
+
+I’m continuing the loop with a second experiment now. Next candidate is a gentler Muon momentum schedule (`muon_momentum_start` from `0.85` to `0.90`) to reduce early update noise without changing LR.
+
+The new commit is ready (`c261989`), and I’m starting the next 5-minute training run now.
+
+Run is still in progress; I’m doing one more poll to finish and then I’ll collect `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d9e38ceecf00bbf5ddc07ec67906536b3c2f52eb..846182595fb2205198b278b6aa0a0442194019a9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.9
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+This second run also regressed, so I’m discarding `c261989`, resetting to the best retained commit, and logging the result in `memory/results.tsv`.
+
+I’m proceeding with another experiment immediately. I’ll test a narrower unembedding LR increase (`0.006` → `0.0065`), since `0.007` regressed and `0.006` is currently best.
+
+Third experiment is running now (`79f550a`); I’ll wait for completion and record from `metrics.json` only.
+diff --git a/editable/config.toml b/editable/config.toml
+index d9e38ceecf00bbf5ddc07ec67906536b3c2f52eb..50396ef955d7c48fb5156b2430353daed5328fb0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.7
+-unembedding_lr = 0.006
++unembedding_lr = 0.0065
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running; polling once more to capture completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index d9e38ceecf00bbf5ddc07ec67906536b3c2f52eb..50396ef955d7c48fb5156b2430353daed5328fb0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.7
+-unembedding_lr = 0.006
++unembedding_lr = 0.0065
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+This run improved substantially (`val_bpb 1.001690`), so I’m keeping commit `79f550a` as the new frontier and logging it as `keep`.
+
+Current loop status on `research-loops/may5`:
+
+- Resumed existing run history from `memory/results.tsv` (no re-init, no baseline rerun).
+- Ran 3 new experiments:
+1. `2fee6b2` (`weight_decay=0.15`) → `val_bpb=1.049460` → `discard` (reset)
+2. `c261989` (`muon_momentum_start=0.90`) → `val_bpb=1.045825` → `discard` (reset)
+3. `79f550a` (`unembedding_lr=0.0065`) → `val_bpb=1.001690` → `keep`
+
+New best is now:
+
+- Commit: `79f550a`
+- `val_bpb`: `1.001690`
+- `peak_vram_mb`: `42060.447` (~`41.1` GB)
+
+`memory/results.tsv` has been updated with all three results.
+diff --git a/editable/config.toml b/editable/config.toml
+index d9e38ceecf00bbf5ddc07ec67906536b3c2f52eb..50396ef955d7c48fb5156b2430353daed5328fb0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.7
+-unembedding_lr = 0.006
++unembedding_lr = 0.0065
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+tokens used
+37,194
+Current loop status on `research-loops/may5`:
+
+- Resumed existing run history from `memory/results.tsv` (no re-init, no baseline rerun).
+- Ran 3 new experiments:
+1. `2fee6b2` (`weight_decay=0.15`) → `val_bpb=1.049460` → `discard` (reset)
+2. `c261989` (`muon_momentum_start=0.90`) → `val_bpb=1.045825` → `discard` (reset)
+3. `79f550a` (`unembedding_lr=0.0065`) → `val_bpb=1.001690` → `keep`
+
+New best is now:
+
+- Commit: `79f550a`
+- `val_bpb`: `1.001690`
+- `peak_vram_mb`: `42060.447` (~`41.1` GB)
+
+`memory/results.tsv` has been updated with all three results.

@@ -1,0 +1,280 @@
+I’m starting the loop now: I’ll first detect whether this workspace is already initialized by checking `memory/results.tsv`, git branch state, and required data artifacts, then I’ll either resume or perform the full setup baseline path exactly as specified.
+
+I found a fresh state (`memory/results.tsv` absent), so I’ll do full setup: create a dated research branch, initialize results file, run baseline, then log metrics.
+
+I created branch `research-loops/may5`. Next I’m initializing `memory/results.tsv` and running the baseline training run (captured to `run.log`) before extracting `metrics.json`.
+
+Baseline run is in progress in the background; I’ll wait for completion, then read `metrics.json` only and append the baseline row.
+ exited 1 in 30493ms:
+
+The baseline process exited non-zero, so I’m checking `metrics.json` first; if missing/invalid, I’ll inspect `run.log` only to diagnose the crash as required.
+
+The baseline crashed due to `CUDA-capable device(s) is/are busy or unavailable`; I’m recording this as a crash in `memory/results.tsv`, then I’ll inspect `editable/` to pick the first code change and run the next committed experiment.
+
+I confirmed the crash record and loaded the editable sources; now I’m reading the rest of `train.py` to pick the first high-impact hyperparameter change before committing and rerunning.
+
+I’m making the first committed experiment in `editable/config.toml`: add a small LR warmup and slightly reduce matrix LR to improve early-step stability in the 5-minute window.
+
+The shell doesn’t provide an `apply_patch` binary here, so I’m applying the same edit with the built-in patch tool and then committing.
+
+The experiment commit `d3f72ee` is ready; I’m running training now and will evaluate strictly from `metrics.json` when it exits.
+
+Training is still running within budget; I’m continuing to wait for completion, then I’ll parse `metrics.json` and decide keep/discard against the best prior non-crash result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6871214f2eda94a7c18d05cab2215c5183c5038c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+This run exited with code 1; I’m checking `metrics.json` first, then logging a crash row and resetting to the pre-experiment commit since crashes are treated as non-improvements.
+
+Both attempts failed before training due to GPU unavailability, so I’m making a robustness experiment in `editable/train.py` that retries CUDA model materialization a few times with short backoff to convert transient device contention into successful runs.
+
+I’ve applied and staged the retry patch; I’m waiting for the commit command to finish and then I’ll launch the next run.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5b35645abedce4898cf15709b1ba0f10d6c0fbd4
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -447,9 +447,27 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
+-model.init_weights()
+ 
++
++def materialize_model_with_retry(model, device, retries=8, sleep_seconds=10):
++    for attempt in range(1, retries + 1):
++        try:
++            model.to_empty(device=device)
++            model.init_weights()
++            return
++        except torch.AcceleratorError as exc:
++            msg = str(exc)
++            if "CUDA-capable device(s) is/are busy or unavailable" not in msg or attempt == retries:
++                raise
++            print(
++                f"CUDA unavailable during model init (attempt {attempt}/{retries}); "
++                f"sleeping {sleep_seconds}s before retry"
++            )
++            time.sleep(sleep_seconds)
++
++
++materialize_model_with_retry(model, device)
++
+ param_counts = model.num_scaling_params()
+ print("Parameter counts:")
+ for key, value in param_counts.items():
+
+
+Commit `67792da` is ready; I’m running it now to see if the retry logic gets us past the CUDA contention and into a full 5-minute training/eval cycle.
+
+This run is still active and hasn’t failed immediately, which suggests the retry path may be handling startup contention; I’ll keep waiting for completion and then read `metrics.json`.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5b35645abedce4898cf15709b1ba0f10d6c0fbd4
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -447,9 +447,27 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
+-model.init_weights()
+ 
++
++def materialize_model_with_retry(model, device, retries=8, sleep_seconds=10):
++    for attempt in range(1, retries + 1):
++        try:
++            model.to_empty(device=device)
++            model.init_weights()
++            return
++        except torch.AcceleratorError as exc:
++            msg = str(exc)
++            if "CUDA-capable device(s) is/are busy or unavailable" not in msg or attempt == retries:
++                raise
++            print(
++                f"CUDA unavailable during model init (attempt {attempt}/{retries}); "
++                f"sleeping {sleep_seconds}s before retry"
++            )
++            time.sleep(sleep_seconds)
++
++
++materialize_model_with_retry(model, device)
++
+ param_counts = model.num_scaling_params()
+ print("Parameter counts:")
+ for key, value in param_counts.items():
+
+
+I’m still waiting on the same training process; once it exits I’ll immediately parse metrics and either keep this commit or reset.
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5b35645abedce4898cf15709b1ba0f10d6c0fbd4
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -447,9 +447,27 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
+-model.init_weights()
+ 
++
++def materialize_model_with_retry(model, device, retries=8, sleep_seconds=10):
++    for attempt in range(1, retries + 1):
++        try:
++            model.to_empty(device=device)
++            model.init_weights()
++            return
++        except torch.AcceleratorError as exc:
++            msg = str(exc)
++            if "CUDA-capable device(s) is/are busy or unavailable" not in msg or attempt == retries:
++                raise
++            print(
++                f"CUDA unavailable during model init (attempt {attempt}/{retries}); "
++                f"sleeping {sleep_seconds}s before retry"
++            )
++            time.sleep(sleep_seconds)
++
++
++materialize_model_with_retry(model, device)
++
+ param_counts = model.num_scaling_params()
+ print("Parameter counts:")
+ for key, value in param_counts.items():
+
+ exited 1 in 265203ms:
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..5b35645abedce4898cf15709b1ba0f10d6c0fbd4
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -447,9 +447,27 @@
+ 
+ with torch.device("meta"):
+     model = GPT(config)
+-model.to_empty(device=device)
+-model.init_weights()
+ 
++
++def materialize_model_with_retry(model, device, retries=8, sleep_seconds=10):
++    for attempt in range(1, retries + 1):
++        try:
++            model.to_empty(device=device)
++            model.init_weights()
++            return
++        except torch.AcceleratorError as exc:
++            msg = str(exc)
++            if "CUDA-capable device(s) is/are busy or unavailable" not in msg or attempt == retries:
++                raise
++            print(
++                f"CUDA unavailable during model init (attempt {attempt}/{retries}); "
++                f"sleeping {sleep_seconds}s before retry"
++            )
++            time.sleep(sleep_seconds)
++
++
++materialize_model_with_retry(model, device)
++
+ param_counts = model.num_scaling_params()
+ print("Parameter counts:")
+ for key, value in param_counts.items():
+
+
+The process exited non-zero again; I’m checking `metrics.json` and then recording the result and applying keep/discard logic.
+
+I now have three logged crash experiments and no successful metric yet; I’m quickly checking GPU visibility (`nvidia-smi`) to decide the next robustness edit that can keep the loop productive under contention.
+
+GPU is currently visible and idle, so I’m proceeding with a fresh committed hyperparameter experiment now (without the retry patch) to try to get the first valid `val_bpb` measurement.
+
+Running experiment `b43b746` now; after it exits I’ll parse `metrics.json`, append TSV, and keep/reset based on `val_bpb`.
+
+The run is in progress; I’m waiting for completion and will collect only `metrics.json` unless it crashes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+ exited 1 in 53940ms:
+
+Loop started and executed on branch `research-loops/may5`.
+
+Current state:
+- Branch: `research-loops/may5`
+- HEAD: `0cf2df4` (non-improving experiment commits were reset as required)
+- Results log: `memory/results.tsv` initialized and updated
+
+Logged experiments:
+- `0cf2df4` `crash` baseline: CUDA device unavailable during `model.to_empty`
+- `d3f72ee` `crash` warmup 2% + `matrix_lr=0.035`: same CUDA unavailable error
+- `67792da` `crash` CUDA init retry wrapper (8x10s): still unavailable after retries
+- `b43b746` `crash` `matrix_lr=0.03`: same CUDA unavailable error
+
+`memory/results.tsv` now contains:
+```tsv
+commit	val_bpb	memory_gb	status	description
+0cf2df4	0.000000	0.0	crash	baseline cuda device unavailable
+d3f72ee	0.000000	0.0	crash	warmup 2pct and matrix_lr 0.035; cuda unavailable
+67792da	0.000000	0.0	crash	cuda init retry wrapper (8x10s); still unavailable
+b43b746	0.000000	0.0	crash	matrix_lr 0.03; cuda unavailable
+```
+
+Crash signature is consistent across runs:
+- `torch.AcceleratorError: CUDA error: CUDA-capable device(s) is/are busy or unavailable`
+- failure occurs before training begins, so no `metrics.json` is produced.
+tokens used
+50,697
+Loop started and executed on branch `research-loops/may5`.
+
+Current state:
+- Branch: `research-loops/may5`
+- HEAD: `0cf2df4` (non-improving experiment commits were reset as required)
+- Results log: `memory/results.tsv` initialized and updated
+
+Logged experiments:
+- `0cf2df4` `crash` baseline: CUDA device unavailable during `model.to_empty`
+- `d3f72ee` `crash` warmup 2% + `matrix_lr=0.035`: same CUDA unavailable error
+- `67792da` `crash` CUDA init retry wrapper (8x10s): still unavailable after retries
+- `b43b746` `crash` `matrix_lr=0.03`: same CUDA unavailable error
+
+`memory/results.tsv` now contains:
+```tsv
+commit	val_bpb	memory_gb	status	description
+0cf2df4	0.000000	0.0	crash	baseline cuda device unavailable
+d3f72ee	0.000000	0.0	crash	warmup 2pct and matrix_lr 0.035; cuda unavailable
+67792da	0.000000	0.0	crash	cuda init retry wrapper (8x10s); still unavailable
+b43b746	0.000000	0.0	crash	matrix_lr 0.03; cuda unavailable
+```
+
+Crash signature is consistent across runs:
+- `torch.AcceleratorError: CUDA error: CUDA-capable device(s) is/are busy or unavailable`
+- failure occurs before training begins, so no `metrics.json` is produced.

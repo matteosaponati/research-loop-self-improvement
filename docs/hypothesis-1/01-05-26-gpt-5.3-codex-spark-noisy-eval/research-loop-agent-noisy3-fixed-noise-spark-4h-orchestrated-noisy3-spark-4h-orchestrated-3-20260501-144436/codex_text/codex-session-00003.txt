@@ -1,0 +1,926 @@
+I’ll begin by checking repo state and whether an experiment session is already initialized (results file, branch), then set up the research branch if needed, run the required baseline, and start proposing/committing one experiment at a time with logging and keep/discard logic per your protocol.
+
+The session is already initialized with prior results on branch `research-loops/may1`; I will now treat this as a continuation run: skip setup/rebaseline, inspect the editable training/config files once, then propose the next low-risk experiment against the current best baseline.
+
+I’ve identified the main tunable surfaces in `editable/train.py`. Next I’m pulling the training loop/schedule section to target a minimal, meaningful hyperparameter experiment tied to the LR/momentum schedule and avoid broad changes.
+
+I confirmed we’re on a clean `research-loops/may1` branch with `HEAD` at `9a5f9d6` and the workspace is ready. I’ll now run one focused experiment from the current best state and log/compare exactly as required.
+
+Current best keep result is `0.999133` at commit `9a5f9d6` (`increase warmdown ratio to 0.6`). I’m running a conservative next sweep by lowering matrix regularization (weight decay) to reduce underfitting pressure while keeping all other knobs unchanged.
+
+I’ve committed the first new variant (`32a6c2f`). Next step is running `editable/train.py` for a 5‑minute wall-time budget and capturing the summary in `run.log`.
+
+The first candidate experiment is still running; I’m continuing to wait and will stop if it exceeds the 10-minute hard cap, then log/reset per protocol.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..19394bbb7f381b9e7a79dff38f96714ec45ec40e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..19394bbb7f381b9e7a79dff38f96714ec45ec40e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The process ended; I’ll now parse `run.log` for `val_bpb` and `peak_vram_mb`, then append the result to `memory/results.tsv` and decide keep/discard.
+
+Result from `32a6c2f` is worse (`val_bpb=1.004638`, +0.0055) and exceeded no constraints (memory ~41.1GB). I’m marking it as discard and reverting to the best-known commit before the next experiment.
+
+Next candidate is a momentum-tuning change on the Muon path: lowering the final momentum target (`muon_momentum_end`) to reduce late-stage over‑smoothing while keeping the warmup and other settings fixed.
+
+Running the second experiment now (`c5fb989`), then I’ll log and immediately compare against current best as required.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..563cab92784d0fc862b0b8cdfc2e9b8cc77317a8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+
+
+Second run finished. I’m extracting the summary from `run.log` and will apply the keep/discard rule now.
+
+`c5fb989` is also worse (`val_bpb=1.014002`). I’m logging it as discard and resetting back to `9a5f9d6` for the next controlled experiment.
+
+Third candidate is `muon_beta2=0.98` (slightly stronger second-moment averaging) with all else unchanged; running and then I’ll evaluate strictly against best `0.999133`.
+
+Still within budget, continuing to wait for this run to finish then I’ll parse the summary.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..d0883acc66b449248d624c64b618d6d16ca4aa91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.03
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..d0883acc66b449248d624c64b618d6d16ca4aa91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.03
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..d0883acc66b449248d624c64b618d6d16ca4aa91
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.98
+ 
+ # Schedules
+ warmup_ratio = 0.03
+
+
+Run `0979d6e` finished; next I’ll extract the key metrics and record the result.
+
+The last three momentum tweaks did not beat best. Next I’ll test a throughput-oriented change: increase `device_batch_size` to 256 (keeping `total_batch_size` fixed) to reduce accumulation overhead while preserving global batch semantics.
+
+I’ve started this run. I’ll wait for completion and immediately apply the keep/discard rule based on the logged `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+This experiment is still within the hard cap. I’ll do one more check cycle before parsing outputs.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..cc292263da9a249a5349c7b83d73fe87c7db389f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -9,7 +9,7 @@
+ # Data and run budget
+ sequence_len = 2048
+ total_batch_size = 524288
+-device_batch_size = 128
++device_batch_size = 256
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+ 
+
+
+`16a6f74` regressed heavily (val bpb up, and VRAM doubled to 83.5 GB), so it’s clearly discarded and I’m reverting to the best commit before next trial.
+
+Next I’ll try a small Muon parameter interaction: lower `muon_initial_momentum` (keeping the warmup/decay schedules unchanged), since that controls only the starting momentum value for matrix updates.
+
+Still running this configuration; I’ll keep waiting and then parse metrics once it ends.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..622ead55bee8a940128788bc84f50ec7a2b28725
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -40,7 +40,7 @@
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.9
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+
+
+This run ended; I’ll capture the summary and apply the decision rule now.
+
+I’ve logged and reverted three more unsuccessful trials. I’ll run one additional constrained check: disabling matrix weight decay (`weight_decay = 0.0`) while keeping everything else as the best-known setup.
+
+Running the zero-weight-decay trial now and awaiting completion before logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+This run is still within wall-time window; continuing to wait once more before reading output.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..68da4569c6d582b61df5f4811f0ea6f7393490ab
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.0
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+`1613ca9` produced `val_bpb=1.001190` (slight gain over baseline but not better than best), so per protocol this stays a discard and I’m reverting to the best state.
+
+I’m doing one final architecture-independent throughput/optimization sweep by increasing `total_batch_size` to 786432 (with `device_batch_size` back to 128) to test fewer optimizer steps per token under the same 5-minute wall budget.
+
+Running the larger global-batch experiment now; waiting for completion to decide keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+This is still running within limits; I’ll do one final wait cycle and then read metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index e23ce7a52aabaa6f813467fa2594dcaca5e9609f..2d64a659203205e6bfeae1537b13ac81b2836a63
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 786432
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+`4eda8d4` did not improve (`val_bpb=1.001193`), so it’s also discarded and I’m resetting to the current best commit.
+
+I’m summarizing the session now; I’ll check the updated `memory/results.tsv` to report exact trial history and current best.
+
+Resumed session on existing research branch and continued the loop without rerunning baseline.
+
+- Branch: `research-loops/may1`
+- Current baseline/best: `9a5f9d6` (`increase warmdown ratio to 0.6`) with `val_bpb=0.999133`, `memory_gb=41.1`, `status=keep`
+- Working tree is clean and checked out at best commit.
+- All runs were logged to `memory/results.tsv` after each experiment.
+
+Experiments run in this continuation:
+
+- `32a6c2f` — set `weight_decay` from `0.2` → `0.1` → `val_bpb=1.004638` (discard)
+- `c5fb989` — set `muon_momentum_end` from `0.95` → `0.93` → `val_bpb=1.014002` (discard)
+- `0979d6e` — set `muon_beta2` from `0.95` → `0.98` → `val_bpb=1.037197` (discard)
+- `16a6f74` — set `device_batch_size` `128` → `256` → `val_bpb=1.049902`, `peak_vram=81.5GB` (discard, memory regression)
+- `0752bdd` — set `muon_initial_momentum` `0.95` → `0.9` → `val_bpb=1.044144` (discard)
+- `1613ca9` — set `weight_decay` `0.2` → `0.0` → `val_bpb=1.001190` (discard, still worse than best)
+- `4eda8d4` — set `total_batch_size` `524288` → `786432` → `val_bpb=1.001193` (discard)
+
+No crashes occurred in these additional runs.
+
+1. I can continue immediately with another batch of targeted edits (e.g., LR/decay schedule tweaks, optimizer step-related knobs, sequence-length-adjacent settings).
+tokens used
+154,237
+Resumed session on existing research branch and continued the loop without rerunning baseline.
+
+- Branch: `research-loops/may1`
+- Current baseline/best: `9a5f9d6` (`increase warmdown ratio to 0.6`) with `val_bpb=0.999133`, `memory_gb=41.1`, `status=keep`
+- Working tree is clean and checked out at best commit.
+- All runs were logged to `memory/results.tsv` after each experiment.
+
+Experiments run in this continuation:
+
+- `32a6c2f` — set `weight_decay` from `0.2` → `0.1` → `val_bpb=1.004638` (discard)
+- `c5fb989` — set `muon_momentum_end` from `0.95` → `0.93` → `val_bpb=1.014002` (discard)
+- `0979d6e` — set `muon_beta2` from `0.95` → `0.98` → `val_bpb=1.037197` (discard)
+- `16a6f74` — set `device_batch_size` `128` → `256` → `val_bpb=1.049902`, `peak_vram=81.5GB` (discard, memory regression)
+- `0752bdd` — set `muon_initial_momentum` `0.95` → `0.9` → `val_bpb=1.044144` (discard)
+- `1613ca9` — set `weight_decay` `0.2` → `0.0` → `val_bpb=1.001190` (discard, still worse than best)
+- `4eda8d4` — set `total_batch_size` `524288` → `786432` → `val_bpb=1.001193` (discard)
+
+No crashes occurred in these additional runs.
+
+1. I can continue immediately with another batch of targeted edits (e.g., LR/decay schedule tweaks, optimizer step-related knobs, sequence-length-adjacent settings).

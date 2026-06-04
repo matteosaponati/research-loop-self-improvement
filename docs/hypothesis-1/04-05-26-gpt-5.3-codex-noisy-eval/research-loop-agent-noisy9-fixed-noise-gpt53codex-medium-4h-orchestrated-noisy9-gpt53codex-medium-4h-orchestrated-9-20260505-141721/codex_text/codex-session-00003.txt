@@ -1,0 +1,118 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized run with prior experiments, so I’m resuming from current branch and moving directly to the next experiment by reading all `editable/` files for context.
+
+Next I’m reading `editable/train.py`, `editable/config.toml`, and `editable/config_loader.py` to pick a targeted change based on what has already improved.
+
+I’ve loaded the config and model/optimizer setup; now I’m checking the remaining training loop and scheduler code to choose the next high-impact hyperparameter tweak.
+
+I’m testing a narrower LR cooldown next, since `warmdown_ratio=0.3` beat baseline and the failed `final_lr_frac` test suggests shape matters more than adding an LR floor. I’ll change `warmdown_ratio` to `0.2`, commit, run, and compare against the current best `1.013253`.
+
+I’ve made the one-line config edit; now I’m committing this experiment and launching a timed run with log redirection.
+
+The run is in progress now; I’ll wait for completion, then read only `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+I’m still waiting on the training process; once it exits I’ll collect the metric and decide keep vs discard immediately.
+
+Training is still running within the timeout window; I’m continuing to wait for completion before evaluating results.
+
+I’m polling again; as soon as the process exits I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+The run is still active; I’m continuing to wait and will perform result logging/reset logic right after it finishes.
+
+Still in-flight; I’m polling again for completion.
+
+I’m continuing to monitor the same run and will immediately collect `metrics.json` when it exits.
+
+Polling again for run completion; no diagnostics needed unless `metrics.json` is missing afterward.
+
+Still waiting on the training process; I’ll proceed to metric extraction and git decision as soon as it returns.
+
+I’m doing another completion check now; this should be near the end of the 5-minute budget plus startup overhead.
+
+The run finished successfully. I’m now reading `metrics.json`, appending the experiment row to `memory/results.tsv`, and reverting this commit if it did not beat `1.013253`.
+
+I hit an environment issue (`python` not on PATH), so the append script didn’t run; I’ve already restored the branch tip safely, and now I’m extracting metrics with `uv run python` and recording the result correctly.
+
+I recovered the metrics from the completed run (`val_bpb=1.018976`) and I’m logging it now as `discard` for commit `b67c3d8` since it didn’t beat the best keep.
+
+I’m proceeding with another experiment: lowering Muon terminal momentum (`muon_momentum_end`) to `0.93` to make updates less inertial late in this short 5-minute regime.
+
+I’ve committed the momentum tweak and I’m launching the next training run now; after completion I’ll log metrics and keep/reset based on improvement.
+
+The second run is in progress; I’m monitoring it and will collect only `metrics.json` when it exits.
+
+I’m still waiting on the run; once complete I’ll immediately evaluate `val_bpb` against the current best.
+
+Polling continues; no crash diagnostics needed unless `metrics.json` is missing afterward.
+
+I’m checking again for completion and will perform logging/reset logic as soon as the process exits.
+
+The run is still active within timeout; I’m continuing to wait for a clean exit before scoring it.
+
+I’m polling again now; expected completion is near the end of the 5-minute training budget plus startup.
+
+Still running; I’ll keep monitoring and then log the result immediately on exit.
+
+Another completion check now; if finished, I’ll parse metrics and decide keep/discard.
+
+I’m continuing to wait on the same process and will finalize this experiment as soon as it exits.
+
+The run completed successfully; I’m extracting `metrics.json`, recording it in `memory/results.tsv`, and applying keep/reset according to `val_bpb`.
+
+Experiment loop resumed from existing state and I ran 2 new experiments end-to-end.
+
+Results logged to `memory/results.tsv`:
+- `b67c3d8` → `val_bpb=1.018976`, `41.1 GB`, `discard`, `warmdown_ratio 0.2`
+- `bcc0328` → `val_bpb=1.037647`, `41.1 GB`, `discard`, `muon_momentum_end 0.93`
+
+Current best remains:
+- `3adb8a8` → `val_bpb=1.013253` (`keep`)
+
+Branch state:
+- Reset back to best commit tip (`3adb8a8`) after both non-improving runs.
+- Working tree only has untracked `metrics.json` (expected run artifact).
+
+Unified diffs that were tested:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.3
++warmdown_ratio = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+```
+tokens used
+31,559
+Experiment loop resumed from existing state and I ran 2 new experiments end-to-end.
+
+Results logged to `memory/results.tsv`:
+- `b67c3d8` → `val_bpb=1.018976`, `41.1 GB`, `discard`, `warmdown_ratio 0.2`
+- `bcc0328` → `val_bpb=1.037647`, `41.1 GB`, `discard`, `muon_momentum_end 0.93`
+
+Current best remains:
+- `3adb8a8` → `val_bpb=1.013253` (`keep`)
+
+Branch state:
+- Reset back to best commit tip (`3adb8a8`) after both non-improving runs.
+- Working tree only has untracked `metrics.json` (expected run artifact).
+
+Unified diffs that were tested:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.3
++warmdown_ratio = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+```

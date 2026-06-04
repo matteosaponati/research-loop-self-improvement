@@ -1,0 +1,128 @@
+I’m starting by checking git state, whether `memory/results.tsv` already has prior runs, and whether data artifacts exist so I can either resume or initialize exactly per your loop rules.
+
+I found an existing initialized run (`memory/results.tsv` already populated), so I’m resuming from the current branch and moving directly to reading `editable/` plus prior results to choose the next experiment.
+
+I’ve identified the current best as `1.000165` and will run a focused optimizer-schedule experiment by disabling weight-decay decay (`weight_decay_decay = false`) to keep regularization constant through the 5-minute run.
+
+I committed the change as `b9b3e88` and I’m launching the 5-minute training run now with output redirected to `run.log`, then I’ll read `metrics.json` only and decide keep vs reset.
+
+The training process is running in the background session; I’m waiting for completion and will immediately parse `metrics.json` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196db927c963f0680f6e9c8457f5d35f9c12..4718e3de44bd52e039a08b265a5b9f96e8ebe186
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+The run has exceeded 5 minutes but is still active, so I’m continuing to monitor and will enforce the 10-minute failure cutoff if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196db927c963f0680f6e9c8457f5d35f9c12..4718e3de44bd52e039a08b265a5b9f96e8ebe186
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -51,4 +51,4 @@
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Training finished successfully; next I’m extracting `metrics.json`, appending this experiment to `memory/results.tsv`, and then either keeping the commit or resetting based on whether `val_bpb` improved.
+
+This experiment regressed (`val_bpb` worse than best), so I’m discarding it by resetting one commit as required, while keeping the appended record in `memory/results.tsv`.
+
+I hit a race by running checks in parallel with reset; I’m now correcting state serially to ensure we’re truly back at the pre-experiment commit with no retained code changes.
+
+State is corrected at `19b9457` (best kept commit), so I’m proceeding with the next experiment: increasing `muon_momentum_start` from `0.85` to `0.90` to reduce early optimizer noise while preserving the same endpoint momentum.
+
+I committed `f4c097e` and I’m running the next 5-minute training job now; after completion I’ll read `metrics.json`, log to TSV, and keep/reset strictly by `val_bpb`.
+
+The run is active; I’m waiting for it to finish and will only use `metrics.json` for result collection unless a crash requires log diagnosis.
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196db927c963f0680f6e9c8457f5d35f9c12..239be741c9f864774ba344899008c1529874aed8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+The process is still running past 5 minutes, so I’m continuing to wait and will enforce the 10-minute cutoff if it doesn’t exit soon.
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196db927c963f0680f6e9c8457f5d35f9c12..239be741c9f864774ba344899008c1529874aed8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training completed successfully; I’m now extracting metrics, appending the TSV row, and applying keep/reset based on comparison with the best kept `val_bpb`.
+
+Experiment loop is running and resumed correctly from existing state.
+
+Latest completed experiments:
+1. `b9b3e88`  
+- Diff:
+```diff
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+- Result: `val_bpb=1.039002`, `memory_gb=41.1`, status `discard`  
+- Action: reset to best kept commit lineage
+
+2. `f4c097e`  
+- Diff:
+```diff
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+```
+- Result: `val_bpb=1.040710`, `memory_gb=41.1`, status `discard`  
+- Action: reset to `19b9457`
+
+Current branch state:
+- `HEAD`: `19b9457` (best kept remains `val_bpb=1.000165`)
+- `memory/results.tsv` updated with both new rows
+- Uncommitted file present: `metrics.json` (expected run artifact)
+tokens used
+24,694
+Experiment loop is running and resumed correctly from existing state.
+
+Latest completed experiments:
+1. `b9b3e88`  
+- Diff:
+```diff
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+- Result: `val_bpb=1.039002`, `memory_gb=41.1`, status `discard`  
+- Action: reset to best kept commit lineage
+
+2. `f4c097e`  
+- Diff:
+```diff
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+```
+- Result: `val_bpb=1.040710`, `memory_gb=41.1`, status `discard`  
+- Action: reset to `19b9457`
+
+Current branch state:
+- `HEAD`: `19b9457` (best kept remains `val_bpb=1.000165`)
+- `memory/results.tsv` updated with both new rows
+- Uncommitted file present: `metrics.json` (expected run artifact)

@@ -1,0 +1,132 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior experiments, so I can either resume immediately or perform the full setup path exactly as specified.
+
+This workspace is already initialized on `research-loops/may5` with prior results, so I’m resuming from step (2) and gathering full context from `editable/` plus the results history before choosing the next experiment.
+
+I’ve identified the current best (`0.989261`) and will run a focused optimizer-scale test by slightly increasing `embedding_lr` from `0.6` to `0.7`, keeping the strong schedule settings unchanged to probe faster embedding adaptation.
+
+I’m committing this single-parameter change now, then launching a timed run and collecting only `metrics.json` for evaluation per your logging rules.
+
+The experiment commit is `2ea1108`; I’m running training now and will parse `metrics.json` as soon as it finishes, then decide keep/discard and update `memory/results.tsv`.
+
+Training is in progress; I’m waiting for completion and then will read `metrics.json` directly without touching the run log.
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..7c06d61abdb3798abdf479269cdee8885a407178
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..7c06d61abdb3798abdf479269cdee8885a407178
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+
+
+The run finished successfully; I’m now extracting metrics and comparing `val_bpb` against the recorded best to decide whether to keep this commit or reset.
+
+The environment doesn’t expose `python` directly, so I’m rerunning the same metrics extraction through `uv run python` and proceeding with keep/discard immediately after.
+
+I’ve discarded that change and reset to the best commit `f259efa`; next I’m testing a nearby schedule variant by raising `final_lr_frac` from `0.05` to `0.08` to keep a slightly higher tail LR.
+
+The second experiment commit is `d8d7b78`; launching the 5-minute training run now, then I’ll evaluate from `metrics.json` and keep or discard.
+
+Run is active; I’m waiting for completion and will only read `metrics.json` unless there is a crash.
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..df9cee6fe6aa45b6d6f673f18342bd84c054892a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.3
+-final_lr_frac = 0.05
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 500
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..df9cee6fe6aa45b6d6f673f18342bd84c054892a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.3
+-final_lr_frac = 0.05
++final_lr_frac = 0.08
+ muon_momentum_warmup_steps = 500
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This trial underperformed the best checkpoint, so I’m recording it as `discard` and resetting to `f259efa` before moving on to the next idea.
+
+I’m continuing the loop with another orthogonal change: lowering `unembedding_lr` from `0.004` to `0.003` to test whether a gentler head update improves short-budget validation.
+
+Third run is now executing on commit `cf626c7`; I’ll wait for completion, read `metrics.json`, and then keep/discard with a reset if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..7f11cab63eb6e8f6e89ae225765e33c17d378880
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d478129652ce7d191705fca6ac47624d49135e87..7f11cab63eb6e8f6e89ae225765e33c17d378880
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.003
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+The run completed; extracting metrics now and applying the same keep/discard rule against the current best `0.989261`.
+
+Completed 3 experiment iterations and kept the branch advanced state at best commit `f259efa` (`val_bpb=0.989261`).
+
+New experiments run this turn:
+1. `2ea1108` (`embedding_lr 0.6 -> 0.7`), result `val_bpb=1.031668`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`  
+2. `d8d7b78` (`final_lr_frac 0.05 -> 0.08`), result `val_bpb=1.003427`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`  
+3. `cf626c7` (`unembedding_lr 0.004 -> 0.003`), result `val_bpb=1.034210`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`
+
+I appended all 3 rows to `memory/results.tsv` and reset after each non-improvement. Current `HEAD` is back at `f259efa`.
+tokens used
+51,741
+Completed 3 experiment iterations and kept the branch advanced state at best commit `f259efa` (`val_bpb=0.989261`).
+
+New experiments run this turn:
+1. `2ea1108` (`embedding_lr 0.6 -> 0.7`), result `val_bpb=1.031668`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`  
+2. `d8d7b78` (`final_lr_frac 0.05 -> 0.08`), result `val_bpb=1.003427`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`  
+3. `cf626c7` (`unembedding_lr 0.004 -> 0.003`), result `val_bpb=1.034210`, `peak_vram_mb=42060.4` (`41.1 GB`), `discard`
+
+I appended all 3 rows to `memory/results.tsv` and reset after each non-improvement. Current `HEAD` is back at `f259efa`.

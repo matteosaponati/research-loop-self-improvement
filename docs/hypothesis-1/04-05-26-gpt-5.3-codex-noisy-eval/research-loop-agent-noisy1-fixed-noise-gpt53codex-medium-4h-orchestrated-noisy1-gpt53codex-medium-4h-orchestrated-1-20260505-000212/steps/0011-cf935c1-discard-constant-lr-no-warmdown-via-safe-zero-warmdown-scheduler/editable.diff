@@ -1,0 +1,38 @@
+commit cf935c10bf065d068ef52740336e8b10f49298bb
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 00:38:11 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 00:38:11 2026 +0200
+
+    schedule: allow zero warmdown and run constant LR
+---
+ editable/config.toml | 2 +-
+ editable/train.py    | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/editable/config.toml b/editable/config.toml
+index bc8410a..4127293 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.2
++warmdown_ratio = 0.0
+ final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769..ae97e21 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:

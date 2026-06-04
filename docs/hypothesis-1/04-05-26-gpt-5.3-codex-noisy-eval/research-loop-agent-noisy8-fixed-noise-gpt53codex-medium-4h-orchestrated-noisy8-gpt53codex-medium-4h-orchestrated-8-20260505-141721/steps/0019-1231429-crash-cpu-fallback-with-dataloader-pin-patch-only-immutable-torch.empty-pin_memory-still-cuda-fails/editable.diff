@@ -1,0 +1,161 @@
+commit 123142918a0e2341718a06c34becfc49e7e014de
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 16:03:35 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 16:03:35 2026 +0200
+
+    cpu fallback: disable pin_memory and guard cuda-only paths
+---
+ editable/train.py | 73 +++++++++++++++++++++++++++++++++++++++----------------
+ 1 file changed, 52 insertions(+), 21 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56..bbf66fb 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -8,6 +8,7 @@ import json
+ import os
+ import sys
+ from pathlib import Path
++from unittest.mock import patch
+ 
+ METRICS_PATH = Path("metrics.json")
+ METRICS_PATH.unlink(missing_ok=True)
+@@ -43,6 +44,7 @@ import gc
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +421,36 @@ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return CONFIG.device
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return "cuda"
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window: {exc}; falling back to cpu")
++                    return "cpu"
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to cpu")
++                return "cpu"
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++runtime_device = wait_for_cuda_or_fail()
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = (
++    torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype)
++    if runtime_device == "cuda"
++    else nullcontext()
++)
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -504,15 +511,37 @@ optimizer = model.setup_optimizer(
+ if COMPILE_MODEL:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+-train_loader = prepare.make_dataloader(
+-    tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
+-    "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
+-)
++def make_loader(split):
++    if runtime_device == "cpu":
++        # Immutable data pipeline enables pinned memory for CUDA by default.
++        # Force pinning off to avoid CUDA-driver dependent failures in CPU fallback runs.
++        orig_init = torch.utils.data.DataLoader.__init__
++
++        def _patched_init(self, *args, **kwargs):
++            kwargs["pin_memory"] = False
++            return orig_init(self, *args, **kwargs)
++
++        with patch.object(torch.utils.data.DataLoader, "__init__", _patched_init):
++            return prepare.make_dataloader(
++                tokenizer,
++                CONFIG.device_batch_size,
++                CONFIG.sequence_len,
++                split,
++                buffer_size=CONFIG.dataloader_buffer_size,
++                tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++                device=runtime_device,
++            )
++    return prepare.make_dataloader(
++        tokenizer,
++        CONFIG.device_batch_size,
++        CONFIG.sequence_len,
++        split,
++        buffer_size=CONFIG.dataloader_buffer_size,
++        tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++        device=runtime_device,
++    )
++
++train_loader = make_loader("train")
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
+@@ -546,7 +575,8 @@ total_training_time = 0
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +606,8 @@ while True:
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -622,7 +653,7 @@ with autocast_ctx:
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+@@ -630,7 +661,7 @@ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),

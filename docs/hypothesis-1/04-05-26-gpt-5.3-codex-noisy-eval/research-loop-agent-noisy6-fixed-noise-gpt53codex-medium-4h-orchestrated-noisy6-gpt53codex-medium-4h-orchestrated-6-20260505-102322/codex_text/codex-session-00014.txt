@@ -1,0 +1,64 @@
+I’m starting the research loop now: I’ll check git state and whether `memory/results.tsv` already has runs so I can either resume or initialize exactly per your protocol.
+
+I found an active run history, so I’m resuming from the existing branch and best-known `val_bpb=0.985879`. Next I’ll read all `editable/` files and current HEAD to choose a targeted next experiment.
+
+I’ve identified the key schedule knobs in `train.py`; I’m now reading the scheduler and optimizer sections around those lines to pick a high-leverage change that can beat `0.985879` in a 5-minute window.
+
+I’m running a single focused trial on optimizer dynamics: keep the winning LR settings and only lengthen Muon momentum warmup so momentum rises more gradually during this short training budget. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `metrics.json`.
+
+The commit is in place (`7e5a734`). I’m launching the 5-minute training run now and will read only `metrics.json` afterward to decide keep vs discard.
+
+Training is running in the background session; I’m waiting for completion, then I’ll parse `metrics.json` and update `memory/results.tsv`.
+
+The run crossed the 5-minute training window and is still finalizing; I’m continuing to wait and will kill it only if total runtime exceeds 10 minutes per your rule.
+
+I hit a small environment detail (`python` isn’t on PATH directly), so I switched to `uv run ... python`. I’m now collecting the run metric from `metrics.json` and applying keep/discard logic.
+
+I discarded that change and reset to the best commit. I’m starting the next trial by changing only `muon_beta2` to `0.96` to test slightly stronger second-moment smoothing on Muon updates.
+
+Second experiment run is in progress; after it exits I’ll read `metrics.json`, append to `memory/results.tsv`, and keep or reset immediately.
+
+The run completed successfully; I’m extracting the metric now and applying the same keep/discard rule against the current best (`0.985879`).
+
+I’ve reset again to the current best state. I’m launching a third experiment with `muon_ns_steps=6` (from `5`) to test whether slightly stronger Muon orthogonalization improves quality under the same time budget.
+
+Third run is now executing; once it exits I’ll read `metrics.json`, append the TSV row, and keep or revert this commit based on `val_bpb`.
+
+The third run finished; I’m recording metrics and applying keep/discard now.
+
+This run improved the best score to `0.977225`, so I kept commit `60b721d`. I’m continuing the loop with a local follow-up around the same axis: `muon_ns_steps=7`.
+
+I started the next run (`c50e38e`) and I’m waiting for completion to record and decide keep/discard.
+
+Run finished. I’m finalizing metric extraction, TSV logging, and branch state update now.
+
+Current loop progress:
+
+- Resumed existing branch `research-loops/may5` (no re-init/baseline rerun).
+- Ran 4 new experiments, logged all to `memory/results.tsv`, and applied keep/reset rules each time.
+- New best found and kept: commit `60b721d` with `val_bpb=0.977225` (better than prior `0.985879`).
+
+Latest entries in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy6-gpt53codex-medium-4h-orchestrated-6-20260505-102322/research-loop/memory/results.tsv):
+
+- `7e5a734` → `1.023438` discard (`muon_momentum_warmup_steps=420`)
+- `1dfc69d` → `0.996496` discard (`muon_beta2=0.96`)
+- `60b721d` → `0.977225` keep (`muon_ns_steps=6`)
+- `c50e38e` → `1.010960` discard (`muon_ns_steps=7`)
+
+Current HEAD is the best commit: `60b721d`, with only `editable/config.toml` changed in the kept state (`muon_ns_steps = 6`).
+tokens used
+43,479
+Current loop progress:
+
+- Resumed existing branch `research-loops/may5` (no re-init/baseline rerun).
+- Ran 4 new experiments, logged all to `memory/results.tsv`, and applied keep/reset rules each time.
+- New best found and kept: commit `60b721d` with `val_bpb=0.977225` (better than prior `0.985879`).
+
+Latest entries in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy6-gpt53codex-medium-4h-orchestrated-6-20260505-102322/research-loop/memory/results.tsv):
+
+- `7e5a734` → `1.023438` discard (`muon_momentum_warmup_steps=420`)
+- `1dfc69d` → `0.996496` discard (`muon_beta2=0.96`)
+- `60b721d` → `0.977225` keep (`muon_ns_steps=6`)
+- `c50e38e` → `1.010960` discard (`muon_ns_steps=7`)
+
+Current HEAD is the best commit: `60b721d`, with only `editable/config.toml` changed in the kept state (`muon_ns_steps = 6`).

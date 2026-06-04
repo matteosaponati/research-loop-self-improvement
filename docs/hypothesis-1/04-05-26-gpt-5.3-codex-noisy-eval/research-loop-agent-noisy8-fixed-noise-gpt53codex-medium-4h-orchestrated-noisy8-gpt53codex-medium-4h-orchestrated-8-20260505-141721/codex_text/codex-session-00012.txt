@@ -1,0 +1,80 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already exists to decide between resume vs fresh initialization, then I’ll set up the branch/state exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` already populated), so I’m resuming from current branch state and moving directly to proposing the next experiment based on `editable/` and prior results.
+
+I’ve loaded prior results and current editable code; next I’m reading the rest of `train.py` to target a change likely to improve `val_bpb` without destabilizing the fragile runtime path.
+
+I found that the script is mostly running in CPU fallback mode when CUDA is unavailable, and recent successful results came from that path. I’m checking the final metrics/eval section now to pick a safe, high-impact hyperparameter tweak.
+
+I’m going to try a schedule-focused tweak for this short 5-minute run: reduce LR decay near the end so training stays at peak LR longer (`warmdown_ratio` from `0.3` to `0.1`). I’ll apply this in `editable/config.toml`, commit, run, and keep/revert based on `val_bpb`.
+
+The change is committed (`826e19c`); I’m running the experiment now and will collect metrics strictly from `metrics.json` when it finishes.
+
+The training process is active; I’m monitoring it and will stop it if it crosses the 10-minute cap, otherwise I’ll parse `metrics.json` and record the result.
+
+Still running within expected wall time; I’m waiting for completion before reading `metrics.json`.
+
+I’m continuing to wait; output is redirected as required, so I’m polling the process state until it exits or reaches timeout.
+
+This run likely includes the CUDA wait window before CPU fallback, so total runtime can approach ~8–9 minutes; I’m keeping it under the 10-minute failure threshold.
+
+I’m still on this run and will terminate only if it exceeds 10 minutes; once it exits, I’ll immediately score from `metrics.json` and decide keep/discard.
+
+Polling continues; no log is being read by design, so process-state checks are the only signal until completion.
+
+The process is taking unusually long; I’m checking elapsed runtime now so I can enforce the 10-minute cutoff rule correctly.
+
+Runtime check shows this run is still under the 10-minute limit; I’m continuing until completion or cutoff.
+
+The run completed successfully and produced `val_bpb=1.024221`, which is worse than the current best (`1.013162`), so I’m recording it as `discard` and resetting to the prior commit.
+
+I’ve reverted to the prior best branch tip and I’m proceeding immediately with another experiment: reduce `warmup_ratio` from `0.02` to `0.005` so the short run reaches full LR earlier.
+
+Second experiment is running (`228e4a7`); I’ll monitor and enforce the same 10-minute cap before reading `metrics.json`.
+
+Run is still active and within expected runtime envelope for CUDA-wait plus 5-minute training; continuing to monitor.
+
+I’m continuing the process watch; no crash signal yet, so I’ll wait for clean exit and then score from `metrics.json`.
+
+Still running; I’m close to the expected completion window and will terminate only if it crosses 10 minutes.
+
+This run finished normally; I’m now reading `metrics.json`, logging to `memory/results.tsv`, and applying keep/revert based on improvement.
+
+I’m launching a third experiment to better match the short run length: reduce `muon_momentum_warmup_steps` from `300` to `100` so momentum schedule actually traverses within ~125 steps.
+
+Third run is active (`06881e4`); I’ll monitor it to completion/cutoff, then record and keep/revert as usual.
+
+Still within expected runtime; I’m letting this experiment continue under the 10-minute cap.
+
+Monitoring continues; once this process exits I’ll score from `metrics.json` and update `memory/results.tsv` immediately.
+
+The run is unusually long; I’m checking elapsed process time now to enforce the 10-minute fail rule exactly.
+
+Third run finished; I’m extracting `metrics.json` and finalizing keep/discard with git state cleanup.
+
+Completed 3 new experiments and logged all results to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/memory/results.tsv). All were worse than best, so each was discarded and branch reset after logging.
+
+New experiments run:
+1. `826e19c` (`warmdown_ratio 0.3 -> 0.1`)  
+   `val_bpb=1.024221`, status=`discard`
+2. `228e4a7` (`warmup_ratio 0.02 -> 0.005`)  
+   `val_bpb=1.044509`, status=`discard`
+3. `06881e4` (`muon_momentum_warmup_steps 300 -> 100`)  
+   `val_bpb=1.034349`, status=`discard`
+
+Current git HEAD is back to `743eefc` on `research-loops/may5`.  
+Best result remains `val_bpb=1.013162` at commit `078a4b3`.
+tokens used
+49,346
+Completed 3 new experiments and logged all results to [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/memory/results.tsv). All were worse than best, so each was discarded and branch reset after logging.
+
+New experiments run:
+1. `826e19c` (`warmdown_ratio 0.3 -> 0.1`)  
+   `val_bpb=1.024221`, status=`discard`
+2. `228e4a7` (`warmup_ratio 0.02 -> 0.005`)  
+   `val_bpb=1.044509`, status=`discard`
+3. `06881e4` (`muon_momentum_warmup_steps 300 -> 100`)  
+   `val_bpb=1.034349`, status=`discard`
+
+Current git HEAD is back to `743eefc` on `research-loops/may5`.  
+Best result remains `val_bpb=1.013162` at commit `078a4b3`.

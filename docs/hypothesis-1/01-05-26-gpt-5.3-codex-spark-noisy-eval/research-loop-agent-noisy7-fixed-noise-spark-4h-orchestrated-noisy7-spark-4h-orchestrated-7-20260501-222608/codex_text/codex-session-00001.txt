@@ -1,0 +1,1191 @@
+I’ll set up the experiment branch, check whether prior results already exist, and then run the strict baseline→edit→train→log loop with only `editable/` edits and `memory/results.tsv` updates. I’ll keep a single running git history with commit/revert per your rules.
+
+Setup check complete: no prior `memory/results.tsv`, no existing `research-loops/*` branches detected, and required data/tokenizer are present. Next I’m creating the first research branch, initializing `memory/results.tsv`, then running the baseline train and logging its result.
+
+Baseline is running now. I’ll wait for completion, then parse `run.log` for `val_bpb` and `peak_vram_mb` and log the baseline row.
+
+The baseline run is still active with no stderr/stdout to terminal because it’s redirected; I’ll keep polling until it exits and then parse the log.
+
+Baseline completed and logged. Next I’m reading the editable experiment surface (`train.py`, `config.toml`, `config_loader.py`) and then I’ll run one low-risk architecture/training hyperparameter edit to try to lower val_bpb.
+
+I found a straightforward first lever: learning-rate schedule behavior. I’ll run an experiment that adds a short warmup (`warmup_ratio`) while keeping total batch/architecture unchanged, then evaluate whether val_bpb improves.
+
+Experiment commit is in place (`d6afafa`). I’m running it now exactly with the required `uv run --extra research python editable/train.py > run.log 2>&1` and will parse `val_bpb` + `peak_vram_mb` for logging.
+
+The run completed. I’ll extract the metrics from `run.log`, log the result row, and then decide whether to keep or revert this commit based on val_bpb vs baseline.
+
+Warmup-only did not improve. Next I’ll try a model-capacity change with minimal side effects: switch the MLP nonlinearity from `ReLU^2` to `SiLU`, then rerun and compare against baseline.
+
+
+Run is active; I’ll wait for completion and then log outcome with the required metrics if present, then either keep or revert.
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+That run has finished; I’m extracting `val_bpb` and memory from `run.log`, recording it, and then comparing to baseline to decide keep/revert.
+
+I have a new best at `1.011520`. I’ll test one targeted schedule tweak on top of that (`warmup_ratio` + learning-rate ramp) to see if it further improves without code changes to model internals.
+
+
+This run is still within expected 5‑minute budget; I’ll keep polling and then log the result once the script exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+Run completed. I’m extracting `val_bpb` and `peak_vram_mb` from `run.log` now and then applying keep/discard logic.
+
+I hit a shell formatting issue on one append and then corrected it; I’m re-verifying `memory/results.tsv` to ensure the discard row is recorded correctly.
+
+I’m testing a regularization tweak (`weight_decay 0.15`) on top of the best model variant to see if it further lowers val_bpb.
+
+The training for this tweak is still within wall-clock budget; I’ll check once more and then parse results.
+
+Run finished. I’m collecting metrics and applying keep/revert logic versus the best `1.011520` result.
+
+This run improved significantly (`0.980815`), so I’m recording it as `keep` and leaving branch at this commit as the new best.
+
+
+Best is now `0.980815`. I’ll try a capacity increase next (`depth` to `9`) to see if it improves validation further without changing training budget logic.
+
+Depth increase is still running. I’ll monitor until completion and then score this candidate against the current best bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c746fd7313767636a9afd44f818da180bdeb720d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..e82fbd8a2201fb771c885eb25a14acbc4a76681e
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,5 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c746fd7313767636a9afd44f818da180bdeb720d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..e82fbd8a2201fb771c885eb25a14acbc4a76681e
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,5 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c746fd7313767636a9afd44f818da180bdeb720d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..e82fbd8a2201fb771c885eb25a14acbc4a76681e
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,5 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c746fd7313767636a9afd44f818da180bdeb720d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..e82fbd8a2201fb771c885eb25a14acbc4a76681e
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,5 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c746fd7313767636a9afd44f818da180bdeb720d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..e82fbd8a2201fb771c885eb25a14acbc4a76681e
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,5 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
+
+
+Run done; parsing summary from `run.log` now to judge improvement and either keep or reset.
+
+The depth sweep regressed (and raised memory), so I reset to the best checkpoint. I’ll now test a learning-rate change in the matrix optimizer (`matrix_lr` from `0.04` to `0.05`) while keeping all other settings at the best run.
+
+I’ve applied the matrix LR change and committed it; launching the training run now.
+
+
+This run is active; I’ll poll and then evaluate the metric output once the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e62a76e29edd34a5c22b67ce38a6932c3c5d77b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.05
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..aba7e4d2062d8e5a4503bf8737bf8b9639208b22
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,6 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e62a76e29edd34a5c22b67ce38a6932c3c5d77b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.05
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..aba7e4d2062d8e5a4503bf8737bf8b9639208b22
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,6 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e62a76e29edd34a5c22b67ce38a6932c3c5d77b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.05
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..aba7e4d2062d8e5a4503bf8737bf8b9639208b22
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,6 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e62a76e29edd34a5c22b67ce38a6932c3c5d77b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.05
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..aba7e4d2062d8e5a4503bf8737bf8b9639208b22
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,6 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..e62a76e29edd34a5c22b67ce38a6932c3c5d77b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,8 +34,8 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
+-weight_decay = 0.2
++matrix_lr = 0.05
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..aba7e4d2062d8e5a4503bf8737bf8b9639208b22
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,6 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
+
+
+Run completed. I’ll read out `val_bpb`/`peak_vram_mb` from `run.log` and apply the keep/revert policy.
+
+I’ll do one more targeted schedule check: shorten warmdown (`warmdown_ratio` to `0.3`) to keep LR from decaying too early while retaining the best architecture/regularization setup.
+
+
+I’ve applied the warmdown change and committed it; launching a fresh 5-minute run now.
+
+This run is active; I’ll continue polling until it exits and then update results according to the parsed `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..09cc3695887a2db3045ed4e29de7958c708d6db1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..c75ea0056e023affb35622c7495c98a65acd57fc
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,7 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
+
+
+Run finished. I’ll extract the metrics and apply the branch decision now.
+
+`warmdown_ratio=0.3` is slightly worse than current best, so I’ll log it as discard and return to the best commit.
+
+I’ll run one final quick hyperparameter nudge: reduce `weight_decay` further to `0.10` to probe whether the bpb gains continue with less decay.
+
+
+Applying and running this candidate now; if it improves, it becomes the new best, otherwise I’ll revert.
+
+Training is in progress; I’ll wait for completion and then capture the bpb for comparison.
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc4761d3138b3b1271395d767ad1ab76db2970dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.10
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..acac3374eacf793066287d66e4c0651003a44540
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,8 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
++de2a06f	0.984998	41.1	discard	shorten warmdown ratio to 0.3
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc4761d3138b3b1271395d767ad1ab76db2970dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.10
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..acac3374eacf793066287d66e4c0651003a44540
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,8 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
++de2a06f	0.984998	41.1	discard	shorten warmdown ratio to 0.3
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc4761d3138b3b1271395d767ad1ab76db2970dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.10
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..acac3374eacf793066287d66e4c0651003a44540
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,8 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
++de2a06f	0.984998	41.1	discard	shorten warmdown ratio to 0.3
+
+
+This is the final candidate in this loop. I’m waiting to see if it outperforms the current best before logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc4761d3138b3b1271395d767ad1ab76db2970dc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.10
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..acac3374eacf793066287d66e4c0651003a44540
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,8 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
++de2a06f	0.984998	41.1	discard	shorten warmdown ratio to 0.3
+
+
+Run finished; I’ll parse `run.log` and update the results table and branch state.
+
+
+`weight_decay=0.10` did not beat the best, so I’ll discard it and restore to the current best commit.
+
+Research loop executed and logged in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-spark-4h-orchestrated-7-20260501-222608/research-loop/memory/results.tsv).
+
+- Branch: `research-loops/may1`
+- Working state: reset to best commit (`9355851`)
+- Baseline: `453f466` → `1.060811`
+- Best so far: `0.980815` at commit `9355851`
+- Current best config edit: `weight_decay = 0.15` in `editable/config.toml` with `SiLU` in MLP
+
+Experiment sequence and outcomes (commit, val_bpb, memory_gb, status, summary):
+1. `d6afafa` — `1.066328` — `41.1` — discard — add 5% LR warmup ratio
+2. `6f47a71` — `1.011520` — `41.1` — keep — use SiLU activation in MLP
+3. `fa84754` — `1.042468` — `41.1` — discard — add 2% LR warmup with SiLU
+4. `9355851` — `0.980815` — `41.1` — keep — reduce weight decay to 0.15
+5. `6cc42f0` — `1.051311` — `56.1` — discard — increase depth to 9
+6. `ac1d265` — `1.014197` — `41.1` — discard — increase matrix LR to 0.05
+7. `de2a06f` — `0.984998` — `41.1` — discard — shorten warmdown ratio to 0.3
+8. `e9cd150` — `1.016734` — `41.1` — discard — reduce weight decay to 0.10
+
+I can continue running further experiments immediately in the same loop if you want.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f7a03bb424fefe170154eba6487f55241575aa5f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..6cf6bad40d05aa7d193a822f01c1a732b3d4ea93
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.silu(x)
+         x = self.c_proj(x)
+         return x
+ 
+diff --git a/memory/results.tsv b/memory/results.tsv
+index e66f09fdc232d61f7199d47dac260cbfd7620e22..ce8605f9fb1e0179485ac99eb9e561ebc2fa25a8
+--- a/memory/results.tsv
++++ b/memory/results.tsv
+@@ -2,4 +2,9 @@
+ 453f466	1.060811	41.1	keep	baseline
+ d6afafa	1.066328	41.1	discard	add 5% lr warmup ratio
+ 6f47a71	1.011520	41.1	keep	use SiLU activation in MLP
+-fa84754	1.042468	41.1	discard	add 2fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++fa84754	1.042468	41.1	discard	add 2% LR warmup with SiLU
++9355851	0.980815	41.1	keep	reduce weight decay to 0.15
++6cc42f0	1.051311	56.1	discard	increase depth to 9
++ac1d265	1.014197	41.1	discard	increase matrix LR to 0.05
++de2a06f	0.984998	41.1	discard	shorten warmdown ratio to 0.3
++e9cd150	1.016734	41.1	discard	reduce weight decay to 0.10
+
+tokens used
+93,657
+Research loop executed and logged in [`memory/results.tsv`](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy7-spark-4h-orchestrated-7-20260501-222608/research-loop/memory/results.tsv).
+
+- Branch: `research-loops/may1`
+- Working state: reset to best commit (`9355851`)
+- Baseline: `453f466` → `1.060811`
+- Best so far: `0.980815` at commit `9355851`
+- Current best config edit: `weight_decay = 0.15` in `editable/config.toml` with `SiLU` in MLP
+
+Experiment sequence and outcomes (commit, val_bpb, memory_gb, status, summary):
+1. `d6afafa` — `1.066328` — `41.1` — discard — add 5% LR warmup ratio
+2. `6f47a71` — `1.011520` — `41.1` — keep — use SiLU activation in MLP
+3. `fa84754` — `1.042468` — `41.1` — discard — add 2% LR warmup with SiLU
+4. `9355851` — `0.980815` — `41.1` — keep — reduce weight decay to 0.15
+5. `6cc42f0` — `1.051311` — `56.1` — discard — increase depth to 9
+6. `ac1d265` — `1.014197` — `41.1` — discard — increase matrix LR to 0.05
+7. `de2a06f` — `0.984998` — `41.1` — discard — shorten warmdown ratio to 0.3
+8. `e9cd150` — `1.016734` — `41.1` — discard — reduce weight decay to 0.10
+
+I can continue running further experiments immediately in the same loop if you want.

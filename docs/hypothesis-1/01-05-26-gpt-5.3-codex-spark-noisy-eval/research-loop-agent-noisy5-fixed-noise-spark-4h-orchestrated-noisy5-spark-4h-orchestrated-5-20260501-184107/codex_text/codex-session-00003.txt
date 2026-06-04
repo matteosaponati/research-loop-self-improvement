@@ -1,0 +1,139 @@
+I’ll begin by checking branch/state and whether this is a resumed run or a fresh one, then run the exact setup steps. After that I’ll execute baseline (if needed), log it, and iterate edits in `editable/` with commit/run/evaluate cycles, keeping only improvements.
+
+`memory/results.tsv` already has prior rows, so I’m in resume mode and will skip reinitialization/baseline. I’ll inspect the last commits to continue from the current state and then run the next edit-run-revert cycle from there.
+
+I’ve loaded the core training/config files. Next I’ll inspect the remainder of `editable/train.py` to pick the lowest-risk changes that can plausibly improve validation bits-per-byte within the fixed 5-minute budget.
+
+I’m starting with a low-risk hyperparameter-only experiment: switch the LR scaling reference from `768` to `640` so the effective per-parameter learning rates are slightly reduced and better matched to the current 640-dimension model. I’ll commit this change, run 5 minutes, then keep/revert based on val_bpb.
+
+I accidentally applied a no-op patch for the config line. I’m correcting it now to `dmodel_lr_reference = 640`, then I’ll run and evaluate.
+
+Experiment diff is ready; I’ll commit it now, then launch the 5-minute run and parse `val_bpb`/`peak_vram_mb` from the log.
+
+The run is still executing; I’ll keep polling until it finishes and then immediately extract `val_bpb` and `peak_vram_mb` from `run.log`.
+diff --git a/editable/config.toml b/editable/config.toml
+index dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9..b4d8e2d6d057c6ed3cd40223f0f9f07953aff38e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -39,7 +39,7 @@
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+-dmodel_lr_reference = 768
++dmodel_lr_reference = 640
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+
+
+This run finished and regressed (`1.014247`, higher than best `0.994335`), so I’m logging it as `discard` and rolling back the file to keep the branch at the current best state.
+
+Second experiment: add a mild warmdown so the optimizer decays to a nonzero floor near the end of the fixed-time run. I’ll use `warmdown_ratio=0.05`, `final_lr_frac=0.1`, then evaluate.
+
+I’m confirming workspace state; the file is now back to the base value (`768`) and working tree should be clean before the next experiment.
+
+I’m implementing the second attempt directly on top of the best commit, then running it: `warmdown_ratio=0.05` and `final_lr_frac=0.1` in `editable/config.toml`.
+
+Running second experiment now and I’ll parse the final `val_bpb`/`peak_vram_mb` after the 5-minute budget.
+
+This warmdown attempt is also worse than best (`1.016329`), so I’m logging it as a discarded experiment and restoring `editable/config.toml` to the best-known state.
+
+I’ll now reset the working point back to the best commit (`9f7774a`) so the next experiment is evaluated from the current best configuration, then test another high-probability hyperparameter change.
+
+Workspace is clean at the best commit now, so I’m starting the next trial.
+
+Experiment 3: I changed Muon variance reduction beta to `0.97` (was `0.95`) to test a slightly slower second-moment decay. Committing now and running the standard 5-minute training.
+
+Still running. I’ll continue polling and record the result as soon as it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9..efc594cf3a3978b07fb0ced279e4ca8b2d344f02
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9..efc594cf3a3978b07fb0ced279e4ca8b2d344f02
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.97
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+
+This Muon beta change was much worse (`1.050178`), so I’m logging it as discarded and returning to the best commit for the next attempt.
+
+I’ll switch to a model-side change next: replacing the squared-ReLU MLP nonlinearity with GELU (`self.c_fc -> GeLU -> c_proj`) to test whether activation quality improves validation bits-per-byte.
+
+Running the GELU MLP variant now under the same 5-minute protocol and will record final metric immediately afterward.
+
+The GELU switch regressed (`1.015801`), so I’m logging it as discarded and reverting the code back to the best commit baseline.
+
+I’ll clean the working tree so the next run starts exactly from the committed best state again.
+
+New attempt: increase `softcap` from `15.0` to `20.0` to test whether a looser logit saturation improves held-out bits-per-byte under the current settings.
+
+Running this softcap experiment now; it’s the same training command and post-run metric extraction as before.
+
+Softcap increase also regressed (`1.022700`), so it’s logged as discarded and I’m restoring to the best commit for another independent test.
+
+I’ll do one more restore pass to clear the remaining unstaged edit from the reset and continue cleanly from the best-known commit.
+
+I’ll try a more structural change now: increase `head_dim` to `256`, which raises model width to 768 (with current `depth=8`, `aspect_ratio=72`) while keeping everything else fixed. This tests whether width gains outweigh optimizer sensitivity from earlier smaller changes.
+
+This run is still within budget; I’ll poll one more time for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9..55ee4e044f098d66dbd0a7769d33b96c79d3471e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 72
+-head_dim = 128
++head_dim = 256
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+diff --git a/editable/config.toml b/editable/config.toml
+index dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9..55ee4e044f098d66dbd0a7769d33b96c79d3471e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -17,7 +17,7 @@
+ vocab_size_default = 32768
+ depth = 8
+ aspect_ratio = 72
+-head_dim = 128
++head_dim = 256
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+
+
+Head-dimension increase reduced fit quality (`1.009318`) versus best, so I’m logging discard and reverting `head_dim` before the next run. Memory climbed to ~59.8GB.
+
+I’ll test a throughput-oriented change next: set `device_batch_size` to `256` (keeping `total_batch_size = 524288`) to remove gradient accumulation and potentially increase token throughput under the fixed wall-clock budget.
+
+Running the larger micro-batch experiment now and then extracting the final summary metrics from `run.log`.
+
+This attempt increased peak VRAM and worsened to `1.023558`, so I’ll log it as discarded and revert to the best commit.
+
+I’ll run one more focused LR probe by nudging the unembedding learning rate to `0.0055` (a small step from the current best of `0.005`) and keep everything else unchanged.
+
+I corrected the LR edit to `0.0055`; committing and running this as the next experiment now.
+
+The environment is now enforcing a soft-time limit on git write actions. I’m checking remaining commands and then proceed with the quickest possible safe step if allowed.

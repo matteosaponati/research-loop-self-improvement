@@ -1,0 +1,78 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or perform fresh setup exactly per your protocol.
+
+I found an existing initialized run on branch `research-loops/may5` with prior results, so I’m resuming directly at experiment step (2). Next I’ll read `editable/` and `memory/results.tsv` to pick the next targeted change.
+
+I’ve loaded prior experiment history and the current hyperparameters; best so far is `val_bpb=0.985879` at commit `7493978` with `matrix_lr=0.034`. I’ll quickly inspect the scheduler section in `train.py` and then run one focused LR-tail experiment.
+
+I identified the most promising axis as `matrix_lr` around the current best `0.034`. I’m going to run a narrow interpolation experiment at `0.0345`, commit it, execute the 5-minute run, and keep/revert based on `val_bpb`.
+
+The experiment commit is in place (`e88ac73`). I’m launching the timed training run now and will collect only `metrics.json` afterward as required.
+
+Training is running in the background session with a 10-minute safety timeout; I’ll wait for completion and then parse `metrics.json` directly.
+
+Run is still in progress; I’m continuing to wait for completion before reading metrics.
+
+Still running as expected for the 5-minute budget; I’ll poll again and then collect results.
+
+I’m still waiting on the training process and will read `metrics.json` immediately when it exits.
+
+No action needed yet besides waiting; I’ll keep polling until the run finishes or times out.
+
+The process should be near completion now; I’m doing another poll and then moving to metrics ingestion.
+
+I’m still blocked on run completion; if it crosses 10 minutes the timeout will terminate it and I’ll mark it as failure per your rules.
+
+The run is taking longer than expected end-to-end, likely due compile/startup overhead before the fixed 300s train window. I’m continuing to wait for the timeout-guarded completion signal.
+
+Training finished successfully. I’m now reading `metrics.json`, recording the result in `memory/results.tsv`, and then deciding keep vs reset against the best `0.985879`.
+
+`metrics.json` is valid and this trial is much worse (`val_bpb=1.038907`), so this commit will be logged as `discard` and reset after I finish the bookkeeping.
+
+I’ve reverted to the best commit (`7493978`) and recorded the failed trial. I’m proceeding immediately with another experiment: keep `matrix_lr=0.034` and slightly reduce Muon momentum warmup from `300` to `240` for faster early stabilization.
+
+Second experiment is running now (`46676b0`); I’ll wait for completion, then parse `metrics.json`, log to TSV, and keep/revert accordingly.
+
+Run is still active and within expected wall-clock; continuing to wait for the completion signal.
+
+The process has overrun normal completion timing; I’m waiting for the timeout guard to either finish or terminate, and will treat timeout as failure if it trips.
+
+The run has exited cleanly; I’m collecting `metrics.json` now and applying the keep/revert decision.
+
+Completed two new experiments and updated the loop state.
+
+- Best checkpoint remains commit `7493978` with `val_bpb=0.985879` (`keep`).
+- I resumed correctly from existing `memory/results.tsv` and did not rerun baseline.
+
+New experiments run:
+
+1. Commit `e88ac73`  
+   - Change: `matrix_lr 0.034 -> 0.0345`  
+   - Result: `val_bpb=1.038907`, `peak_vram_mb=42060.447` (`41.1 GB`)  
+   - Decision: `discard` (reverted via `git reset --hard HEAD~1`)
+
+2. Commit `46676b0`  
+   - Change: `muon_momentum_warmup_steps 300 -> 240`  
+   - Result: `val_bpb=0.991920`, `peak_vram_mb=42060.447` (`41.1 GB`)  
+   - Decision: `discard` (reverted via `git reset --hard HEAD~1`)
+
+`memory/results.tsv` has been appended with both rows, and branch head is back at `7493978`.
+tokens used
+28,361
+Completed two new experiments and updated the loop state.
+
+- Best checkpoint remains commit `7493978` with `val_bpb=0.985879` (`keep`).
+- I resumed correctly from existing `memory/results.tsv` and did not rerun baseline.
+
+New experiments run:
+
+1. Commit `e88ac73`  
+   - Change: `matrix_lr 0.034 -> 0.0345`  
+   - Result: `val_bpb=1.038907`, `peak_vram_mb=42060.447` (`41.1 GB`)  
+   - Decision: `discard` (reverted via `git reset --hard HEAD~1`)
+
+2. Commit `46676b0`  
+   - Change: `muon_momentum_warmup_steps 300 -> 240`  
+   - Result: `val_bpb=0.991920`, `peak_vram_mb=42060.447` (`41.1 GB`)  
+   - Decision: `discard` (reverted via `git reset --hard HEAD~1`)
+
+`memory/results.tsv` has been appended with both rows, and branch head is back at `7493978`.

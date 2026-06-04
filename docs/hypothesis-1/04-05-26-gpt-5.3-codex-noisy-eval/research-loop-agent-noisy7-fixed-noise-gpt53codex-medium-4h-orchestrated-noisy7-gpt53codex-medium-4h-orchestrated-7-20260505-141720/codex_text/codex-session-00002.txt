@@ -1,0 +1,58 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already exists, and whether prior experiments are present so I can either resume or do full setup exactly as specified.
+
+I found an initialized run with prior results, so I’m resuming from the current branch and moving to step (2): reading `editable/` files and existing experiment history to choose the next change.
+
+I have enough context on previous runs and config history; next I’m checking the rest of `train.py` to target a high-leverage schedule change that stays low-risk for a 5-minute run.
+
+I’m running a single low-risk schedule experiment next: reduce `final_lr_frac` so the last 20% of the run anneals lower, which can improve final 5-minute validation without changing throughput. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `val_bpb`.
+
+The experiment commit is in place (`609bc8c`). I’m launching the 5-minute training run now and will only read `metrics.json` afterward for result collection.
+
+Training is running in the background session; I’m waiting for completion and will stop it if it crosses the 10-minute failure limit.
+
+Run is still in progress; continuing to wait for termination and then I’ll parse `metrics.json` directly.
+
+I’m still waiting on the training process; once it exits, I’ll immediately extract the numeric summary from `metrics.json` and update `memory/results.tsv`.
+
+The job is still active and within the allowed window; I’m continuing to monitor until it exits cleanly.
+
+I’m doing one more wait cycle; if it has finished I’ll record metrics and apply keep/discard via git reset policy.
+
+The process is still running, which is expected around the 5-minute training window plus startup/eval; I’ll keep monitoring for completion before collecting results.
+
+Training finished successfully. I’m now reading `metrics.json`, logging this run to `memory/results.tsv`, and then deciding keep vs discard against the current best `val_bpb` rule.
+
+The shell doesn’t have `python` directly, so I’ll parse `metrics.json` via `uv run python` and proceed with logging/reset logic.
+
+I’ve recorded and discarded that regression, and the branch is back at the current best commit. I’m launching the next experiment by shortening `muon_momentum_warmup_steps` so momentum ramps earlier in the short training horizon.
+
+The new commit (`25c16ec`) is ready; I’m running training now and will evaluate strictly from `metrics.json` once it completes.
+
+Run is in progress; I’m monitoring the session and will collect metrics immediately on exit.
+
+Training is still active and within limits; I’m continuing to wait for completion before applying keep/discard.
+
+I’m still waiting on the run; next step is parsing `metrics.json` and updating `memory/results.tsv` as soon as the process exits.
+
+One more monitoring cycle; once this exits I’ll finalize the keep/discard decision and continue to the next experiment automatically.
+
+This run regressed as well, so I’m recording it as `discard` and resetting to the prior best commit before trying another idea.
+
+Completed two new experiments and updated the loop state.
+
+- Current best remains commit `b88aca6` with `val_bpb=0.995128`.
+- I ran and recorded:
+1. `609bc8c` (`final_lr_frac` 0.2 -> 0.1): `val_bpb=1.014283`, `41.1 GB`, `discard`
+2. `25c16ec` (`muon_momentum_warmup_steps` 300 -> 180): `val_bpb=1.024240`, `41.1 GB`, `discard`
+
+I appended both results to `memory/results.tsv` and reset back to `b88aca6` after each regression, per the keep/discard rule.
+tokens used
+39,190
+Completed two new experiments and updated the loop state.
+
+- Current best remains commit `b88aca6` with `val_bpb=0.995128`.
+- I ran and recorded:
+1. `609bc8c` (`final_lr_frac` 0.2 -> 0.1): `val_bpb=1.014283`, `41.1 GB`, `discard`
+2. `25c16ec` (`muon_momentum_warmup_steps` 300 -> 180): `val_bpb=1.024240`, `41.1 GB`, `discard`
+
+I appended both results to `memory/results.tsv` and reset back to `b88aca6` after each regression, per the keep/discard rule.

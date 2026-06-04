@@ -1,0 +1,58 @@
+commit 4f20b6f65d63dd0aae94ff5ece315c70b9619a76
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 14:41:27 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 14:41:27 2026 +0200
+
+    Wait up to 240s for CUDA readiness before training
+---
+ editable/train.py | 28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5252064..a83d89c 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@ COMPILE_MODEL = True
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@ class MuonAdamW(torch.optim.Optimizer):
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)

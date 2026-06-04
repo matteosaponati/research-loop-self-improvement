@@ -1,0 +1,126 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from current state or do the one-time setup and baseline exactly as specified.
+
+I found an existing populated `memory/results.tsv`, so I’m resuming directly from the current branch/best result and moving to the next experiment cycle by reading `editable/` in full.
+
+I’ve reviewed the current tuning history; the best so far is `matrix_lr=0.035`, so I’m running a narrow local search around that value next by editing only `editable/config.toml`, then I’ll commit and run.
+
+I’ve applied the config change; next I’m committing this experiment and launching a full 5-minute run with output redirected to `run.log`.
+
+Training is running in the background session now; I’ll wait for completion, then read only `metrics.json`, record the result, and decide keep vs revert.
+
+Run is still in progress within the fixed budget window; I’m continuing to wait and will collect metrics immediately when it exits.
+
+I’m still waiting on the same run; no crash signal so far. Once it returns, I’ll parse `metrics.json` and update `memory/results.tsv` before any reset decision.
+
+The run is taking longer than usual startup+train, but it is still under the 10-minute failure cutoff; I’m continuing to monitor the same process.
+
+Training finished successfully. I’m now reading `metrics.json`, appending the experiment row to `memory/results.tsv`, and then resetting if it didn’t beat the current best.
+
+`python` isn’t on PATH in this harness, so I’m re-running the metrics parsing via `uv run python` and then finishing the keep/discard decision.
+
+I’ve recorded and discarded that trial, and the branch is back at the best commit (`bd0053e`). I’m launching another nearby probe in the opposite direction (`matrix_lr=0.0355`) to continue the search.
+
+Second experiment is running now; I’ll wait for completion, then evaluate from `metrics.json` and keep or discard automatically.
+
+The run is still active and within the allowed wall-clock window; I’m continuing to monitor it until exit.
+
+No failure signal so far; once the process returns I’ll immediately parse metrics and update the experiment ledger.
+
+This run completed successfully; I’m now extracting `metrics.json`, logging to `memory/results.tsv`, and applying keep/discard based on best-so-far.
+
+Experiment loop resumed from existing state and ran 2 new trials.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..fdea363 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.0345
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..5114157 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.0355
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `1c074bc` (`matrix_lr=0.0345`): `val_bpb=1.016823`, `memory_gb=41.1`, `discard`
+- `c4c2ac3` (`matrix_lr=0.0355`): `val_bpb=1.032091`, `memory_gb=41.1`, `discard`
+
+Branch was reset after each worse run; current HEAD is back to best commit `bd0053e` with best `val_bpb=0.994859`.
+
+Current working state:
+- Branch: `research-loops/may5`
+- Best retained config remains `matrix_lr=0.035`
+- `metrics.json` present as untracked artifact from latest run.
+tokens used
+28,046
+Experiment loop resumed from existing state and ran 2 new trials.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..fdea363 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.0345
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..5114157 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.0355
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+
+Results logged to `memory/results.tsv`:
+
+- `1c074bc` (`matrix_lr=0.0345`): `val_bpb=1.016823`, `memory_gb=41.1`, `discard`
+- `c4c2ac3` (`matrix_lr=0.0355`): `val_bpb=1.032091`, `memory_gb=41.1`, `discard`
+
+Branch was reset after each worse run; current HEAD is back to best commit `bd0053e` with best `val_bpb=0.994859`.
+
+Current working state:
+- Branch: `research-loops/may5`
+- Best retained config remains `matrix_lr=0.035`
+- `metrics.json` present as untracked artifact from latest run.

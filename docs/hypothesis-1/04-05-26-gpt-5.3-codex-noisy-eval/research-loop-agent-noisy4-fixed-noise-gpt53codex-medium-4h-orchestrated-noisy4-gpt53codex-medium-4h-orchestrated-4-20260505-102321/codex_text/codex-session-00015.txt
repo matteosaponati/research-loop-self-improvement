@@ -1,0 +1,202 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume immediately or initialize branch/baseline exactly as specified.
+
+I found prior experiments, so I’m resuming from this branch without reinitializing. Next I’ll inspect current HEAD, identify the best kept commit, and read `editable/` files to propose the next code change.
+
+I’ve identified the current best (`0.996175`) and will run a focused optimizer test by reducing `weight_decay` from `0.2` to `0.15` in `editable/config.toml`, then commit and launch a timed run.
+
+Commit `bbbfc41` is in place; I’m running the 5-minute training job now with output redirected to `run.log`, then I’ll read `metrics.json` and decide keep vs discard.
+
+Training is still running in the background; I’m monitoring the process and will only inspect `metrics.json` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..2c5dd978a944f43abee11693d76d667643f908d0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Run is still active and within the expected window, so I’m continuing to wait for completion before collecting metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..2c5dd978a944f43abee11693d76d667643f908d0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+I’m doing the final wait cycle now; once the process exits, I’ll parse `metrics.json`, log the result, and reset if there’s no improvement.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..2c5dd978a944f43abee11693d76d667643f908d0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run completed successfully; I’m reading `metrics.json`, appending the TSV entry, and then reverting the branch tip if it didn’t beat the current best.
+
+The environment doesn’t expose `python` directly, so I’m rerunning those reads via `uv run python` and then recording the result.
+
+I have the experiment metrics (`val_bpb=1.029703`), which is worse; I’m finishing the best-score lookup process and then marking this commit as `discard` with a reset to the previous tip.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..2c5dd978a944f43abee11693d76d667643f908d0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+I’ve reverted to the best commit and logged the discard. I’m launching another experiment now with a smaller optimizer tweak: `muon_beta2` from `0.95` to `0.94`, since both larger and much smaller values were previously worse.
+
+Commit `99af314` is ready; I’m running the next 5-minute training run and will collect only `metrics.json` on completion.
+
+Second experiment is in progress and still within runtime limits; I’m waiting for process exit before reading metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..ae125bb230451fbdbd474c8d49054657a97ed9db
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 4
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+ 
+ # Schedules
+ warmup_ratio = 0.02
+
+
+Run is still active; I’m continuing to monitor until it finishes, then I’ll log and keep/reset based on `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65d535ea3927111f42e713ebd3c9a519b61..ae125bb230451fbdbd474c8d49054657a97ed9db
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 4
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+ 
+ # Schedules
+ warmup_ratio = 0.02
+
+
+I’m in the final wait cycle now and will immediately record the outcome once the process exits.
+
+Training finished successfully; I’m extracting `metrics.json`, appending `memory/results.tsv`, and then either advancing or resetting the branch tip.
+
+This result was worse, so I’m resetting to the best commit and confirming the TSV log entry is preserved.
+
+Resumed from existing loop state on `research-loops/may5` and ran 2 new experiments from best commit `1862bf4` (`val_bpb=0.996175`).
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65..2c5dd97 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65..ae125bb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 4
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+```
+
+Run outcomes (from `metrics.json`, logged to `memory/results.tsv`):
+
+- `bbbfc41` → `val_bpb=1.029703`, `peak_vram_mb=42060.4` (`41.1 GB`) → `discard`
+- `99af314` → `val_bpb=1.015324`, `peak_vram_mb≈41.1 GB` → `discard`
+
+Both were worse than best, so branch was reset back to `1862bf4` after each run.  
+Current HEAD: `1862bf4`.  
+Current best remains: `0.996175`.
+tokens used
+33,978
+Resumed from existing loop state on `research-loops/may5` and ran 2 new experiments from best commit `1862bf4` (`val_bpb=0.996175`).
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65..2c5dd97 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.0035
+ matrix_lr = 0.037
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index f03cd65..ae125bb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -42,7 +42,7 @@ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 4
+-muon_beta2 = 0.95
++muon_beta2 = 0.94
+```
+
+Run outcomes (from `metrics.json`, logged to `memory/results.tsv`):
+
+- `bbbfc41` → `val_bpb=1.029703`, `peak_vram_mb=42060.4` (`41.1 GB`) → `discard`
+- `99af314` → `val_bpb=1.015324`, `peak_vram_mb≈41.1 GB` → `discard`
+
+Both were worse than best, so branch was reset back to `1862bf4` after each run.  
+Current HEAD: `1862bf4`.  
+Current best remains: `0.996175`.

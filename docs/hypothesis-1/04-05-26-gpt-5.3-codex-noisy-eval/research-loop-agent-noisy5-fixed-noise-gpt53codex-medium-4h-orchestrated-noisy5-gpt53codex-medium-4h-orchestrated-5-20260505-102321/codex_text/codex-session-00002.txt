@@ -1,0 +1,112 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can either resume immediately or do the full initialization path.
+
+I found prior experiments, so I’m resuming from the current branch and skipping branch/data/baseline setup. Next I’ll read `editable/` files and pick the next highest-probability change based on what already failed.
+
+I have config context and prior outcomes; now I’m reading the remainder of `train.py` to target a change that improves early-time convergence within the 5-minute budget.
+
+I’ve identified a safe next lever: `weight_decay` scheduling, since LR changes already gave mixed results and this run is short-budget. I’ll make a single controlled config edit, commit it, run, read `metrics.json`, and keep/reset strictly by `val_bpb`.
+
+I’m applying one minimal experiment: keep `weight_decay` constant through the run (`weight_decay_decay = false`) to avoid under-regularizing late in this short training window. I’ll commit this as an isolated trial now.
+
+The commit is in place and I’ve captured the pre-experiment commit for possible rollback. Running the 5-minute training job now and then I’ll collect only `metrics.json` for evaluation.
+
+Training is running in the background session; I’m polling for completion and will immediately parse `metrics.json` once it exits.
+
+Run is still in progress; I’m continuing to wait for completion without reading the log, then I’ll evaluate strictly from `metrics.json`.
+
+Still running; I’ll keep polling until it terminates or hits the safety timeout, then classify as keep/discard/crash.
+
+The training process is still active; continuing to wait for normal completion.
+
+I’m still waiting on the same run; no crash signal yet. I’ll keep polling until we get an exit code.
+
+This is nearing expected wall time including startup; I’m polling again and will immediately record results once complete.
+
+The run completed successfully. I’m now reading `metrics.json`, appending to `memory/results.tsv`, and then I’ll keep or reset the commit based on improvement against the current best `val_bpb`.
+
+The shell lacks a plain `python` binary here, so I’m re-running the metric/best-value reads via `uv run` and proceeding with record/keep-reset logic.
+
+This result is worse than the best keep, so I’m marking it `discard`, appending it to `memory/results.tsv`, and resetting the branch back to the pre-experiment commit.
+
+I’ve reverted to the best commit and logged the discard. I’m proceeding immediately with the next experiment: reduce LR warmdown (`warmdown_ratio` from `0.5` to `0.3`) to keep effective LR higher for longer in the 5-minute window.
+
+I committed experiment 2 and I’m launching training now; after completion I’ll read `metrics.json`, log to TSV, and keep/reset based on `val_bpb` vs `1.023195`.
+
+Second run is active in the background session; I’m polling until it exits, then I’ll apply keep/discard logic immediately.
+
+Run is still in progress; continuing to wait for completion without touching `run.log`.
+
+Still running and within expected window. I’ll keep polling to capture the exit and then log/reset-or-keep.
+
+The process is taking longer than typical startup-plus-budget, but still under the 10-minute kill threshold. I’m polling again now.
+
+Polling continues; once it exits I’ll parse `metrics.json` and write the TSV row immediately.
+
+Completed and resumed the loop from existing state on branch `research-loops/may5`.
+
+Ran 2 new experiments:
+
+```diff
+commit 10057c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+- Result: `val_bpb=1.036190`, `memory_gb=41.1`
+- Decision: `discard` (worse than best `1.023195`)
+- Branch reset to best commit lineage.
+
+```diff
+commit 5488c36
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+```
+
+- Result: `val_bpb=1.036505`, `memory_gb=41.1`
+- Decision: `discard` (worse than best `1.023195`)
+- Branch reset to `b570970`.
+
+Updated `memory/results.tsv` with both rows. Current best remains:
+
+- `b570970` with `val_bpb=1.023195` and `memory_gb=41.1`
+tokens used
+44,235
+Completed and resumed the loop from existing state on branch `research-loops/may5`.
+
+Ran 2 new experiments:
+
+```diff
+commit 10057c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-weight_decay_decay = true
++weight_decay_decay = false
+```
+
+- Result: `val_bpb=1.036190`, `memory_gb=41.1`
+- Decision: `discard` (worse than best `1.023195`)
+- Branch reset to best commit lineage.
+
+```diff
+commit 5488c36
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.3
+```
+
+- Result: `val_bpb=1.036505`, `memory_gb=41.1`
+- Decision: `discard` (worse than best `1.023195`)
+- Branch reset to `b570970`.
+
+Updated `memory/results.tsv` with both rows. Current best remains:
+
+- `b570970` with `val_bpb=1.023195` and `memory_gb=41.1`

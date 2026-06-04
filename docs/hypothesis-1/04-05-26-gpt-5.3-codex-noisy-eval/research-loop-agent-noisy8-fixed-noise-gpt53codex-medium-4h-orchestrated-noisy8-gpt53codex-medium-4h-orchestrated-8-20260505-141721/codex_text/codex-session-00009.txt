@@ -1,0 +1,337 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or do fresh setup exactly per your rules.
+
+I found an existing initialized run history with many crashes, so I’m resuming directly from step (2). Next I’ll read all in-scope `editable/` files and pick the next minimal experiment aimed at getting a successful metrics-producing run first.
+
+I’ve confirmed the current script already includes CPU fallback paths, but prior runs still crashed; I’m checking the rest of `train.py` to find where CPU fallback is still touching CUDA and then I’ll apply a focused fix.
+
+I have enough code context; next I’m diagnosing the latest crash from `run.log` (allowed for crash diagnosis) to target one concrete fix, then I’ll patch `editable/train.py`, commit, and run a new experiment.
+
+The local shell has no direct `python` binary, so I’m using `uv run python` to inspect the crash log tail and extract the actual failure point.
+
+I identified a likely cause of the CPU fallback crashes: GC is frozen/disabled after step 0, which can cause memory growth and SIGKILL on long CPU runs. I’m patching `editable/train.py` so GC freezing is applied only on CUDA, then I’ll commit and run.
+
+The experiment commit is in place (`0ec7909`) with a one-line GC behavior change. I’m launching the 5-minute run now and will collect `metrics.json` only when it completes.
+
+The run is still in progress; I’m waiting for completion and will then read `metrics.json` and log the result without scanning the training log.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+I’m still blocked on the active training process; once it exits, I’ll immediately parse `metrics.json`, append `memory/results.tsv`, and decide keep/discard via git reset logic.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+The job is still running past 3 minutes, which is expected for a 5-minute budget plus startup. I’m continuing to wait and will handle result logging/reset as soon as it ends.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+I’m accounting for the long CUDA-wait fallback path in this script; total wall time can approach the 10-minute cap. I’ll keep monitoring and terminate if it crosses the failure threshold.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+I confirmed this run is nearing completion window (~9 minutes wall due CUDA wait + 5-minute training budget). I’m staying on it until exit, then immediately parsing `metrics.json`.
+
+The run crossed the 10-minute cap and then exited during termination handling, so I’m treating it as a failed run per protocol and now checking `metrics.json` validity before logging as crash/discard.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..c79fd7ae85332d875c42eb911b0cd4e5e253c24c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+This run produced valid metrics but violated the hard 10-minute wall limit (`total_seconds` 606.3), so I’m recording it as `discard` and resetting to the pre-experiment commit before launching the next idea.
+
+I’m launching the next experiment to make CPU fallback runs valid under the 10-minute limit: reapply the GC fix and reduce CUDA wait time before fallback, then run and score.
+
+Commit `078a4b3` is ready. I’m running it now with a hard 600s timeout wrapper so any overrun is automatically treated as failure per your loop rule.
+
+The second experiment is running cleanly under the timeout guard; I’m waiting for completion and then will parse `metrics.json`, append `memory/results.tsv`, and keep/reset based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..0f0a6cb39bab446e08171dbf5b2794d2880a2f98
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -30,7 +30,7 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+I waited another 5 minutes; the run is still active, so I’m doing final polling to catch completion and then close this iteration with logging/reset decisions.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..0f0a6cb39bab446e08171dbf5b2794d2880a2f98
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -30,7 +30,7 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+
+This run completed within the wall-time limit and improved `val_bpb` to `1.013162`, so I’m recording it as `keep` and advancing from commit `078a4b3`.
+
+Completed one full successful loop iteration and advanced the branch.
+
+- Kept commit: `078a4b3`
+- Edited file: [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/editable/train.py)
+- Diff applied:
+```diff
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+...
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+```
+
+Run result (`metrics.json`):
+- `val_bpb`: `1.013161620578109`
+- `total_seconds`: `516.279557466507` (under 10-minute cap)
+- `peak_vram_mb`: `0.0`
+- `depth`: `4`
+
+Logged to [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/memory/results.tsv) as:
+- `078a4b3	1.013162	0.0	keep	shorter cuda wait (180s) + cpu gc enabled; first valid under-10min run`
+
+Also recorded previous over-limit run `0ec7909` as `discard` and reset appropriately before this successful run.
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee742f7fe1553c68eb4725e8fcdf543ac75c..0f0a6cb39bab446e08171dbf5b2794d2880a2f98
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -30,7 +30,7 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+@@ -630,7 +630,7 @@
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()
+
+tokens used
+64,592
+Completed one full successful loop iteration and advanced the branch.
+
+- Kept commit: `078a4b3`
+- Edited file: [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/editable/train.py)
+- Diff applied:
+```diff
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+...
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+```
+
+Run result (`metrics.json`):
+- `val_bpb`: `1.013161620578109`
+- `total_seconds`: `516.279557466507` (under 10-minute cap)
+- `peak_vram_mb`: `0.0`
+- `depth`: `4`
+
+Logged to [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy8-gpt53codex-medium-4h-orchestrated-8-20260505-141721/research-loop/memory/results.tsv) as:
+- `078a4b3	1.013162	0.0	keep	shorter cuda wait (180s) + cpu gc enabled; first valid under-10min run`
+
+Also recorded previous over-limit run `0ec7909` as `discard` and reset appropriately before this successful run.

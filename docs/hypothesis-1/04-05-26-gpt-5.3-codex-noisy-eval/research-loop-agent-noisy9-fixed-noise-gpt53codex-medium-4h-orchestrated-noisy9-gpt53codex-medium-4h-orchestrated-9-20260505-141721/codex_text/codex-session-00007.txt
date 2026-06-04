@@ -1,0 +1,78 @@
+I’m starting the research loop by checking whether prior experiment memory exists, then I’ll either resume or initialize branch/results and run the baseline exactly as specified.
+
+A previous run is already initialized (`memory/results.tsv` has results), so I’m resuming from the current branch and now reading `editable/` plus prior results to pick the next experiment.
+
+I confirmed we’re on a newer commit than what’s in `results.tsv`; next I’m computing the current best from the TSV and then I’ll run a single targeted schedule experiment from the current HEAD.
+
+I found the workspace clean except generated `metrics.json`. I’m making one controlled change next: test `unembedding_lr=0.006` on top of the current high Muon momentum setup, then commit and run.
+
+The experiment commit is created (`6487ce7`). I’m running the 5-minute training job now and will read `metrics.json` directly when it finishes.
+
+Training is in progress under a timed wrapper; I’m waiting for completion and then I’ll parse `metrics.json` and decide keep vs reset based on `val_bpb`.
+
+Still running within budget; I’m continuing to wait and will avoid reading logs unless there’s a crash.
+
+I’m still waiting for the run to exit cleanly; once it returns I’ll immediately record metrics and update `memory/results.tsv`.
+
+Run should be near completion window now; polling again for exit status.
+
+I’m doing one more poll; if the process still hasn’t exited soon I’ll treat it as a runtime failure per the 10-minute cap.
+
+The run completed successfully. I’m reading `metrics.json`, logging this commit to `memory/results.tsv`, and then deciding whether to keep this commit or reset back.
+
+This result is worse than the best, so I’m discarding it by resetting back to the pre-experiment commit while keeping the TSV record.
+
+I’m continuing the loop with another experiment immediately: add a small LR warmup (`warmup_ratio=0.02`) to stabilize early updates while keeping the strong momentum schedule.
+
+Second run is now active; I’ll wait for completion, then record and keep/reset based on `val_bpb` only from `metrics.json`.
+
+Still running normally within the allowed window; continuing to wait.
+
+Run is still in progress; polling again.
+
+Waiting for final exit signal now; once done I’ll append the TSV row and apply keep/discard.
+
+Completed 2 new experiments in the loop, recorded both, and reverted both because they were worse than best.
+
+Current branch/head:
+- `research-loops/may5`
+- `f1cbe22`
+
+Best known result in `memory/results.tsv` remains:
+- `de3e8d1` → `val_bpb=0.976623`
+
+New experiments run:
+1. `6487ce7` (`editable/config.toml`: `unembedding_lr 0.005 -> 0.006`)
+- Result: `val_bpb=1.015681`, `memory_gb=41.1`
+- Logged as `discard`
+- Reset back to `f1cbe22`
+
+2. `563cbbf` (`editable/config.toml`: `warmup_ratio 0.0 -> 0.02`)
+- Result: `val_bpb=1.042644`, `memory_gb=41.1`
+- Logged as `discard`
+- Reset back to `f1cbe22`
+
+`memory/results.tsv` has been updated with both rows.
+tokens used
+34,613
+Completed 2 new experiments in the loop, recorded both, and reverted both because they were worse than best.
+
+Current branch/head:
+- `research-loops/may5`
+- `f1cbe22`
+
+Best known result in `memory/results.tsv` remains:
+- `de3e8d1` → `val_bpb=0.976623`
+
+New experiments run:
+1. `6487ce7` (`editable/config.toml`: `unembedding_lr 0.005 -> 0.006`)
+- Result: `val_bpb=1.015681`, `memory_gb=41.1`
+- Logged as `discard`
+- Reset back to `f1cbe22`
+
+2. `563cbbf` (`editable/config.toml`: `warmup_ratio 0.0 -> 0.02`)
+- Result: `val_bpb=1.042644`, `memory_gb=41.1`
+- Logged as `discard`
+- Reset back to `f1cbe22`
+
+`memory/results.tsv` has been updated with both rows.

@@ -1,0 +1,821 @@
+Understood. I’ll initialize the experiment branch and workspace state first (resume or fresh), run the required baseline, log it, then start an experiment cycle with one committed edit and a single 5‑minute training run per the loop. I’ll proceed without further prompts.
+
+I confirmed there’s no prior results file and no conflicting branch tag (`research-loops/may1`). Next I’ll create the branch, check dataset/tokenizer contents, run the baseline, and record the first result.
+
+I’m starting the mandatory baseline run now with the unmodified training script and will log the measured `val_bpb` into `memory/results.tsv` once `run.log` is generated.
+
+Baseline run has completed. Next step is extracting `val_bpb`/VRAM from `run.log`, committing the initial state, and logging results as the baseline row.
+
+I hit a quoting error while computing the baseline memory metric. I’ll append the baseline row now with a straightforward arithmetic line and continue.
+
+Baseline is logged. I’m now inspecting the editable training/config code to choose a safe hyperparameter/model experiment with a single edit, then I’ll commit, run, and evaluate.
+
+I have the full editable context loaded. I’ll run a warmup-schedule experiment first (small hyperparameter-only change to keep risk low): add a short learning-rate warmup and keep everything else unchanged. I’ll commit that change before launching the 5‑minute run.
+
+Proposed diff (warmup schedule): changing `editable/config.toml` from `warmup_ratio = 0.0` to `warmup_ratio = 0.05`. I’ll commit this edit and run the training job.
+
+Experiment 1 is running under commit `3bf4041`; waiting for completion and then I’ll parse `val_bpb` from `run.log`, record it, and compare to baseline.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6c11e7720f61313a9f84c3fd9c18f97804e1b1c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6c11e7720f61313a9f84c3fd9c18f97804e1b1c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..6c11e7720f61313a9f84c3fd9c18f97804e1b1c2
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Experiment run finished. I’m now extracting `val_bpb` and `peak_vram_mb`, then I’ll append the result and decide keep/discard against the 1.021805 baseline.
+
+The warmup change improved validation bpb. Next I’ll try keeping warmup and holding a small nonzero final LR (`final_lr_frac = 0.05`) to preserve late-stage learning while avoiding a hard zero anneal.
+
+Experiment 2 is running from commit `40bc2bc`. I’ll capture the final metrics once it completes and compare to the current best 1.009260.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c07b3b0a6cf97ff2ac9c3203d58d4b1d48f04189
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Discarded that trial because it worsened validation. I’ll now test a second warmup-specific adjustment from this best state: increase warmup to 10% (`warmup_ratio = 0.10`) while keeping final LR at 0.0 and all other settings unchanged.
+
+Experiment 3 is running from commit `1b403b5` (`warmup_ratio=0.10`). I’ll read back the terminal summary and update `memory/results.tsv` once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..062c3ae837809f3bbb702b4d14ec71a1fb8b6076
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.10
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..062c3ae837809f3bbb702b4d14ec71a1fb8b6076
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.10
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..062c3ae837809f3bbb702b4d14ec71a1fb8b6076
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.10
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Experiment 3 completed. I’ll parse `run.log` now and determine keep/discard against best so far.
+
+I’m now moving to a different lever from the current best state: lowering `weight_decay` from 0.2 to 0.1 (keeping 5% warmup active). I’ll commit and run once.
+
+Experiment 4 is running (`weight_decay=0.1`). I’ll capture `val_bpb` when done and compare it against 1.009260.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ba39e03ca5772d4ddb068265e4508bad316c0a7d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ba39e03ca5772d4ddb068265e4508bad316c0a7d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ba39e03ca5772d4ddb068265e4508bad316c0a7d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+I’ll try a capacity increase now: bump `depth` from 8 to 10 while keeping all tuned settings that worked (`warmup_ratio=0.05`) to see if a deeper model improves fixed-time validation bpb.
+
+Experiment 5 is running from commit `f6078ee` with depth 10. I’ll collect metrics as soon as it returns and then keep/discard against best bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc0fd69dd8828d5b2261ec6734c7201deb8d878a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc0fd69dd8828d5b2261ec6734c7201deb8d878a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc0fd69dd8828d5b2261ec6734c7201deb8d878a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 10
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Depth increase did not help (1.027684 with higher memory). I’ve reset to the best working commit (`3bf4041`) and will try one more scheduling-related adjustment.
+
+Experiment 6 is running from commit `249f5a4` (half batch size). I’ll capture `val_bpb` after completion and apply keep/discard against the best value 1.009260.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..97bbaf4be8d2bf45578183d43e507bc21c93dd92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..97bbaf4be8d2bf45578183d43e507bc21c93dd92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..97bbaf4be8d2bf45578183d43e507bc21c93dd92
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+I’m doing one more targeted optimizer tweak from the current best: slightly reduce `matrix_lr` (`0.04 -> 0.035`) while preserving the 5% warmup settings. I’ll run and evaluate it as the next discrete experiment.
+
+Experiment 7 is running from commit `b9b03d3`. I’ll collect its final metrics and then either keep or revert based on bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..66061f0ff6b510ebe1705bc706d8c15308505893
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..66061f0ff6b510ebe1705bc706d8c15308505893
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..66061f0ff6b510ebe1705bc706d8c15308505893
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.035
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.05
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Experiment 7 did not improve (`1.013514`). I’ll log it as discard and return to the best commit (`3bf4041`) for next attempts.
+
+I’ll test a nearby warmup point (`0.03` instead of `0.05`) to see if the optimum is between no-warmup and 5%, since that setting remains the strongest area so far.
+
+Experiment 8 is running from commit `59c5b22` (`warmup_ratio=0.03`). I’ll retrieve the final `val_bpb` and act according to keep/discard rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d3831a8d1755f215da8a92a17744e82e447d0bde
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d3831a8d1755f215da8a92a17744e82e447d0bde
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d3831a8d1755f215da8a92a17744e82e447d0bde
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Experiment 8 improved validation (0.999887), so this commit becomes the new best. I’ll record it as keep and continue from this improved state for further experiments if needed.
+
+I’ll try one follow-up from the new best state: shorten LR warmdown (`warmdown_ratio` from `0.5` to `0.4`) to keep learning rates higher later in the 5-minute budget.
+
+Experiment 9 is running from commit `bf53d19`; I’ll extract the final validation score after completion and compare it to 0.999887.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..82ff2ea31de58178102a119c61646a929f0b39fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.03
++warmdown_ratio = 0.4
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..82ff2ea31de58178102a119c61646a929f0b39fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.03
++warmdown_ratio = 0.4
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..82ff2ea31de58178102a119c61646a929f0b39fb
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,8 +45,8 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmup_ratio = 0.03
++warmdown_ratio = 0.4
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Experiment 9 is done; I’m now reading its summary and will apply keep/discard immediately.
+
+I’m doing a final quick warmup sweep from the current best state (`0.03`). Next is a small reduction to `0.02` to check whether that sharpens the optimum further.
+
+Experiment 10 is running from commit `35d3a59` (`warmup_ratio=0.02`). I’ll parse and evaluate once it completes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..1a0a06c461d357739835707d5bc43e7d6271e3bd
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Experiment 10 finished; I’ll compare its final score to the current best and then keep/discard accordingly.
+
+That direction was unstable (`1.063479`), so I’ll restore the current best and test a separate scheduling tweak: set `final_lr_frac = 0.02` to retain a small LR tail while keeping warmup at 3%.
+
+Experiment 11 is running from commit `b4ab9fb`. I’ll read the final result and decide if this tail-LR tweak is beneficial.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc02873c802df68d27a29ce125a551e86ee72c39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc02873c802df68d27a29ce125a551e86ee72c39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..cc02873c802df68d27a29ce125a551e86ee72c39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.02
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+I’m continuing with one more targeted optimizer tweak from the best run: slightly increase `muon_initial_momentum` (`0.95 -> 0.96`) while keeping warmup 3% to test if later-stage convergence improves.
+
+Experiment 12 is running from commit `d7fc1ef` to test slightly higher initial Muon momentum. I’ll append results and keep/discard by bpb ordering.
+
+Current best is now commit `59c5b22` with `val_bpb = 0.999887`. I’m preparing the final status summary with the experiment log and branch state for you.
+
+I’ll run one final micro-adjustment from the current best before yielding control: set `final_lr_frac` to `0.005` (very small tail LR) to see if it nudges under 0.999 without destabilizing.
+
+Running Experiment 13 (`final_lr_frac=0.005`) now; I’ll compare results and act per keep/discard rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c88ec1dff8588008cd0818010b7e4504cd1b880e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.005
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c88ec1dff8588008cd0818010b7e4504cd1b880e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.005
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..c88ec1dff8588008cd0818010b7e4504cd1b880e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.005
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Loop checkpoint: 13 runs complete (1 baseline + 12 experiments), with best validation now at `0.999887` on commit `59c5b22`. I’ll share the full TSV state and the current active config diff next.
+
+Done. I executed the loop on branch `research-loops/may1` from a clean baseline and logged all runs to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-spark-4h-orchestrated-3-20260501-144436/research-loop/memory/results.tsv).
+
+Current best:
+- commit: `59c5b22`
+- `val_bpb`: `0.999887`
+- `peak_vram_mb`: `42060.4` (≈ `41.1 GB`)
+- status: `keep`
+
+What changed for the best commit:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+- warmup_ratio = 0.05
++ warmup_ratio = 0.03
+```
+
+TSV contents (current):
+```tsv
+commit	val_bpb	memory_gb	status	description
+f23f0b4	1.021805	41.1	keep	baseline
+3bf4041	1.009260	41.1	keep	add 5% lr warmup
+40bc2bc	1.030342	41.1	discard	set final_lr_frac to 0.05
+1b403b5	1.036658	41.1	discard	warmup ratio 10%
+1470f6b	1.035452	41.1	discard	reduce weight decay to 0.1
+f6078ee	1.027684	61.9	discard	increase depth to 10
+249f5a4	1.013377	40.9	discard	halve total batch size
+b9b03d3	1.013514	41.1	discard	decrease matrix_lr to 0.035
+59c5b22	0.999887	41.1	keep	warmup ratio 3%
+bf53d19	1.055217	41.1	discard	reduce warmdown ratio to 0.4
+35d3a59	1.063479	41.1	discard	warmup ratio 2%
+b4ab9fb	1.010346	41.1	discard	set final_lr_frac to 0.02
+d7fc1ef	1.087546	41.1	discard	increase muon initial momentum
+8c126ba	1.035398	41.1	discard	add small final_lr_frac 0.005
+```
+
+Next actions:
+1. Continue with additional scheduled perturbations around warmup/schedule and optimizer values.
+2. Keep recording each trial in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-spark-4h-orchestrated-3-20260501-144436/research-loop/memory/results.tsv) and advance only on lower `val_bpb`.
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d3831a8d1755f215da8a92a17744e82e447d0bde
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.03
+ warmdown_ratio = 0.5
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+tokens used
+138,277
+Done. I executed the loop on branch `research-loops/may1` from a clean baseline and logged all runs to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-spark-4h-orchestrated-3-20260501-144436/research-loop/memory/results.tsv).
+
+Current best:
+- commit: `59c5b22`
+- `val_bpb`: `0.999887`
+- `peak_vram_mb`: `42060.4` (≈ `41.1 GB`)
+- status: `keep`
+
+What changed for the best commit:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+- warmup_ratio = 0.05
++ warmup_ratio = 0.03
+```
+
+TSV contents (current):
+```tsv
+commit	val_bpb	memory_gb	status	description
+f23f0b4	1.021805	41.1	keep	baseline
+3bf4041	1.009260	41.1	keep	add 5% lr warmup
+40bc2bc	1.030342	41.1	discard	set final_lr_frac to 0.05
+1b403b5	1.036658	41.1	discard	warmup ratio 10%
+1470f6b	1.035452	41.1	discard	reduce weight decay to 0.1
+f6078ee	1.027684	61.9	discard	increase depth to 10
+249f5a4	1.013377	40.9	discard	halve total batch size
+b9b03d3	1.013514	41.1	discard	decrease matrix_lr to 0.035
+59c5b22	0.999887	41.1	keep	warmup ratio 3%
+bf53d19	1.055217	41.1	discard	reduce warmdown ratio to 0.4
+35d3a59	1.063479	41.1	discard	warmup ratio 2%
+b4ab9fb	1.010346	41.1	discard	set final_lr_frac to 0.02
+d7fc1ef	1.087546	41.1	discard	increase muon initial momentum
+8c126ba	1.035398	41.1	discard	add small final_lr_frac 0.005
+```
+
+Next actions:
+1. Continue with additional scheduled perturbations around warmup/schedule and optimizer values.
+2. Keep recording each trial in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-spark-4h-orchestrated-3-20260501-144436/research-loop/memory/results.tsv) and advance only on lower `val_bpb`.
+

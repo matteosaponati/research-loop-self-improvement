@@ -1,0 +1,100 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run (`research-loops/may5` with prior results), so I’m resuming from current branch and moving to experiment selection by reading `editable/` and prior metrics.
+
+I have prior experiment history and core config; next I’m inspecting the remaining training logic (especially scheduler/momentum/weight decay paths) to pick one high-impact change for the next run.
+
+I’m proceeding with a single conservative optimizer experiment: reduce `matrix_lr` to make Muon updates less aggressive, then I’ll show the exact diff, commit, run, and evaluate from `metrics.json`.
+
+Unified diff for this experiment:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..ff74137 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@ init_matrix_scale = 1.7320508075688772
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+```
+I’m committing this change now and launching the 5-minute training run with output redirected to `run.log`.
+
+The run is in progress under the committed experiment; I’m waiting for completion and will read only `metrics.json` unless it crashes.
+
+Training is still running within budget; I’m continuing to wait for process exit before collecting metrics and updating `memory/results.tsv`.
+
+No crash signal so far and the process is still active; I’ll keep waiting and then parse `metrics.json` immediately when it exits.
+
+Still in-flight; I’m continuing to poll until the run terminates, then I’ll decide keep/discard against the current best `0.998475`.
+
+Run is still active and hasn’t exceeded the failure threshold window; I’m waiting for completion.
+
+I’m continuing the wait cycle; once the process exits I’ll read `metrics.json`, append TSV, and reset if not improved.
+
+The job remains in progress; I’ll keep polling until terminal exit and then finalize this experiment bookkeeping.
+
+Still running; I’m staying on it and will immediately parse and compare results at exit.
+
+The process is still active near expected duration; I’ll do one more wait and then collect metrics.
+
+Waiting for final termination now; next step is metrics parse, TSV append, and keep/discard decision.
+
+The run finished successfully; I hit a local shell issue (`python` not on PATH), so I’m reading `metrics.json` via `uv run` and then updating `memory/results.tsv`.
+
+I’ve reverted the code commit back to the baseline commit as required for a non-improving run; I’m quickly verifying that the result log entry persisted.
+
+I’m continuing the loop immediately with another experiment from the same baseline: a small reduction in `weight_decay` (0.2 → 0.18) to soften regularization without changing the schedule shape.
+
+Unified diff for experiment 2:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e..6a28169 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@ init_matrix_scale = 1.7320508075688772
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.18
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+```
+Committing and launching the next 5-minute run now.
+
+Run 2 is active; I’m monitoring until exit, then I’ll collect `metrics.json`, append the TSV row, and keep or reset based on `val_bpb`.
+
+Training is still in progress and within expected time; I’m continuing to wait for completion.
+
+Experiment loop is running and currently in-flight on commit `fc6a8f0` (`weight_decay` 0.2 → 0.18).  
+
+Completed so far:
+- Resumed existing branch/state: `research-loops/may5`
+- Ran experiment `5ab18ae` (`matrix_lr` 0.04 → 0.03): `val_bpb=1.044028`, `peak_vram_mb=42060.45` (`41.1 GB`)  
+- Logged to `memory/results.tsv` as `discard`
+- Reset code back to baseline commit `2bf028d` (kept experiment log)
+
+Current status:
+- Second experiment committed and running: `fc6a8f0`
+- Command: `uv run --extra research python editable/train.py > run.log 2>&1`
+- Waiting for completion, then I will parse `metrics.json`, log result, and keep/reset accordingly.
+tokens used
+35,928
+Experiment loop is running and currently in-flight on commit `fc6a8f0` (`weight_decay` 0.2 → 0.18).  
+
+Completed so far:
+- Resumed existing branch/state: `research-loops/may5`
+- Ran experiment `5ab18ae` (`matrix_lr` 0.04 → 0.03): `val_bpb=1.044028`, `peak_vram_mb=42060.45` (`41.1 GB`)  
+- Logged to `memory/results.tsv` as `discard`
+- Reset code back to baseline commit `2bf028d` (kept experiment log)
+
+Current status:
+- Second experiment committed and running: `fc6a8f0`
+- Command: `uv run --extra research python editable/train.py > run.log 2>&1`
+- Waiting for completion, then I will parse `metrics.json`, log result, and keep/reset accordingly.

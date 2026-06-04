@@ -1,0 +1,326 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run with many prior experiments and current best `val_bpb=0.991891`, so I’m resuming from the current branch and now reading `editable/` files to choose the next targeted change.
+
+I have the config and partial training script; next I’m reading the rest of `editable/train.py` to find a high-leverage change that fits the 5-minute budget regime.
+
+I now have full training-loop context and I’m selecting a single config-only change with high signal: adjust `muon_momentum_warmup_steps`, which hasn’t been explored symmetrically around the current best settings. I’ll patch config, show diff, commit, run, and evaluate via `metrics.json`.
+
+I confirmed the branch tip is `9ec63f8`; I’ll run one controlled experiment from this commit by slightly reducing Muon momentum warmup from `300` to `240` to test faster transition without the instability seen at `120`.
+
+Commit is in place (`5a01a25`) with a one-line config diff. I’m launching the 5-minute training run now and will collect only `metrics.json` when it finishes.
+
+Training is running in the background PTY session; I’m polling for completion and will immediately parse `metrics.json` once the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+The run is still active; I’m continuing to wait without reading the log, and will only inspect the log if `metrics.json` is missing or malformed after exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still in progress; I’m polling again and then I’ll move directly to `metrics.json` extraction and result logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Run is still executing; I’m continuing to poll until completion, then I’ll record metrics and decide keep vs reset.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+I’m still waiting on the same run; no log inspection yet, staying within the metrics-only collection path.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..59ef82c7fa5ccbd0f451b00614a336eb1064d046
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+-muon_momentum_warmup_steps = 300
++muon_momentum_warmup_steps = 240
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training finished successfully. I’m now reading `metrics.json`, appending the TSV row, and comparing against the current best to decide whether to keep this commit or reset it.
+
+The environment has no bare `python` on PATH, so I’m re-running the metrics parsing via `uv run` and then updating `memory/results.tsv`.
+
+This trial is worse than the best (`1.022530` vs `0.991891`), so I’m discarding it by resetting to the pre-experiment commit and then appending a `discard` row to `memory/results.tsv`.
+
+I’ve returned to the stable tip and logged the discard. I’m immediately launching the next experiment with a nearby schedule tweak: increase `warmdown_ratio` from `0.55` to `0.58` to test a slightly longer decay tail.
+
+Second run is now starting from commit `b90063d`; once it exits I’ll evaluate `metrics.json`, log to TSV, and keep or reset based on `val_bpb`.
+
+The run is still in progress; I’m continuing to poll and will keep result collection strictly to `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Still running. I’ll keep waiting and then immediately apply keep/discard logic once metrics are written.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Run is still active; no crash signals yet, so I’m continuing to wait for normal completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+This run is taking longer than the pure 5-minute training window (likely startup/compile overhead), still within the 10-minute failure cutoff, so I’m continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..71db6e5b38f60735ef993d7c68716d6aeab7f13b
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.55
++warmdown_ratio = 0.58
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+`val_bpb` is again worse than the best (`1.013806` vs `0.991891`), so I’m discarding this commit, resetting, and logging the result row.
+
+I need one quick verification pass because the previous `tail` ran in parallel with the append; I’m re-checking the end of `memory/results.tsv` sequentially to confirm both new rows are present.
+
+Resumed existing loop on branch `research-loops/may5` (HEAD reset back to `9ec63f8` after discards), ran 2 new experiments, and logged both to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy2-gpt53codex-medium-4h-orchestrated-2-20260505-000213/research-loop/memory/results.tsv).
+
+New results:
+1. `5a01a25` (`muon_momentum_warmup_steps=240`): `val_bpb=1.022530`, `41.1 GB`, `discard`
+2. `b90063d` (`warmdown_ratio=0.58`): `val_bpb=1.013806`, `41.1 GB`, `discard`
+
+Best remains `0.991891` (commit `830c1f5` in results history).
+tokens used
+46,278
+Resumed existing loop on branch `research-loops/may5` (HEAD reset back to `9ec63f8` after discards), ran 2 new experiments, and logged both to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy2-gpt53codex-medium-4h-orchestrated-2-20260505-000213/research-loop/memory/results.tsv).
+
+New results:
+1. `5a01a25` (`muon_momentum_warmup_steps=240`): `val_bpb=1.022530`, `41.1 GB`, `discard`
+2. `b90063d` (`warmdown_ratio=0.58`): `val_bpb=1.013806`, `41.1 GB`, `discard`
+
+Best remains `0.991891` (commit `830c1f5` in results history).

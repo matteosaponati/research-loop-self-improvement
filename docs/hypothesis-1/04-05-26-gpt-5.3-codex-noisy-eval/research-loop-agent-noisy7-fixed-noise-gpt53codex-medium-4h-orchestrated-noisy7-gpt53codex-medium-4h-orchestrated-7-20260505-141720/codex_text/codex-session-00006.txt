@@ -1,0 +1,78 @@
+I’m starting the research loop now by checking git state, whether `memory/results.tsv` already has prior runs, and whether data artifacts are present so I can either resume or initialize exactly per your protocol.
+
+The repo is already initialized on branch `research-loops/may5` with prior experiments logged, so I’m resuming from the current state and reading `editable/` plus `memory/results.tsv` to choose the next experiment.
+
+I’ve pulled prior results and config; next I’m scanning the rest of `train.py` to target one high-value schedule/optimizer change that fits the 5-minute budget.
+
+I found the current best at `0.995128` and most schedule variants around LR floor/warmdown already regressed. I’m testing a new axis next by lengthening `muon_momentum_warmup_steps` so Muon momentum ramps more gradually over the 5-minute horizon.
+
+I applied a single config change and captured the unified diff; now I’m committing this experiment and launching a timed training run with output redirected to `run.log`.
+
+The training job is running in the background under a timeout guard; I’m waiting for completion and will read only `metrics.json` unless it fails.
+
+Run is still in progress; I’m continuing to wait and will enforce the discard path if it exceeds the 10-minute ceiling.
+
+I’m still waiting on the same run session; once it exits I’ll immediately parse `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+The process continues without exiting yet; I’m polling until completion and keeping the no-log-inspection rule unless this run crashes.
+
+The run finished successfully; I hit a local shell issue (`python` not on PATH), so I’m re-reading `metrics.json` and best-so-far via `uv run python` before recording and deciding keep/discard.
+
+That experiment regressed and has been logged plus reverted to the best commit. I’m launching the next trial by changing only one variable: keep weight decay constant (`weight_decay_decay = false`) instead of decaying to zero.
+
+Second experiment is now running with the same timeout guard. I’ll wait for completion, read `metrics.json`, then log and keep/reset based on `val_bpb`.
+
+Training is still in progress; no crash signal so far. I’m continuing to poll until this run exits.
+
+I’m still waiting on the active run session and will proceed directly to metrics extraction once it exits.
+
+Run is continuing normally; I’m keeping the same wait loop and enforcing the 10-minute failure rule if needed.
+
+The run completed successfully; I’m extracting `metrics.json`, recording the result, and then deciding keep or discard against the current best `0.995128`.
+
+I’ve logged two additional discards and restored the best checkpoint each time. I’m proceeding to another targeted trial by lowering `muon_momentum_end` from `0.95` to `0.94` to reduce late-run optimizer inertia.
+
+The next run is active with timeout protection. I’m waiting for it to finish, then I’ll read `metrics.json`, append the TSV row, and keep/reset automatically.
+
+This run is still progressing; no failure signal yet, so I’m continuing the wait loop.
+
+I’m still waiting on the same session and will finalize this experiment’s keep/discard decision as soon as it exits.
+
+Run is still active under the timeout cap; I’ll keep polling until completion and then immediately log results.
+
+This run also regressed. I’m appending it as `discard` and resetting back to the current best commit before continuing the loop.
+
+Completed 3 new experiments and followed the keep/discard reset loop.
+
+Current best remains:
+- commit `b88aca6`
+- `val_bpb=0.995128`
+- peak memory `41.1 GB`
+
+New logged results in `memory/results.tsv`:
+- `9b71f31` → `1.022703`, `41.1`, `discard` (`muon_momentum_warmup_steps=500`)
+- `1903569` → `1.016569`, `41.1`, `discard` (`weight_decay_decay=false`)
+- `d3f43ca` → `1.027835`, `41.1`, `discard` (`muon_momentum_end=0.94`)
+
+State now:
+- HEAD reset to best commit `b88aca6`
+- branch: `research-loops/may5`
+- results log updated and preserved.
+tokens used
+47,917
+Completed 3 new experiments and followed the keep/discard reset loop.
+
+Current best remains:
+- commit `b88aca6`
+- `val_bpb=0.995128`
+- peak memory `41.1 GB`
+
+New logged results in `memory/results.tsv`:
+- `9b71f31` → `1.022703`, `41.1`, `discard` (`muon_momentum_warmup_steps=500`)
+- `1903569` → `1.016569`, `41.1`, `discard` (`weight_decay_decay=false`)
+- `d3f43ca` → `1.027835`, `41.1`, `discard` (`muon_momentum_end=0.94`)
+
+State now:
+- HEAD reset to best commit `b88aca6`
+- branch: `research-loops/may5`
+- results log updated and preserved.

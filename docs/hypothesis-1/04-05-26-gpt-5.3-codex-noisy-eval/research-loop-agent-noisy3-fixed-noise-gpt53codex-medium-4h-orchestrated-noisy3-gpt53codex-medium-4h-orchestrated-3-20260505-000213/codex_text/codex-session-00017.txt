@@ -1,0 +1,130 @@
+I’m starting the research loop now: first I’ll detect whether this workspace is already initialized (`memory/results.tsv` with prior rows), then either resume or perform the required setup path exactly as specified.
+
+Initialization is already present with many prior experiments, so I’m resuming directly from the current branch state and reading `editable/` files to pick the next targeted change.
+
+I’ve confirmed we’re on the active research branch with best `val_bpb=0.995577` at commit `bb29b1c`. Next I’m reading the rest of `editable/train.py` to identify a single high-signal tweak for the next run.
+
+I found a promising untouched lever: `total_batch_size` is currently forcing `grad_accum_steps=2`; switching to `262144` makes it 1 and changes the optimization regime without architecture changes. I’m applying that single config edit, committing, then running a timed experiment.
+
+The change is committed as `28ab915`; I’m launching the 5-minute training run now with output redirected to `run.log`, then I’ll read `metrics.json` and decide keep vs reset.
+
+Training is running under timeout control; I’ll wait for completion and then collect metrics only from `metrics.json` per your rules.
+
+Run is still in progress; I’m continuing to wait and will immediately parse `metrics.json` once the process exits.
+
+I’m still waiting on the same training process; next step remains metrics extraction and keep/discard decision as soon as it exits.
+
+The job is taking longer than expected wall time but still within the 10-minute safety cutoff, so I’m continuing to monitor until it exits or times out.
+
+Still running; I’ll keep waiting and enforce the failure rule if it reaches the 10-minute timeout.
+
+Training completed successfully. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then either keeping this commit or resetting based on `val_bpb` improvement.
+
+The shell lacks a direct `python` binary here, so I’m rerunning the metrics parsing via `uv run` to keep the workflow intact.
+
+I’ve discarded that change and returned to `bb29b1c`. I’m launching a second experiment now on a new axis: a small reduction of `unembedding_lr` to `0.0035`, then the same commit/run/evaluate cycle.
+
+The new commit is `ba8121a`; I’m running the 5-minute training job now and will keep/discard strictly by `val_bpb` against the current best `0.995577`.
+
+Second experiment is in progress; I’m waiting for process completion and will read only `metrics.json` unless there’s a crash.
+
+Run is still active and within the timeout window; I’m continuing to monitor until exit and then I’ll record/decide immediately.
+
+I’m still waiting on completion of `ba8121a`; once it exits I’ll parse `metrics.json`, append to `memory/results.tsv`, and keep or reset.
+
+I have the new metric (`val_bpb=1.032633`, clearly worse); I’m finalizing the best-reference check and then discarding this commit with a reset after logging it.
+
+Completed 2 experiment cycles and logged both.
+
+- Current branch/head: `research-loops/may5` at `bb29b1c` (best-so-far kept)
+- Best `val_bpb` remains: `0.995577`
+- Results appended to `memory/results.tsv`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 377c968..be48dfa 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 377c968..77de893 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.7
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.04
+ weight_decay = 0.18
+ adam_beta1 = 0.8
+```
+
+New logged rows:
+
+- `28ab915	0.995960	36.4	discard	halve total batch size to 262144 (grad_accum 1)`
+- `ba8121a	1.032633	36.5	discard	lower unembedding lr to 0.0035`
+
+Both were worse than best, so both commits were discarded via reset.
+tokens used
+30,374
+Completed 2 experiment cycles and logged both.
+
+- Current branch/head: `research-loops/may5` at `bb29b1c` (best-so-far kept)
+- Best `val_bpb` remains: `0.995577`
+- Results appended to `memory/results.tsv`
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 377c968..be48dfa 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@ h100_bf16_peak_flops = 989500000000000.0
+
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 377c968..77de893 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.7
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.04
+ weight_decay = 0.18
+ adam_beta1 = 0.8
+```
+
+New logged rows:
+
+- `28ab915	0.995960	36.4	discard	halve total batch size to 262144 (grad_accum 1)`
+- `ba8121a	1.032633	36.5	discard	lower unembedding lr to 0.0035`
+
+Both were worse than best, so both commits were discarded via reset.

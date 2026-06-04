@@ -1,0 +1,110 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or run full setup exactly as specified before launching the next experiment.
+
+I found an existing initialized run (`research-loops/may5` with `memory/results.tsv` present), so I’m resuming directly from step (2): read current configs/code/results, choose next mutation, then run and score.
+
+I’ve reviewed the current trajectory: best is `0.998682` with `matrix_lr=0.045`, `warmdown_ratio=0.2`, `final_lr_frac=0.2`, and momentum ramp `0.85→0.95` over 40 steps. I’m applying a single-factor experiment to raise `muon_momentum_start` slightly to `0.88` to reduce early-step noise while keeping the winning schedule intact.
+
+I’ve patched `editable/config.toml` and confirmed the diff. Next I’m committing this experiment and running the 5-minute train job, then I’ll read only `metrics.json` for scoring.
+
+The run is in progress in the background; I’m waiting for completion and will immediately extract metrics once it exits.
+
+Training is still running within budget; I’m continuing to wait and will stop only if it exceeds the 10-minute failure threshold.
+
+I’m polling again for completion now; once done, I’ll parse `metrics.json`, append the TSV row, and decide keep vs reset against the `0.998682` best.
+
+Run is still active; I’m continuing to monitor it and will enforce the timeout rule if it crosses 10 minutes total wall time.
+
+Still waiting on the training process to finish cleanly; no crash signal yet. I’ll pull metrics as soon as it exits.
+
+I’m doing another status poll now; if this hasn’t exited by the 10-minute cap, I’ll terminate and mark it as failure per your protocol.
+
+Still running past expected duration, so I’m checking one more interval and will kill immediately if the 10-minute ceiling is breached.
+
+The run completed successfully. I’m now reading `metrics.json`, appending a TSV row, and automatically reverting this commit if it does not beat the current best `val_bpb`.
+
+I hit an environment issue (`python` not on PATH), and the helper command prematurely reset the commit before logging. I’m fixing that by reading `metrics.json` via `uv run`, reconstructing the exact result row for commit `3fa191e`, and appending it now.
+
+The result is logged and branch is correctly back on the best commit (`7b1c418`). I’m launching the next experiment: keep the same momentum endpoints but lengthen momentum warmup from `40` to `60` steps to reduce early optimizer aggressiveness.
+
+Second run is now active; I’m waiting for completion and will score from `metrics.json` only, then keep or reset automatically.
+
+Still running normally. I’ll continue polling until exit, with the same 10-minute failure guard.
+
+I’m polling again now; once complete I’ll append the result row and decide keep/discard against `0.998682`.
+
+Run is still in progress; no crash indicators yet. Continuing to wait.
+
+I’m checking completion again now and will process metrics immediately after exit.
+
+Still active; I’ll keep polling and enforce the hard timeout if needed.
+
+One more poll in this interval; if it crosses 10 minutes wall clock I’ll terminate and mark crash.
+
+This run is taking longer than expected, likely due CPU fallback throughput; I’m continuing to monitor closely and will cut it off at the 10-minute limit if it doesn’t finish.
+
+The run finished. I’m extracting `metrics.json`, logging to `memory/results.tsv`, and reverting if it didn’t improve.
+
+Completed two experiments and advanced the branch once.
+
+Current best:
+- `val_bpb`: `0.988015` (improved from `0.998682`)
+- commit: `1216f34`
+- branch: `research-loops/may5`
+
+Edits tried (unified diffs):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.88
+```
+
+- commit `3fa191e`
+- result `1.040634` → `discard`
+- reset to previous best
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_warmup_steps = 40
++muon_momentum_warmup_steps = 60
+```
+
+- commit `1216f34`
+- result `0.988015` → `keep`
+
+I also logged both results to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv).
+tokens used
+59,273
+Completed two experiments and advanced the branch once.
+
+Current best:
+- `val_bpb`: `0.988015` (improved from `0.998682`)
+- commit: `1216f34`
+- branch: `research-loops/may5`
+
+Edits tried (unified diffs):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.88
+```
+
+- commit `3fa191e`
+- result `1.040634` → `discard`
+- reset to previous best
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_warmup_steps = 40
++muon_momentum_warmup_steps = 60
+```
+
+- commit `1216f34`
+- result `0.988015` → `keep`
+
+I also logged both results to [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv).

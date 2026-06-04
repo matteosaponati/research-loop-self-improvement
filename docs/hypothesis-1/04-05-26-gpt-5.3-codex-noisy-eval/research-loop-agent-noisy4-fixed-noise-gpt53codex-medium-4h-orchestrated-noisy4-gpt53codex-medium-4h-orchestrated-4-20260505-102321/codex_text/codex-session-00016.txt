@@ -1,0 +1,19 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, then I’ll either resume or initialize baseline exactly per your protocol.
+
+I found an existing branch and populated `memory/results.tsv`, so I’m resuming from the current state (no re-init, no baseline rerun). Next I’m reading `editable/` and prior results to choose the next targeted experiment.
+
+I’ve pulled the historical results and current hyperparameters; best so far is `0.996175` with `unembedding_lr=0.0035`. I’m now checking the current HEAD and the training schedule implementation in `train.py` to pick a non-tried, high-signal tweak.
+
+I’ve identified a clean next test: keep the current best setup and slightly reduce `final_lr_frac` from `0.10` to `0.08` (0.05 was too low, 0.12 too high, so this probes the middle). I’m applying that single config edit, committing, and running one full 5-minute experiment.
+
+Run is in progress under the 5-minute budget. I’ll wait for completion, then read only `metrics.json`, append the TSV row, and keep or discard via git reset based on `val_bpb`.
+
+Training is still running normally; I’m continuing to wait without reading `run.log`. Once the process exits I’ll parse `metrics.json` and apply the keep/discard rule.
+
+I’m at the final wait window for this run; as soon as it exits I’ll extract metrics and update `memory/results.tsv` before moving to the next experiment.
+
+The run completed successfully. I’m now reading `metrics.json` and logging the result in `memory/results.tsv`, then I’ll reset if it didn’t beat the current best `0.996175`.
+
+I hit a small tooling issue (`python` not on PATH) and switched to `uv run python`; I’m waiting for that metrics read command to finish and then I’ll record/reset immediately.
+
+That experiment regressed (`1.032401`), so I logged it as `discard` and reset to the best kept commit `1862bf4`. I’m launching the next experiment now with a finer unembedding LR probe (`0.00345`) near the current optimum.

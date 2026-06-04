@@ -1,0 +1,45 @@
+commit 7b0e1389f45499a9268fbecda53c1e558ff2088a
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 00:10:08 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 00:10:08 2026 +0200
+
+    train: gate all cuda init/seed behind verified cuda readiness
+---
+ editable/train.py | 19 +++++++++++--------
+ 1 file changed, 11 insertions(+), 8 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653..cf2f551 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -414,18 +414,21 @@ class MuonAdamW(torch.optim.Optimizer):
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-if torch.cuda.is_available():
+-    torch.cuda.manual_seed(CONFIG.seed)
++cuda_ready = False
++if CONFIG.device == "cuda" and torch.cuda.is_available():
++    try:
++        _ = torch.empty(1, device="cuda")
++        torch.cuda.manual_seed(CONFIG.seed)
++        cuda_ready = True
++    except Exception:
++        cuda_ready = False
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ 
+ runtime_device = CONFIG.device
+-if CONFIG.device == "cuda":
+-    try:
+-        _ = torch.empty(1, device="cuda")
+-    except Exception:
+-        runtime_device = "cpu"
+-        print("WARN: CUDA unavailable at runtime; falling back to CPU.")
++if CONFIG.device == "cuda" and not cuda_ready:
++    runtime_device = "cpu"
++    print("WARN: CUDA unavailable at runtime; falling back to CPU.")
+ device = torch.device(runtime_device)
+ autocast_ctx = (
+     torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype)

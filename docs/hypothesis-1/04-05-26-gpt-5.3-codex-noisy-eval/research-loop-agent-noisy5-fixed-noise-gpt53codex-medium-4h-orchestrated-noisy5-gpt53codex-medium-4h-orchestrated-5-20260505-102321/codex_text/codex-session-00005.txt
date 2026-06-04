@@ -1,0 +1,54 @@
+I’m starting the research loop by checking whether prior memory exists so I can resume correctly; then I’ll branch/init only if needed, run baseline if required, and proceed to a new experiment commit-run-evaluate cycle.
+
+I found an existing `memory/results.tsv` with prior runs, so I’m resuming from the current branch/state and skipping re-initialization and baseline. Next I’m reading `editable/` plus prior results to choose the next change.
+
+I have prior experiment history and current best (`1.023195`). I’m now inspecting `editable/train.py` to target a high-impact change that can improve short 5-minute convergence.
+
+I’m making a focused config-only experiment: increase `embedding_lr` further (from `0.7` to `0.8`) since the previous embedding/unembedding LR increase was the only improving direction so far. Then I’ll commit, run, read `metrics.json`, log, and keep/reset based on `val_bpb`.
+
+The experiment commit is in place (`ea5ed87`). I’m running the 5-minute training job now and will only read `metrics.json` afterward unless it crashes.
+
+Training is running in the background session; I’m polling for completion and will parse `metrics.json` immediately when it exits.
+
+Run is still active within the expected window; I’m continuing to wait for completion before collecting metrics.
+
+The run finished successfully. I’m now reading `metrics.json`, comparing against the best `val_bpb`, and then I’ll append to `memory/results.tsv` and keep or reset.
+
+The shell lacks a direct `python` binary here, so I’m re-running the metric parsing with `uv run` and proceeding with the keep/reset decision.
+
+This run is worse than the current best, so I’m logging it as `discard` and resetting the branch pointer to the previous commit while keeping the results log update.
+
+I’ve cleanly returned to the best kept commit (`b570970`) with only `metrics.json` untracked. I’m launching another experiment now: a smaller unembedding LR increase (`0.006` → `0.007`) to test a gentler version of the previously too-large `0.008` change.
+
+The second experiment commit (`877401b`) is ready, and I’m running training now with output redirected to `run.log`.
+
+Training is still in progress and within expected duration; I’m continuing to wait for normal completion before reading `metrics.json`.
+
+The run finished; I’m extracting metrics and applying the same keep/discard rule against the current best before updating `memory/results.tsv` and git state.
+
+This result is also worse than the best, so I’m discarding it by resetting back one commit and restoring `editable/config.toml`.
+
+Completed 2 autonomous experiments and updated memory.
+
+Current branch head is still best commit `b570970` (`val_bpb=1.023195`), so no branch advance.
+
+New logged results in `memory/results.tsv`:
+- `ea5ed87` | `1.025879` | `41.1 GB` | `discard` | increase embedding LR to 0.8
+- `877401b` | `1.025789` | `41.1 GB` | `discard` | increase unembedding LR to 0.007
+
+Working tree state:
+- Kept only `memory/results.tsv` updates and latest `metrics.json` artifact (`metrics.json` untracked).
+- `editable/config.toml` is restored to the kept best configuration.
+tokens used
+42,792
+Completed 2 autonomous experiments and updated memory.
+
+Current branch head is still best commit `b570970` (`val_bpb=1.023195`), so no branch advance.
+
+New logged results in `memory/results.tsv`:
+- `ea5ed87` | `1.025879` | `41.1 GB` | `discard` | increase embedding LR to 0.8
+- `877401b` | `1.025789` | `41.1 GB` | `discard` | increase unembedding LR to 0.007
+
+Working tree state:
+- Kept only `memory/results.tsv` updates and latest `metrics.json` artifact (`metrics.json` untracked).
+- `editable/config.toml` is restored to the kept best configuration.

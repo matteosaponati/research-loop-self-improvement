@@ -1,0 +1,82 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize branch/results and run the baseline before proposing the next code experiment.
+
+I found prior experiment history and an active `research-loops/may5` branch, so I’m resuming directly from step (2). Next I’ll read `editable/` code and choose the next high-probability tweak from the existing trend.
+
+I’ve identified the current best as `0.998682` and most recent regressions around optimizer hyperparameters. I’m now reading the scheduler/training-loop section to target a small, high-signal schedule change for the next run.
+
+I’m running a focused hyperparameter test next: increase `warmdown_ratio` from `0.20` to `0.25` while keeping `final_lr_frac=0.20`, to start LR decay slightly earlier without changing terminal LR. I’ll patch `editable/config.toml`, commit, run, and decide keep/reset based on `val_bpb`.
+
+I’ve applied the config change and verified the unified diff. Next I’m committing this experiment and launching a timed run with output redirected to `run.log`.
+
+The experiment is running now under a 610s timeout guard; I’ll wait for completion, then read only `metrics.json`, append `memory/results.tsv`, and keep or reset based on improvement.
+
+Run is still in progress; I’m continuing to wait without reading the log content, per the loop rules.
+
+Still running within the expected window. I’ll keep polling until the process exits and then collect metrics from `metrics.json`.
+
+Training is still active; no crash signal so far. I’ll continue waiting for clean exit before evaluating the result.
+
+I’m still waiting on the run process; once it exits I’ll immediately parse `metrics.json` and apply the keep/discard decision.
+
+The process is taking longer than usual but remains under the 10-minute failure threshold. I’ll keep polling and enforce the timeout outcome.
+
+The run finished successfully. I’m now reading `metrics.json`, logging the result into `memory/results.tsv`, and resetting the commit if it did not beat the current best `val_bpb` of `0.998682`.
+
+I hit an environment issue (`python` missing in PATH), and the fallback command reset the last commit before recording this trial. I’ll recover by reading `metrics.json` with `uv run python`, recover the experiment hash from reflog, append the missing TSV row, and then continue from the restored baseline state.
+
+I recovered the run outcome: `val_bpb=1.032860` for commit `aa4f501`, which is worse than the best. I’m now appending that as `discard` to `memory/results.tsv` and proceeding to the next experiment.
+
+I’m continuing the loop with another targeted trial from the restored best commit: reduce constant `weight_decay` from `0.20` to `0.15` to test gentler regularization under the same schedule.
+
+The second experiment is now running (`de98ca3`). I’ll wait for completion, then score from `metrics.json`, record to TSV, and keep/reset automatically.
+
+Run is still in progress and within limits; I’m continuing to wait without touching `run.log`.
+
+Training is still active; once it exits I’ll immediately extract metrics and apply the keep/discard decision.
+
+Still running, no failure indication yet. I’ll keep polling until the process returns.
+
+Process is taking longer than expected but still under timeout; I’m continuing to wait and will treat timeout or missing metrics as failure if that happens.
+
+I’m proceeding with another run from best commit `7b1c418`: lower `muon_momentum_start` from `0.85` to `0.80` to test a softer early-step optimizer trajectory while keeping the successful 40-step ramp.
+
+Third experiment is running now (`c966779`). I’ll wait for finish, then read `metrics.json`, append TSV, and keep/reset against the `0.998682` best.
+
+Run is in progress and healthy so far; I’m continuing to wait.
+
+Still running under timeout guard. I’ll keep polling and then finalize this iteration with the keep/discard action.
+
+This run is still active; I’m continuing to wait and will only use `metrics.json` for result collection when it exits.
+
+The process is near the timeout window but still running, so I’m waiting for the terminal exit code before deciding keep/discard.
+
+Run completed. I’m extracting metrics now, logging the result, and applying reset if it missed the best score.
+
+Completed 3 new experiments and kept the branch at the current best commit `7b1c418` (`val_bpb=0.998682`).
+
+New logged results in `memory/results.tsv`:
+- `aa4f501` → `1.032860` `discard` (`warmdown_ratio=0.25`)
+- `de98ca3` → `1.027767` `discard` (`weight_decay=0.15`)
+- `c966779` → `1.027970` `discard` (`muon_momentum_start=0.80`)
+
+Current state:
+- HEAD reset to best known: `7b1c418`
+- Results file updated with all trials
+- No crash in these 3 runs
+
+I will continue from this best point with the next experiment in the same loop.
+tokens used
+38,479
+Completed 3 new experiments and kept the branch at the current best commit `7b1c418` (`val_bpb=0.998682`).
+
+New logged results in `memory/results.tsv`:
+- `aa4f501` → `1.032860` `discard` (`warmdown_ratio=0.25`)
+- `de98ca3` → `1.027767` `discard` (`weight_decay=0.15`)
+- `c966779` → `1.027970` `discard` (`muon_momentum_start=0.80`)
+
+Current state:
+- HEAD reset to best known: `7b1c418`
+- Results file updated with all trials
+- No crash in these 3 runs
+
+I will continue from this best point with the next experiment in the same loop.

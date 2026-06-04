@@ -1,0 +1,42 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has runs, and what’s in `editable/` so I can either resume or initialize baseline correctly.
+
+I found an existing initialized run (`research-loops/may5`) with prior experiments, so I’m resuming directly and now reading `editable/` plus result history to choose the next targeted change.
+
+I’ve identified the current best as `0.989261` (`f259efa`) with `final_lr_frac=0.05`; most larger schedule/optimizer moves regressed. I’m making a narrow optimizer tweak next by lowering `adam_beta2` from `0.95` to `0.94` to increase short-horizon adaptivity without the instability seen at `0.90`.
+
+I’ve applied the config edit and confirmed the diff; next I’m committing this single change and running a full 5-minute training trial.
+
+The run is in progress under timeout control; I’m waiting for completion, then I’ll read `metrics.json` and update `memory/results.tsv` without inspecting `run.log`.
+
+Training is still running normally; I’m continuing to wait for the process to finish and then I’ll collect metrics from the JSON output.
+
+The run completed successfully. I’m now reading `metrics.json`, appending the experiment row, and deciding whether to keep the commit or reset based on whether `val_bpb` beats `0.989261`.
+
+The environment doesn’t expose `python` directly, so I’m re-running the same metrics collection step via `uv run python` and then applying keep/discard.
+
+This experiment regressed (`1.004803`), so I’m discarding it by resetting to the previous commit and preparing the next idea from the preserved history.
+
+I’ve reverted to the best checkpoint (`f259efa`) and logged the discard. I’m launching another conservative schedule test: lowering `muon_momentum_start` from `0.85` to `0.80` to soften early updates while keeping the same end momentum and LR schedule.
+
+The second run is now executing with timeout protection; I’ll wait for completion and then read only `metrics.json` for evaluation and logging.
+
+Training is still in progress; once it exits I’ll immediately score it against the current best and either keep or hard-reset.
+
+Completed 2 new experiments and updated `memory/results.tsv` for both.
+
+- Best so far remains commit `f259efa` with `val_bpb=0.989261` (`keep`).
+- New run `4771645` (`adam_beta2=0.94`) got `val_bpb=1.004803`, `41.1 GB`, logged as `discard`, then reset.
+- New run `8621762` (`muon_momentum_start=0.80`) got `val_bpb=1.048835`, `41.1 GB`, logged as `discard`, then reset.
+- Branch head is back at `f259efa` and loop history is preserved in `memory/results.tsv`.
+
+I can continue immediately with the next experiment from this best checkpoint.
+tokens used
+37,485
+Completed 2 new experiments and updated `memory/results.tsv` for both.
+
+- Best so far remains commit `f259efa` with `val_bpb=0.989261` (`keep`).
+- New run `4771645` (`adam_beta2=0.94`) got `val_bpb=1.004803`, `41.1 GB`, logged as `discard`, then reset.
+- New run `8621762` (`muon_momentum_start=0.80`) got `val_bpb=1.048835`, `41.1 GB`, logged as `discard`, then reset.
+- Branch head is back at `f259efa` and loop history is preserved in `memory/results.tsv`.
+
+I can continue immediately with the next experiment from this best checkpoint.

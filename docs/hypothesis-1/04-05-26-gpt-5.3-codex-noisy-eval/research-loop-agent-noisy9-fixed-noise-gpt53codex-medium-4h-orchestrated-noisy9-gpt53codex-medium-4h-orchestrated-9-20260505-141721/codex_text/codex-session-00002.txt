@@ -1,0 +1,130 @@
+I’m starting the research loop now: first I’ll detect whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly as specified.
+
+I found an existing initialized run history, so I’m resuming from current branch/state and moving directly to reading `editable/` files plus prior results to choose the next experiment.
+
+I’ve reviewed prior experiments: best so far is `val_bpb=1.013253` with `unembedding_lr=0.006`, so I’ll run a focused continuation by increasing `unembedding_lr` slightly to `0.008` and keep everything else fixed to isolate effect.
+
+I’ve applied the config change and verified the diff; next I’m committing this experiment and launching a timed training run with output redirected to `run.log`.
+
+The experiment is running now under the 10-minute timeout; I’ll wait for completion and then read only `metrics.json` for result collection.
+
+Training is still in progress; I’m continuing to wait and will parse metrics immediately when the process exits.
+
+Run is still active and within the allowed window; I’m polling again for completion so I can log the exact metrics.
+
+Still running; I’m continuing to wait and then will update `memory/results.tsv` plus keep/reset based on `val_bpb`.
+
+I’m still waiting on completion; once it exits I’ll extract `val_bpb` and `peak_vram_mb` from `metrics.json` and make the keep/discard decision automatically.
+
+The job is still executing; I’m continuing the poll loop and will finalize logging immediately after exit.
+
+This is nearing expected wall-clock completion; I’m polling more frequently now to capture the exit as soon as it finishes.
+
+Training finished successfully. I’ll now read `metrics.json`, append this run to `memory/results.tsv`, and then keep or reset this commit based on whether `val_bpb` improved over the current best.
+
+The `0.008` unembedding LR regressed and I’ve discarded it with a reset. I’m launching the next experiment now from best commit by increasing `warmdown_ratio` from `0.3` to `0.4` to keep higher LR longer before final decay.
+
+Second experiment is running under timeout now; I’m waiting for completion and will again use only `metrics.json` for evaluation and logging.
+
+Run is still active and within limits; I’m continuing to poll until it exits.
+
+Training is still in progress; I’ll keep waiting and then immediately collect metrics and decide keep/discard.
+
+Still running. I’m continuing the poll loop and will finalize this experiment as soon as the process exits.
+
+This run is nearing expected completion time; I’m polling more frequently now to capture termination promptly.
+
+The run completed successfully; I’m extracting metrics now and applying the keep/reset rule against the current best `val_bpb`.
+
+Experiment loop resumed and executed two new trials from best commit `3adb8a8` (`val_bpb=1.013253`).
+
+Latest results appended to `memory/results.tsv`:
+
+- `b7dfd2c` | `1.027712` | `41.1` GB | `discard` | `unembedding_lr 0.008`
+- `5e74363` | `1.033636` | `41.1` GB | `discard` | `warmdown_ratio 0.4`
+
+Branch was reset after each regression, so current HEAD is still the best known commit:
+- `3adb8a8` (`unembedding_lr = 0.006`, `val_bpb=1.013253`)
+
+Unified diffs used for the two experiments were:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 19240f4..bb23b61 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.006
++unembedding_lr = 0.008
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 19240f4..7a5ec19 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@ muon_beta2 = 0.95
+
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.3
++warmdown_ratio = 0.4
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+```
+
+
+tokens used
+22,023
+Experiment loop resumed and executed two new trials from best commit `3adb8a8` (`val_bpb=1.013253`).
+
+Latest results appended to `memory/results.tsv`:
+
+- `b7dfd2c` | `1.027712` | `41.1` GB | `discard` | `unembedding_lr 0.008`
+- `5e74363` | `1.033636` | `41.1` GB | `discard` | `warmdown_ratio 0.4`
+
+Branch was reset after each regression, so current HEAD is still the best known commit:
+- `3adb8a8` (`unembedding_lr = 0.006`, `val_bpb=1.013253`)
+
+Unified diffs used for the two experiments were:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 19240f4..bb23b61 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.006
++unembedding_lr = 0.008
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 19240f4..7a5ec19 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@ muon_beta2 = 0.95
+
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.3
++warmdown_ratio = 0.4
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+```
+
+

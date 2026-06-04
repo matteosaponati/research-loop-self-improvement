@@ -1,0 +1,112 @@
+I’m starting the research loop by checking repo state (`git` availability, branch, and whether `memory/results.tsv` already has runs) so I can either resume or initialize exactly per your protocol.
+
+I found a valid git checkout on `master`; next I’ll verify whether prior experiment rows exist and then either resume or perform setup+baseline.
+
+`memory/results.tsv` is missing, so I’m doing fresh setup: create a date-tagged research branch, verify data/tokenizer artifacts, initialize the TSV header, then run and record baseline.
+
+Data/tokenizer directories were empty, so I’m running `immutable/prepare.py` now to materialize required artifacts before baseline training.
+
+Preparation completed. I’ll run the 5-minute baseline now, then read `metrics.json` and log it into `memory/results.tsv` without inspecting the full run log.
+
+Baseline is running in the background session; I’m waiting for completion and will immediately extract metrics once it exits.
+
+Baseline is logged (`val_bpb=1.023783`). I’m now reading all `editable/` files plus `memory/results.tsv` to pick the next targeted experiment.
+
+I’m inspecting `editable/train.py` and config files now to identify a high-impact change for throughput-quality tradeoff within the fixed 5-minute budget.
+
+I’m making a single controlled schedule change first: reduce LR warmdown so the model stays at peak LR longer in the 5-minute window (`warmdown_ratio 0.5 -> 0.3`). I’ll commit this diff and run one experiment.
+
+The experiment commit is in place (`f84f8a4`). I’m running training now and will keep/revert strictly based on `val_bpb` from `metrics.json`.
+
+Run is still executing past the first wait window; I’m continuing to wait and will treat it as failure only if it crosses the 10-minute limit.
+
+Training finished. I’m extracting metrics, appending the TSV row, and then either keeping the commit or resetting back based on improvement versus the current best `val_bpb`.
+
+This improved baseline (`1.015297 < 1.023783`), so I kept the commit and advanced the branch. I’m launching the next experiment: keep a nonzero terminal LR (`final_lr_frac 0.0 -> 0.15`) to avoid over-cooling near the end.
+
+I committed the new LR-floor experiment (`2674ced`) and I’m running training now; after completion I’ll log and keep/revert automatically.
+
+The run completed. I’m reading `metrics.json`, appending this result row, and resetting if it did not beat the current best.
+
+That change regressed (`1.055645`), so I logged it as `discard` and reset to the previous best commit. Next experiment: lower `matrix_lr` (`0.04 -> 0.035`) to test if Muon updates are currently too aggressive.
+
+I committed experiment `5a9c4e7` and started the training run; I’ll log metrics and keep/revert based on whether it beats `1.015297`.
+
+This run finished; I’m now recording the result and applying keep/discard with an automatic reset if it failed to improve.
+
+I’m continuing from the best commit (`f84f8a4`) with a new run: increase `unembedding_lr` (`0.004 -> 0.006`) to speed output-head adaptation while keeping the improved warmdown setting.
+
+Experiment `3adb8a8` is committed and running now. After it completes I’ll log the metrics and keep/revert automatically.
+
+This run just finished; I’m recording the result and applying keep/discard now.
+
+Current loop status:
+
+- Branch: `research-loops/may5`
+- Current best commit: `3adb8a8`
+- Best `val_bpb`: `1.013253` (improved from baseline `1.023783`)
+- Peak VRAM: `41.1 GB`
+
+Experiments run and logged in `memory/results.tsv`:
+
+- `0cf2df4` → `1.023783` `keep` (baseline)
+- `f84f8a4` → `1.015297` `keep` (`warmdown_ratio 0.5 -> 0.3`)
+- `2674ced` → `1.055645` `discard` (`final_lr_frac 0.0 -> 0.15`, reset)
+- `5a9c4e7` → `1.023120` `discard` (`matrix_lr 0.04 -> 0.035`, reset)
+- `3adb8a8` → `1.013253` `keep` (`unembedding_lr 0.004 -> 0.006`)
+
+Latest kept diff:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196..19240f4 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+
+tokens used
+37,199
+Current loop status:
+
+- Branch: `research-loops/may5`
+- Current best commit: `3adb8a8`
+- Best `val_bpb`: `1.013253` (improved from baseline `1.023783`)
+- Peak VRAM: `41.1 GB`
+
+Experiments run and logged in `memory/results.tsv`:
+
+- `0cf2df4` → `1.023783` `keep` (baseline)
+- `f84f8a4` → `1.015297` `keep` (`warmdown_ratio 0.5 -> 0.3`)
+- `2674ced` → `1.055645` `discard` (`final_lr_frac 0.0 -> 0.15`, reset)
+- `5a9c4e7` → `1.023120` `discard` (`matrix_lr 0.04 -> 0.035`, reset)
+- `3adb8a8` → `1.013253` `keep` (`unembedding_lr 0.004 -> 0.006`)
+
+Latest kept diff:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index e726196..19240f4 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+```
+
+

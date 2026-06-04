@@ -1,0 +1,148 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already exists with prior runs, then I’ll either resume from current state or perform fresh setup (branch/data/results header/baseline) exactly per your protocol.
+
+I found an existing experiment history, so I’m resuming directly from step (2). Next I’ll inspect current git state and the `editable/` files to choose a new targeted experiment from the best-so-far configuration.
+
+I confirmed we’re on the best kept commit (`bb29b1c`, val_bpb `0.995577`). I’ll now inspect the LR/momentum scheduling code paths in `train.py` to pick a high-signal next tweak rather than random hyperparameter changes.
+
+I’ve narrowed on schedule tuning as the safest next move: best run uses `warmdown_ratio=0.4`, so I’m testing a nearby value (`0.35`) to preserve most of the winning regime while slightly extending full-LR training. I’m applying that single config edit and committing it.
+
+The change is committed as `d9ea880`. I’m running the 5-minute training job now and will read only `metrics.json` on completion, then decide keep/discard and update `memory/results.tsv`.
+
+Training is in progress under a timed wrapper (`timeout 600s`); I’m waiting for completion before touching results.
+
+Run is still active; I’m continuing to wait and will immediately parse `metrics.json` once the process exits.
+
+Still running within budget; I’m keeping the session alive and waiting for termination before collecting metrics.
+
+I’m still waiting on the same run; next step remains metrics extraction and keep/discard decision.
+
+Run is ongoing; I’ll continue polling until completion and then update `memory/results.tsv` in one pass.
+
+The process is still active but within the 10-minute cap; I’m continuing to wait for a clean finish.
+
+No completion yet; I’m staying on this run and will only read `metrics.json` once it exits.
+
+Run is still in progress; I’m continuing to poll and will process results immediately after exit.
+
+The job hasn’t exited yet; I’m waiting for completion before any git/reset action.
+
+Still running and within timeout. I’ll keep polling until it returns an exit code.
+
+Training finished successfully. I’m now reading `metrics.json`, appending this run to `memory/results.tsv`, and then enforcing keep/discard by comparing against the current best (`0.995577`).
+
+The shell doesn’t have `python` directly, so I’ll read `metrics.json` via `uv run python` and proceed with result logging and branch advancement logic.
+
+`d9ea880` was worse (`val_bpb 1.020872`), so I logged it as `discard` and reset to `bb29b1c`. I’m launching the next experiment now: a smaller nearby tweak to `warmdown_ratio=0.38` to probe the local optimum more gently.
+
+The second run (`c1f702f`) is now executing under the 10-minute timeout; I’m waiting for completion before reading `metrics.json`.
+
+Run is still active; I’m continuing to poll and will process results immediately after exit.
+
+Still running within budget. I’ll keep waiting and then handle keep/discard plus logging in one pass.
+
+No exit yet; I’m continuing to wait for the run to finish.
+
+Process is still active and under the timeout cap; I’m polling again.
+
+The run hasn’t completed yet. I’m continuing to wait for termination and then extracting metrics.
+
+Still in progress; next action remains metrics parsing and git decisioning.
+
+I’m still waiting on the same training session and will finalize once it exits.
+
+Run remains active; I’ll keep polling until we get the exit code.
+
+The second run completed successfully. I’m extracting `metrics.json`, recording the row, and then either keeping `c1f702f` or resetting based on whether it beats `0.995577`.
+
+Both warmdown probes were worse, and branch is restored to `bb29b1c`. I’m continuing the loop with a new direction: slightly lower `muon_momentum_start` (`0.84`) to make early updates less inertial while keeping the rest of the best setup unchanged.
+
+Third experiment (`96158fd`) is running now under timeout control; I’ll wait for completion and then evaluate via `metrics.json` only.
+
+Run is still active; I’m continuing to poll until exit before taking any branch action.
+
+Still in progress and within the cap. I’ll keep waiting and finalize immediately when it finishes.
+
+No exit yet; next step remains `metrics.json` extraction and keep/discard decision.
+
+The process is still running. I’m polling again.
+
+Run remains active; I’ll continue waiting for completion.
+
+Still running within timeout; I’m continuing to poll.
+
+The job is still in progress; I’ll keep waiting and then process metrics once it exits.
+
+No completion yet. I’m polling again for the exit code.
+
+The run completed successfully. I’m now reading `metrics.json`, logging to `memory/results.tsv`, and enforcing keep/discard against the current best.
+
+Completed 3 new experiments and logged all results to `memory/results.tsv`, following the keep/discard reset protocol.
+
+Current best is still:
+- `bb29b1c` with `val_bpb=0.995577`
+
+New experiments run:
+- `d9ea880` `val_bpb=1.020872` `memory_gb=36.5` `discard` (`warmdown_ratio=0.35`)
+- `c1f702f` `val_bpb=1.057253` `memory_gb=36.5` `discard` (`warmdown_ratio=0.38`)
+- `96158fd` `val_bpb=1.039826` `memory_gb=36.5` `discard` (`muon_momentum_start=0.84`)
+
+Branch state after each discard was reset to:
+- `bb29b1c` (clean winner checkpoint)
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.4
++warmdown_ratio = 0.35
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.4
++warmdown_ratio = 0.38
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.84
+```
+tokens used
+56,226
+Completed 3 new experiments and logged all results to `memory/results.tsv`, following the keep/discard reset protocol.
+
+Current best is still:
+- `bb29b1c` with `val_bpb=0.995577`
+
+New experiments run:
+- `d9ea880` `val_bpb=1.020872` `memory_gb=36.5` `discard` (`warmdown_ratio=0.35`)
+- `c1f702f` `val_bpb=1.057253` `memory_gb=36.5` `discard` (`warmdown_ratio=0.38`)
+- `96158fd` `val_bpb=1.039826` `memory_gb=36.5` `discard` (`muon_momentum_start=0.84`)
+
+Branch state after each discard was reset to:
+- `bb29b1c` (clean winner checkpoint)
+
+Unified diffs used:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.4
++warmdown_ratio = 0.35
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.4
++warmdown_ratio = 0.38
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.84
+```

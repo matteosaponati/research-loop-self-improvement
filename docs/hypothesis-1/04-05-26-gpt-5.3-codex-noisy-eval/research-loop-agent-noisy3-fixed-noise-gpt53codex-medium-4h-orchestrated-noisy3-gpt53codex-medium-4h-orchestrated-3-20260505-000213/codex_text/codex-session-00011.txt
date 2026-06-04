@@ -1,0 +1,58 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or initialize the branch/baseline exactly per your protocol.
+
+I found an initialized run history, so I’m resuming from the current branch state and moving directly to a new experiment. Next I’ll read `editable/train.py`, config files, and recent best context to choose a targeted change.
+
+I’ve confirmed the current best is `0.997757` on commit `a76a5e5`. I’m now reading the rest of `train.py` for schedule/optimizer details so I can pick a high-signal single change.
+
+I have enough context to run a focused test: current best came from increasing `embedding_lr`; many schedule tweaks regressed, so I’ll probe optimizer curvature by reducing `muon_beta2` slightly while keeping the rest fixed. I’ll make a single config edit, commit it, run one 5-minute training, read only `metrics.json`, and then keep or discard via git reset based on `val_bpb`.
+
+I’m applying the single-parameter edit now in `editable/config.toml` (`muon_beta2`), then I’ll commit and launch the run with output redirected to `run.log`.
+
+The experiment is running now; I’ll wait for completion and then collect only `metrics.json` to score it and update `memory/results.tsv`.
+
+Training is still active past the first wait window, so I’m polling again and will enforce the 10-minute cutoff if needed.
+
+The run finished successfully. I’m reading `metrics.json`, appending the result row, and then I’ll keep or reset this commit based on whether `val_bpb` beat `0.997757`.
+
+The shell image doesn’t expose `python` directly, so I’m rerunning those reads through `uv run` and proceeding with logging/decision.
+
+I reverted to the best commit and recorded the discard result. I’m immediately launching the next trial with a smaller schedule adjustment (`warmdown_ratio` from `0.5` to `0.4`) to test a milder variant than the previously bad `0.3`.
+
+Second run is in progress; I’ll wait for completion, score from `metrics.json`, log to TSV, and keep/reset accordingly.
+
+The run completed; I’m now collecting metrics, appending the result, and deciding keep vs discard against the current best.
+
+Experiment loop is active and resumed from existing history.
+
+Latest two experiments:
+1. `e27e593` (`muon_beta2: 0.95 -> 0.90`)
+- `val_bpb`: `1.047917`
+- `peak_vram_mb`: `37395.4` (`36.5 GB`)
+- Result: `discard`
+- Action: reset to previous best commit (`a76a5e5`)
+
+2. `bb29b1c` (`warmdown_ratio: 0.5 -> 0.4`)
+- `val_bpb`: `0.995577`
+- `peak_vram_mb`: `37395.4` (`36.5 GB`)
+- Result: `keep` (new best)
+
+I appended both rows to `memory/results.tsv`.  
+Current HEAD: `bb29b1c` (best so far: `0.995577`).
+tokens used
+37,007
+Experiment loop is active and resumed from existing history.
+
+Latest two experiments:
+1. `e27e593` (`muon_beta2: 0.95 -> 0.90`)
+- `val_bpb`: `1.047917`
+- `peak_vram_mb`: `37395.4` (`36.5 GB`)
+- Result: `discard`
+- Action: reset to previous best commit (`a76a5e5`)
+
+2. `bb29b1c` (`warmdown_ratio: 0.5 -> 0.4`)
+- `val_bpb`: `0.995577`
+- `peak_vram_mb`: `37395.4` (`36.5 GB`)
+- Result: `keep` (new best)
+
+I appended both rows to `memory/results.tsv`.  
+Current HEAD: `bb29b1c` (best so far: `0.995577`).

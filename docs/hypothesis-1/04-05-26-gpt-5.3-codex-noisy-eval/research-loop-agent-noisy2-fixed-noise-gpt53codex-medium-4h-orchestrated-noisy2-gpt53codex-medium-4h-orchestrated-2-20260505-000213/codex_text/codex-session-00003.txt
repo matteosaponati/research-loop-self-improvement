@@ -1,0 +1,108 @@
+I’m starting the research loop now by checking whether prior results already exist, then I’ll either resume from them or do the required branch/baseline setup before launching the next experiment.
+
+I found an existing initialized run on branch `research-loops/may5` with prior experiments, so I’m resuming directly from there and now reading `editable/` to choose the next high-impact tweak.
+
+I have full context now; the best so far is `0.994859` with `matrix_lr=0.035`. I’m testing a focused regularization change next by lowering `weight_decay` to `0.15`, then I’ll commit, run, read `metrics.json`, and keep or reset based on `val_bpb`.
+
+I’ve applied the config edit and confirmed the diff. Next I’m committing this change and launching a full 5-minute training run with output redirected to `run.log`.
+
+The run is in progress now; I’m waiting for completion and will only read `metrics.json` afterward unless it crashes.
+
+Training is still running under the same session; I’m continuing to wait for completion before collecting metrics.
+
+Run is still active and within budget; I’m polling again and will evaluate keep/discard immediately once it exits.
+
+I’m still waiting on the same training process; once it finishes I’ll parse `metrics.json`, append `memory/results.tsv`, and reset if not improved.
+
+This run is taking expected wall-clock time for the fixed 5-minute train plus eval; I’m continuing to poll for process exit.
+
+The experiment finished successfully. I’m now reading `metrics.json` and `memory/results.tsv`, recording the result, and deciding whether to keep this commit or reset.
+
+This run regressed (`val_bpb=1.015665`), so I’m logging it as `discard` and resetting to the previous best commit before starting the next experiment.
+
+I’ve restored the branch to `bd0053e` and recorded the discard. Next experiment: a finer LR sweep by lowering `matrix_lr` from `0.035` to `0.032` to test whether we’re still on the descending side of that curve.
+
+I’ve prepared the diff for the second experiment and will now commit and run the 5-minute training job.
+
+Second run is in progress; I’m waiting for completion and will evaluate strictly from `metrics.json` once it exits.
+
+Training is still running normally. I’m continuing to poll the process and will log/keep/reset immediately after exit.
+
+Run remains active and within expected wall-clock duration for the fixed-budget train plus eval; polling again.
+
+I’m still waiting on this run to finish; next step is immediate metrics readout and keep/discard decision.
+
+The second experiment finished. I’m extracting `metrics.json`, appending the TSV row, and then either keeping this commit or resetting based on the new `val_bpb`.
+
+Completed two new experiments and kept the loop rules (commit → run → read `metrics.json` → log → reset on non-improvement).
+
+Unified diffs tried:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.035
+-weight_decay = 0.2
++weight_decay = 0.15
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.032
+ weight_decay = 0.2
+```
+
+Results logged to `memory/results.tsv`:
+
+- `1f70793` → `val_bpb=1.015665`, `41.1 GB`, `discard`, `lower weight decay to 0.15`
+- `8c9b306` → `val_bpb=1.043564`, `41.1 GB`, `discard`, `lower matrix lr to 0.032`
+
+Current state:
+
+- Branch: `research-loops/may5`
+- HEAD reset to best commit: `bd0053e`
+- Best `val_bpb` remains: `0.994859`
+tokens used
+30,884
+Completed two new experiments and kept the loop rules (commit → run → read `metrics.json` → log → reset on non-improvement).
+
+Unified diffs tried:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.035
+-weight_decay = 0.2
++weight_decay = 0.15
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.035
++matrix_lr = 0.032
+ weight_decay = 0.2
+```
+
+Results logged to `memory/results.tsv`:
+
+- `1f70793` → `val_bpb=1.015665`, `41.1 GB`, `discard`, `lower weight decay to 0.15`
+- `8c9b306` → `val_bpb=1.043564`, `41.1 GB`, `discard`, `lower matrix lr to 0.032`
+
+Current state:
+
+- Branch: `research-loops/may5`
+- HEAD reset to best commit: `bd0053e`
+- Best `val_bpb` remains: `0.994859`

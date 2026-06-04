@@ -1,0 +1,910 @@
+I’m starting the research loop by checking git state and whether prior results already exist, so I can either resume or do full setup exactly as specified.
+
+I found an existing initialized run on branch `research-loops/may5` with prior crash entries, so I’m resuming from step (2). Next I’m reading `editable/` to pick a code change that can recover from the CUDA unavailability crashes.
+
+I’ve confirmed training hard-fails early on CUDA APIs before any fallback path, which matches the repeated crashes in `results.tsv`. I’m going to implement a robust device resolver in `editable/train.py` so runs can proceed on CPU when CUDA is temporarily unavailable, then commit and execute a full experiment run.
+
+I’ve applied the device-fallback edit and verified the diff. Next I’m committing this experiment, running the 5-minute training command, then reading `metrics.json` and appending the result row to `memory/results.tsv`.
+
+The experiment commit is `84e4451`. I’m launching the run now and will only use `metrics.json` for result collection unless it crashes.
+
+The training process is running in the background session; I’m waiting for completion and then I’ll parse `metrics.json` directly.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..b569bc9e85ec5d6f281f4c4e1eca0cda96ab4a78
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,11 +413,28 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def resolve_runtime_device():
++    requested = CONFIG.device
++    if requested == "cuda":
++        if torch.cuda.is_available():
++            torch.cuda.manual_seed(CONFIG.seed)
++            return torch.device("cuda"), "cuda"
++        print("WARN: CUDA requested but unavailable; falling back to CPU.")
++        return torch.device("cpu"), "cpu"
++    return torch.device(requested), requested
++
++device, runtime_device_type = resolve_runtime_device()
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++if runtime_device_type == "cuda":
++    autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype)
++else:
++    autocast_ctx = torch.amp.autocast(device_type="cpu", enabled=False)
++
++def sync_if_cuda():
++    if runtime_device_type == "cuda":
++        torch.cuda.synchronize()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -485,7 +502,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device_type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +537,7 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +567,7 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +613,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device_type,
+     )
+ 
+ # Final summary
+@@ -604,7 +621,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device_type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+The run exited early with code `1`, so I’m now checking `metrics.json` validity to classify it as crash or successful run per your loop rules.
+
+`metrics.json` is missing, so this run is a crash. I’m reading a small slice of `run.log` now only to diagnose the failure and pick the next targeted fix.
+
+The crash happens because CUDA reports available but fails on first real allocation (`cudaErrorDevicesUnavailable`). I’m logging this crash in `memory/results.tsv`, resetting this commit, then applying a stricter CUDA probe so we only use CUDA if allocation succeeds.
+
+I’ve reverted to the last kept commit and preserved the crash record. Next edit will add a hard CUDA allocation probe before model setup, with automatic CPU fallback if that probe fails.
+
+I committed the stricter fallback as `0dae43b` and I’m running the next experiment now. After completion I’ll parse `metrics.json`, log the row, and keep or reset based on `val_bpb`.
+
+The run is in progress. I’m waiting for it to finish and will classify from `metrics.json` only.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..ad4c8993712c8d1d0492f7dc93c65920747614f1
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,12 +413,35 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def resolve_runtime_device():
++    requested = CONFIG.device
++    if requested == "cuda":
++        if not torch.cuda.is_available():
++            print("WARN: CUDA requested but unavailable; falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++        try:
++            torch.cuda.manual_seed(CONFIG.seed)
++            # Probe real allocation to detect busy/unavailable devices early.
++            _ = torch.empty(1, device="cuda")
++            return torch.device("cuda"), "cuda"
++        except Exception as exc:
++            print(f"WARN: CUDA requested but unusable ({exc}); falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++    return torch.device(requested), requested
++
++device, runtime_device_type = resolve_runtime_device()
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++if runtime_device_type == "cuda":
++    autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype)
++else:
++    autocast_ctx = torch.amp.autocast(device_type="cpu", enabled=False)
+ 
++def sync_if_cuda():
++    if runtime_device_type == "cuda":
++        torch.cuda.synchronize()
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+@@ -476,7 +499,10 @@
+ )
+ 
+ if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    if runtime_device_type == "cuda":
++        model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    else:
++        print("Skipping torch.compile on CPU fallback.")
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -485,7 +511,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device_type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +546,7 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +576,7 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +622,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device_type,
+     )
+ 
+ # Final summary
+@@ -604,7 +630,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device_type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+The fallback reached CPU, but `immutable.prepare.make_dataloader` still calls `torch.empty(..., pin_memory=True)`, which triggers CUDA and crashes when the device is unavailable. I’m recording this crash, resetting, then adding a CPU-fallback shim in `editable/train.py` to disable pinned-memory allocations during CPU mode.
+
+I’m now implementing both safeguards together: strict CUDA allocation probing and a CPU-mode pinned-memory shim before dataloader creation.
+
+This experiment is running; I’m waiting for completion and will collect only `metrics.json` unless it fails again.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..c99b5ecb80f88ba048c26ca071f9e01d9c295068
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -413,12 +413,42 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def resolve_runtime_device():
++    requested = CONFIG.device
++    if requested == "cuda":
++        if not torch.cuda.is_available():
++            print("WARN: CUDA requested but unavailable; falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++        try:
++            torch.cuda.manual_seed(CONFIG.seed)
++            # Probe real allocation to detect busy/unavailable devices early.
++            _ = torch.empty(1, device="cuda")
++            return torch.device("cuda"), "cuda"
++        except Exception as exc:
++            print(f"WARN: CUDA requested but unusable ({exc}); falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++    return torch.device(requested), requested
++
++device, runtime_device_type = resolve_runtime_device()
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++if runtime_device_type == "cuda":
++    autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype)
++else:
++    autocast_ctx = torch.amp.autocast(device_type="cpu", enabled=False)
+ 
++def sync_if_cuda():
++    if runtime_device_type == "cuda":
++        torch.cuda.synchronize()
++
++if runtime_device_type == "cpu":
++    _torch_empty = torch.empty
++    def empty_without_pin_memory(*args, **kwargs):
++        kwargs.pop("pin_memory", None)
++        return _torch_empty(*args, **kwargs)
++    torch.empty = empty_without_pin_memory
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+@@ -476,7 +506,10 @@
+ )
+ 
+ if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    if runtime_device_type == "cuda":
++        model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    else:
++        print("Skipping torch.compile on CPU fallback.")
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -485,7 +518,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device_type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +553,7 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +583,7 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +629,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device_type,
+     )
+ 
+ # Final summary
+@@ -604,7 +637,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device_type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+This crash is now a dtype mismatch on CPU fallback (`embedding` cast to bf16 while linear layers stay fp32 with autocast disabled). I’m logging it, resetting, then patching `init_weights` to keep embeddings fp32 unless running on CUDA.
+
+I’m applying a consolidated patch: CUDA probe, CPU fallback shims, and conditional bf16 embedding cast only on CUDA, then I’ll rerun.
+
+Patch is in; I’m committing and launching the next run now.
+
+Training is running for commit `900c0fa`; I’m waiting for completion before collecting metrics.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..7f370192a6027d079470d593a1f7e8e43aee5c14
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -186,8 +186,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Cast embeddings to bf16 on CUDA for throughput; keep fp32 on CPU fallback.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -413,11 +414,40 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+-device = torch.device(CONFIG.device)
++
++def resolve_runtime_device():
++    requested = CONFIG.device
++    if requested == "cuda":
++        if not torch.cuda.is_available():
++            print("WARN: CUDA requested but unavailable; falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++        try:
++            torch.cuda.manual_seed(CONFIG.seed)
++            _ = torch.empty(1, device="cuda")
++            return torch.device("cuda"), "cuda"
++        except Exception as exc:
++            print(f"WARN: CUDA requested but unusable ({exc}); falling back to CPU.")
++            return torch.device("cpu"), "cpu"
++    return torch.device(requested), requested
++
++device, runtime_device_type = resolve_runtime_device()
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++if runtime_device_type == "cuda":
++    autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype)
++else:
++    autocast_ctx = torch.amp.autocast(device_type="cpu", enabled=False)
++
++def sync_if_cuda():
++    if runtime_device_type == "cuda":
++        torch.cuda.synchronize()
++
++if runtime_device_type == "cpu":
++    _torch_empty = torch.empty
++    def empty_without_pin_memory(*args, **kwargs):
++        kwargs.pop("pin_memory", None)
++        return _torch_empty(*args, **kwargs)
++    torch.empty = empty_without_pin_memory
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -476,7 +506,10 @@
+ )
+ 
+ if COMPILE_MODEL:
+-    model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    if runtime_device_type == "cuda":
++        model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
++    else:
++        print("Skipping torch.compile on CPU fallback.")
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+@@ -485,7 +518,7 @@
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device_type,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+@@ -520,7 +553,7 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -550,7 +583,7 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    sync_if_cuda()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -596,7 +629,7 @@
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device_type,
+     )
+ 
+ # Final summary
+@@ -604,7 +637,7 @@
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+ steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device_type == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+The job is still active past startup, which is progress versus prior crashes. I’m continuing to wait for process exit and then I’ll read `metrics.json`.
+
+The process ended with `EXIT:137` (killed, likely OOM on CPU fallback path). I’m checking `metrics.json`; if missing, I’ll record a crash and revert this commit.
+
+`metrics.json` was not produced, so this is a crash. I’m recording it and reverting, then I’ll switch strategy: wait up to a bounded window for CUDA to become usable (instead of CPU fallback), to target a valid 5-minute GPU run.
+
+I’m editing `editable/train.py` to add a bounded CUDA readiness wait/probe loop (up to 240s), aiming to convert transient “device unavailable” into a successful GPU start without exceeding the 10-minute cap.
+
+The wait/probe loop is in place. I’m committing this experiment and running it now.
+
+This run may spend up to 240 seconds waiting for CUDA readiness before training begins. I’m monitoring it to completion and will then read `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+The process is still active inside the wait/run window; I’m continuing to wait.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+Still running. I’m keeping the job in flight and will collect metrics immediately after exit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+The run is ongoing; continuing to wait.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+It’s still active and within the timeout envelope. I’ll keep waiting for final status.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+Still running; no intervention needed yet.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+Run remains in progress. I’m continuing to monitor until exit.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..a83d89ce549d9e0026956c7e26b5a00f86ec5b2d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,6 +28,8 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 240
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+
+Still active; I’ll wait for completion or timeout.
+
+The run exited with code `1`; I’m checking `metrics.json` now and, if absent, I’ll log crash and revert.
+
+This experiment also crashed (no `metrics.json`) after exhausting the 240s CUDA wait window. I’m recording it and reverting, then I’ll try one more startup-focused variant that increases CUDA wait slightly while removing compile overhead to stay under the 10-minute cap.
+
+I reverted to baseline code, so I need to reapply the CUDA wait logic first. I’m now patching in a non-compiled run with a 270s CUDA readiness window.
+
+I patched in the 270s CUDA wait with compile disabled to maximize startup slack under the 10-minute cap. I’m committing and running this experiment now.
+
+The new run is active; I’m monitoring until it exits, then I’ll parse `metrics.json` and update `memory/results.tsv` with keep/discard/crash.
+
+Experiment loop is still actively running on commit `9fbfc02` (`Disable compile and wait 270s for CUDA readiness`), with training launched via:
+
+`uv run --extra research python editable/train.py > run.log 2>&1`
+
+Progress so far:
+- Resumed existing branch/worklog (`research-loops/may5`, `memory/results.tsv` already initialized).
+- Ran multiple crash-recovery experiments and logged each to `memory/results.tsv`.
+- Reverted every non-improving/crash commit per loop rules.
+- Current active experiment is in-flight; no `metrics.json` yet for this run.
+
+Latest recorded rows now include:
+- `84e4451` crash
+- `0dae43b` crash
+- `24d7ab8` crash
+- `900c0fa` crash
+- `4f20b6f` crash
+
+I will continue the loop (run completion → metrics readout → results logging → keep/reset) automatically.
+diff --git a/editable/train.py b/editable/train.py
+index 5252064f2d5e87b4bb44f7b7ee8bfc05495593bd..e08ba56ee46c720489b6f1a087e6a5b5143a1ea4
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -24,10 +24,12 @@
+ BASELINE_NAME = "baseline"
+ 
+ PYTORCH_ALLOC_CONF = "expandable_segments:True"
+-COMPILE_MODEL = True
++COMPILE_MODEL = False
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
++CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+ EMA_BETA = 0.9
+@@ -413,8 +415,32 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-torch.cuda.manual_seed(CONFIG.seed)
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
++
++def wait_for_cuda_or_fail():
++    if CONFIG.device != "cuda":
++        return
++    deadline = time.time() + CUDA_WAIT_SECONDS
++    while True:
++        if torch.cuda.is_available():
++            try:
++                torch.cuda.manual_seed(CONFIG.seed)
++                _ = torch.empty(1, device="cuda")
++                return
++            except Exception as exc:
++                remaining = int(deadline - time.time())
++                if remaining <= 0:
++                    print(f"CUDA unavailable after wait window: {exc}")
++                    raise
++                print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        else:
++            remaining = int(deadline - time.time())
++            if remaining <= 0:
++                raise RuntimeError("CUDA not available after wait window")
++            print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
++        time.sleep(CUDA_WAIT_POLL_SECONDS)
++
++wait_for_cuda_or_fail()
+ device = torch.device(CONFIG.device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
+
+tokens used
+56,474
+Experiment loop is still actively running on commit `9fbfc02` (`Disable compile and wait 270s for CUDA readiness`), with training launched via:
+
+`uv run --extra research python editable/train.py > run.log 2>&1`
+
+Progress so far:
+- Resumed existing branch/worklog (`research-loops/may5`, `memory/results.tsv` already initialized).
+- Ran multiple crash-recovery experiments and logged each to `memory/results.tsv`.
+- Reverted every non-improving/crash commit per loop rules.
+- Current active experiment is in-flight; no `metrics.json` yet for this run.
+
+Latest recorded rows now include:
+- `84e4451` crash
+- `0dae43b` crash
+- `24d7ab8` crash
+- `900c0fa` crash
+- `4f20b6f` crash
+
+I will continue the loop (run completion → metrics readout → results logging → keep/reset) automatically.

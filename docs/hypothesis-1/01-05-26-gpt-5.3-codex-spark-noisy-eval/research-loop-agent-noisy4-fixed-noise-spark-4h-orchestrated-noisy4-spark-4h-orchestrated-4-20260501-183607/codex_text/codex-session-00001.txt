@@ -1,0 +1,458 @@
+I’ll initialize the research loop state from disk, create or reuse the experiment branch per the protocol, baseline first if needed, then iterate by editing `editable/`, committing each change, running `editable/train.py` for one 5-minute budget, and logging every result into `memory/results.tsv`.
+
+I confirmed the repo is on `master`, no prior `results.tsv` exists, and data/tokenizer are present. Next I’ll create the dated research branch and initialize memory/results, then run the untouched baseline experiment.
+
+Branch and memory file are initialized. I’m starting the baseline run (`editable/train.py`) with all output captured to `run.log`, then I’ll parse `val_bpb` and `peak_vram_mb` from the log for the first row in `memory/results.tsv`.
+
+The baseline process is still running and producing its own log file. I’ll continue polling until it exits, then extract the two required metrics and append the first result row.
+
+Baseline run completed successfully. Next I’ll parse `run.log` for `val_bpb`/`peak_vram_mb`, append the baseline row to `memory/results.tsv`, then start an initial experiment edit.
+
+I have baseline metrics logged. I’ll now inspect `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and existing results one time, then design a targeted hyperparameter/architecture edit and commit it.
+
+I’ll start with a low-risk architecture tweak in `editable/train.py`: replace the current `ReLU^2` MLP nonlinearity with `silu`, then run and log. If it improves bpb, we keep it; otherwise we’ll revert to the previous commit.
+
+I’ve committed the first edit and now running experiment 1. I’ll capture stdout/stderr in `run.log`, then log `val_bpb`, `peak_vram_mb`, and status (`keep/discard/crash`) in `memory/results.tsv`.
+
+Experiment run completed. I’ll parse the summary and append the result row; if it improves over the best 1.006629, I’ll keep it, otherwise I’ll revert to the pre-experiment commit.
+
+SiLU regressed validation and was reverted. Next experiment will target throughput/noise balance by lowering `total_batch_size` to 262,144 (half baseline, same architecture) to increase optimization steps in the fixed 5‑minute window.
+
+I’ve committed the batch-size experiment and now will run it under the same 5-minute budget, then capture and log the resulting `val_bpb`.
+
+Second experiment finished. I’ll parse `run.log`, log it in `memory/results.tsv`, and compare against the current best `val_bpb` of 1.006629.
+
+A new direction is LR scheduling. I’m switching to a milder decay (`warmdown_ratio=0.05`, `final_lr_frac=0.2`) so the learning rate doesn’t collapse to zero too early, which can be beneficial in this short 5‑minute run.
+
+I’ve committed the schedule change and will run it now; if it improves bpb versus 1.006629, I’ll keep it, otherwise I’ll revert this commit.
+
+Third experiment finished. I’ll extract its `val_bpb` and record the result.
+
+So far no gains; next I’ll test reduced context length (`sequence_len=1024`) to increase step throughput and allow more updates within the fixed 5-minute wall-clock budget.
+
+Sequence-length reduction did not help and produced worse validation despite lower memory. I’ll log it as discarded and revert to the baseline revision.
+
+I’ll now test regularization: lower `weight_decay` from 0.2 to 0.1, keeping all other settings baseline, to check whether reducing shrinkage improves short-horizon train quality.
+
+Weight decay experiment is running now. I’ll monitor completion, then append the result and keep or reset based on bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+I’m trying one optimizer-rate probe now: raise `matrix_lr` from 0.04 to 0.05 while leaving the rest untouched; this tests whether stronger matrix updates can reduce validation loss in the short run.
+
+Continuing the optimization sweep with `matrix_lr=0.05`; waiting for completion and then I’ll log and compare against the current best 1.006629.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..7cad84cbf03f3a27a58cdaf9bde7c52b6a3cde96
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+This run improved best `val_bpb` to `1.004206` (current best was 1.006629), so this commit is kept. I’ll log it as `keep` and run the next experiment from this improved state.
+
+I’ll now probe a slightly higher matrix learning rate (`0.06`) from the current best checkpoint to see if validation bpb improves further or starts degrading.
+
+`matrix_lr=0.06` regressed from the best, so I’ll log it as discarded and restore the working tree back to commit `4acb49f` (the best so far).
+
+I’ll test `muon_ns_steps` from 5 to 4, which may reduce over-orthogonalization overhead and sometimes stabilize training in short runs. If it improves, I’ll keep it; otherwise revert.
+
+`muon_ns_steps=4` regressed, so I’ll log it as discarded and revert to the current best commit `4acb49f` for the next trial.
+
+Next I’ll test a small optimizer head-rate shift: increase both embedding and unembedding LRs from `0.6/0.004` to `0.8/0.005` to see if token-space learning sharpens validation for this fixed short budget.
+
+I’ve committed the LR-ratio change and am now waiting for the run to finish before logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..463d895214c4a82a9d4b7dcc216f01a9675a5090
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,9 +32,9 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
+-unembedding_lr = 0.004
+-matrix_lr = 0.04
++embedding_lr = 0.8
++unembedding_lr = 0.005
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’ll now test a momentum-side tweak on the successful branch: raise `muon_initial_momentum` from 0.95 to 0.97 (keeping warmup settings unchanged) to see if update stability improves short-horizon bpb.
+
+That momentum increase did not help. I’ve logged it as discarded and restored the best commit again.
+
+Given the current best is stable at `matrix_lr=0.05`, I’ll test a finer adjustment (`0.045`) to check whether this is a local optimum or just a lucky run.
+
+The previous step failed because `python` isn’t available in this environment and no edit was made. I’ll make the same `matrix_lr=0.045` change with a direct text edit and rerun.
+
+The run is still in progress. I’ll check once more and then record/discard according to the resulting `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f2949bd3609bab912098a7306deccb5173de415c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.045
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The 0.045 test also regressed. Next I’ll try a capacity increase via `depth=10` (from 8) to test whether a slightly larger model helps within the fixed 300s budget.
+
+Increasing depth raised memory to ~61.9 GB and did not improve perplexity. I’ll discard and restore to `4acb49f`.
+
+I’ll test a moderate width increase next: `aspect_ratio=72` (n_embd 720→768 due head alignment) to trade compute for capacity while staying under the fixed 5-minute budget.
+
+This run is still executing; I’ll poll again and then capture metrics once it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..fac0fd797c00ae85cae2a73ba48c92c327aaed39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m going to try one more small MLP-capacity tweak (`mlp_hidden_multiplier=5`) from the best commit, then I’ll pause unless it improves the score further.
+
+I’ve done a focused sweep and the best result remains `1.004206`. I’ll run one final small optimizer variant (`muon_beta2=0.9`) from that checkpoint before I stop.
+
+`muon_beta2=0.9` improved the score to `1.000663`, so this commit is kept as new best. I’ll log it and run one additional targeted tweak to see if further gain is possible.
+
+That attempt regressed. I’m discarding it and restoring to the best `muon_beta2=0.9` commit.
+
+Experiment loop executed and tracked in: [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy4-spark-4h-orchestrated-4-20260501-183607/research-loop/memory/results.tsv).
+
+Current best result:  
+- commit: `9cd1a44`  
+- `val_bpb`: `1.000663`  
+- `memory_gb`: `41.1`  
+- status: `keep`  
+- change: `set muon_beta2 to 0.9`
+
+Current head is on the best commit (`9cd1a44`) in branch `research-loops/may1`.
+
+If you want, I can continue running more experiments immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f617fbf30e7b128a17088b1b8e7467230edbc0ec
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.05
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+@@ -42,7 +42,7 @@
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+ muon_ns_steps = 5
+-muon_beta2 = 0.95
++muon_beta2 = 0.9
+ 
+ # Schedules
+ warmup_ratio = 0.0
+
+tokens used
+221,173
+Experiment loop executed and tracked in: [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy4-spark-4h-orchestrated-4-20260501-183607/research-loop/memory/results.tsv).
+
+Current best result:  
+- commit: `9cd1a44`  
+- `val_bpb`: `1.000663`  
+- `memory_gb`: `41.1`  
+- status: `keep`  
+- change: `set muon_beta2 to 0.9`
+
+Current head is on the best commit (`9cd1a44`) in branch `research-loops/may1`.
+
+If you want, I can continue running more experiments immediately.

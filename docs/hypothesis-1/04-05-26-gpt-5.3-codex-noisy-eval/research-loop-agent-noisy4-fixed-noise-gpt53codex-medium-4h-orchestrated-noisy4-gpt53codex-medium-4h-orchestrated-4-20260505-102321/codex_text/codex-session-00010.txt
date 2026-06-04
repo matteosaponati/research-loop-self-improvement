@@ -1,0 +1,62 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from current branch or initialize branch/memory and run the baseline exactly per your protocol.
+
+I found an existing initialized run (`memory/results.tsv` already populated), so I’m resuming directly from the current branch and selecting the next experiment from current best. I’ll now read `editable/` and recent results to propose a targeted code change.
+
+I’ve identified the current best as `1.005541` (`d6a34b0`, `matrix_lr=0.037`) and the recent failed attempts are mostly around schedule extremes, so I’ll run a small local search around the best LR by trying `matrix_lr=0.0365` next. I’m applying a minimal config-only change, then committing and running.
+
+The shell doesn’t expose plain `python`, so I’ll do the edit and all parsing via `uv run python` to stay within this environment.
+
+Commit `d4c7540` is created with a single-line LR tweak. I’m launching the 5-minute training run now with output redirected to `run.log`, guarded by a 10-minute timeout.
+
+The run is in progress. I’ll wait for completion, then read only `metrics.json`, append the TSV row, and keep or reset based on whether `val_bpb` beats `1.005541`.
+
+Still running within the expected window; once it exits I’ll parse `metrics.json` and apply the keep/discard rule without reading the log.
+
+Training finished successfully. I’m now reading `metrics.json`, recording the row in `memory/results.tsv`, and then I’ll reset this commit if it didn’t improve the best value.
+
+I’ve discarded that trial and returned to the previous best branch head. Next I’m testing a smaller schedule adjustment around the best setup: `final_lr_frac` from `0.10` to `0.12`.
+
+Second experiment is running now; I’ll wait for completion and then record from `metrics.json` only.
+
+Run is still active and within limits. I’ll finalize keep/discard immediately after it exits.
+
+This run is taking longer than typical end-to-end time but is still under the 10-minute failure threshold; I’m continuing to wait and will terminate only if it crosses that limit.
+
+The run completed successfully. I’m extracting `metrics.json`, updating `memory/results.tsv`, and applying keep/discard against the current best.
+
+I’ve logged and discarded both trials, with branch state restored to the last kept commit. I’m launching a third experiment now: lower `unembedding_lr` from `0.004` to `0.0035` while keeping the best schedule settings unchanged.
+
+Third run is active. I’ll wait for completion, then record `metrics.json` and keep/reset accordingly.
+
+Run is still progressing normally; I’m continuing to wait.
+
+Still under the timeout budget and running in the expected training/eval window. I’ll process results as soon as it exits.
+
+The process is still live but close to expected completion time; I’m holding until exit to avoid interrupting the run.
+
+This run is unusually long end-to-end but remains below the 10-minute kill threshold. I’m continuing to wait.
+
+The run has completed; I’m now recording metrics and applying keep/discard logic.
+
+This experiment improved to a new best (`0.996175`), so I’m keeping commit `1862bf4` and appending it as `keep` in `memory/results.tsv`.
+
+Progress update from the loop:
+
+- Resumed existing branch/work (`research-loops/may5`) since `memory/results.tsv` already had prior runs.
+- Ran 3 experiments:
+1. `d4c7540` (`matrix_lr = 0.0365`) → `val_bpb = 1.025878` → `discard` (reset)
+2. `d90aaf0` (`final_lr_frac = 0.12`) → `val_bpb = 1.067540` → `discard` (reset)
+3. `1862bf4` (`unembedding_lr = 0.0035`) → `val_bpb = 0.996175` → `keep`
+
+Current best is now `0.996175` at commit `1862bf4` (peak memory `41.1 GB`), and `memory/results.tsv` has been updated accordingly.
+tokens used
+45,881
+Progress update from the loop:
+
+- Resumed existing branch/work (`research-loops/may5`) since `memory/results.tsv` already had prior runs.
+- Ran 3 experiments:
+1. `d4c7540` (`matrix_lr = 0.0365`) → `val_bpb = 1.025878` → `discard` (reset)
+2. `d90aaf0` (`final_lr_frac = 0.12`) → `val_bpb = 1.067540` → `discard` (reset)
+3. `1862bf4` (`unembedding_lr = 0.0035`) → `val_bpb = 0.996175` → `keep`
+
+Current best is now `0.996175` at commit `1862bf4` (peak memory `41.1 GB`), and `memory/results.tsv` has been updated accordingly.

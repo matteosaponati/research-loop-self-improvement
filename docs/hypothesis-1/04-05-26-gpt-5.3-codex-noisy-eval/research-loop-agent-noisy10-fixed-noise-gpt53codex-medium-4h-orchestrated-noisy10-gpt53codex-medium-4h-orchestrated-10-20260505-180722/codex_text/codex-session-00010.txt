@@ -1,0 +1,50 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can decide between resume vs fresh setup.
+
+The loop is already initialized on branch `research-loops/may5` with prior results, so I’m resuming directly from step (2): I’ll read `editable/` and `memory/results.tsv`, pick the next high-leverage change, commit, run, and keep/reset based on `val_bpb`.
+
+I’ve identified the current best (`val_bpb=0.989261` at `f259efa`). Next I’m reading the rest of `editable/train.py` to target a parameter that hasn’t been tried yet and is likely to help within a fixed 5-minute budget.
+
+I’m running a focused LR sweep around the current best setup by making a small upward move to `matrix_lr` (0.04 → 0.045), which is usually a strong lever for 5-minute budget efficiency. I’ll commit that change, run, then keep/reset strictly by `val_bpb`.
+
+The change is committed as `6dfcccd`. I’m launching the 5-minute training run now and will read `metrics.json` only when it finishes.
+
+Training is in progress; I’m waiting for completion and will only collect `metrics.json` unless the run fails.
+
+Still running within budget. I’ll keep polling and then parse `metrics.json` once the process exits.
+
+I’m still waiting on the run process; no crash signs yet. Once it exits, I’ll immediately record metrics and decide keep vs reset.
+
+The training command is taking longer than expected to return, but still under the hard 10-minute cap. I’m continuing to poll until it exits.
+
+I’m at continued wait-state on the same run process; next step is unchanged: parse `metrics.json`, append TSV row, and keep/reset based on improvement.
+
+The run finished and did not improve (`1.027403`), so I’ve logged it as `discard` and I’m now resetting to the previous best commit to continue from the best-known state.
+
+I’m continuing the loop from `f259efa` with a second nearby sweep point: lowering `matrix_lr` to `0.035` to test whether a slightly more conservative matrix update helps early-time stability.
+
+Second experiment run is launched (`fdaa528`). I’ll wait for completion, then read `metrics.json`, append to TSV, and keep/reset automatically.
+
+The process is still running normally. I’m continuing to wait on this run before making the keep/discard decision.
+
+Still within the run window; once this exits I’ll immediately log metrics and either keep `fdaa528` or hard-reset to `f259efa`.
+
+This run is taking longer to return than expected but is still under the 10-minute failure threshold, so I’m continuing the wait.
+
+The second run is also worse (`1.042427`), so I’ve logged it as `discard` and am resetting back to the current best commit before the next experiment.
+
+Completed 2 experiments and kept the branch on the current best commit `f259efa` (`val_bpb=0.989261`).
+
+New experiments run:
+- `6dfcccd` (`matrix_lr 0.04 -> 0.045`), `val_bpb=1.027403`, `peak_vram=41.1 GB`, `discard`
+- `fdaa528` (`matrix_lr 0.04 -> 0.035`), `val_bpb=1.042427`, `peak_vram=41.1 GB`, `discard`
+
+Both were logged to `memory/results.tsv`, and I hard-reset back to `f259efa` after each non-improving run, per loop rules.
+tokens used
+28,083
+Completed 2 experiments and kept the branch on the current best commit `f259efa` (`val_bpb=0.989261`).
+
+New experiments run:
+- `6dfcccd` (`matrix_lr 0.04 -> 0.045`), `val_bpb=1.027403`, `peak_vram=41.1 GB`, `discard`
+- `fdaa528` (`matrix_lr 0.04 -> 0.035`), `val_bpb=1.042427`, `peak_vram=41.1 GB`, `discard`
+
+Both were logged to `memory/results.tsv`, and I hard-reset back to `f259efa` after each non-improving run, per loop rules.

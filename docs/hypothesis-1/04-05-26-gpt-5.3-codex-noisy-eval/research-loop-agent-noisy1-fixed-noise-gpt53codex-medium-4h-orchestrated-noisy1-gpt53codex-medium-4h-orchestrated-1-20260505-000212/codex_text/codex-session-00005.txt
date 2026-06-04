@@ -1,0 +1,136 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already exists, and whether data/tokenizer artifacts are present so I can either resume or run the required baseline setup path.
+
+I found an existing initialized run on branch `research-loops/may5`, so I’m resuming from current state and moving to experiment iteration: I’ll read `editable/` and current results to pick the next change.
+
+I have prior results and config context; next I’m scanning the training code sections for scheduler/momentum logic to pick a high-probability tweak that can improve `val_bpb` within the fixed 5-minute budget.
+
+I’m making a targeted optimizer schedule tweak in `editable/config.toml`: faster Muon momentum ramp (`muon_momentum_warmup_steps` down) to spend more of the 5-minute window at the higher stable momentum, then I’ll commit and run.
+
+The patch is committed as `7b1c418`; I’m launching the 5-minute training run now and will read only `metrics.json` on completion.
+
+Training is in progress in the background session; I’m waiting for it to complete, then I’ll parse `metrics.json` and decide keep/discard against the current best `1.015167`.
+
+Run is still active; I’m continuing to wait and will only inspect `metrics.json` unless the run fails.
+
+I’m still waiting for the training process to exit; once it does I’ll immediately collect `val_bpb`/VRAM and update `memory/results.tsv`.
+
+The job is still running within the allowed window, so I’m continuing to wait for clean completion before evaluation.
+
+I’m polling the same run session; no crash handling needed yet, so I’ll keep waiting for normal termination.
+
+Run is still live; I’ll keep polling until completion, then immediately compare against the best checkpoint and reset if not improved.
+
+Still waiting on process exit; once done I’ll parse `metrics.json` via Python and append the TSV row.
+
+Training finished successfully. I’m now reading `metrics.json`, logging the result in `memory/results.tsv`, and then applying keep/discard with a git reset if it didn’t beat the current best `val_bpb`.
+
+The shell has no standalone `python`, so I’m re-reading metrics and best score with `uv run python` and proceeding with the keep/discard decision.
+
+The experiment improved to `0.998682` and is kept. I’m proceeding immediately to the next iteration with a related follow-up tweak: raising initial Muon momentum to reduce early-step noise.
+
+I’ve committed `a9427fb` and started the next 5-minute training run; after completion I’ll read `metrics.json`, log the result, and keep/reset based on whether it beats `0.998682`.
+
+Run is active in background; I’m waiting for completion and will continue with metrics-only collection unless a crash forces log inspection.
+
+Still in progress, so I’m continuing to wait on the same session.
+
+Training continues normally; I’ll keep polling until process exit before evaluating against the current best.
+
+I’m still waiting for run completion; no crash indicators yet.
+
+Run is still active inside expected timing; I’m continuing to wait.
+
+Still polling the same process; once it exits I’ll immediately record result and either keep or reset `a9427fb`.
+
+Waiting for final completion signal; evaluation step is next.
+
+The run is taking longer than expected to exit; I’m continuing to monitor and will kill it if it crosses the 10-minute cap per your rules.
+
+The process has exited cleanly. I’m now collecting `metrics.json`, logging to `memory/results.tsv`, and applying keep/reset.
+
+This trial regressed (`1.012485` vs best `0.998682`), so I’m marking it `discard` and resetting back to the previous best commit to continue from there.
+
+Completed two experiment iterations and advanced the branch once.
+
+- Kept commit `7b1c418` with improved `val_bpb = 0.998682` (best so far).
+- Discarded commit `a9427fb` with `val_bpb = 1.012485` and reset back to `7b1c418`.
+
+Unified diffs tested:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6f0a79a..8943efb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.2
+ final_lr_frac = 0.2
+-muon_momentum_warmup_steps = 100
++muon_momentum_warmup_steps = 40
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = false
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efb..0701719 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@ warmup_ratio = 0.0
+ warmdown_ratio = 0.2
+ final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 40
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = false
+```
+
+Updated results log: [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv)
+
+Current HEAD: `7b1c418`
+tokens used
+33,402
+Completed two experiment iterations and advanced the branch once.
+
+- Kept commit `7b1c418` with improved `val_bpb = 0.998682` (best so far).
+- Discarded commit `a9427fb` with `val_bpb = 1.012485` and reset back to `7b1c418`.
+
+Unified diffs tested:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6f0a79a..8943efb 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -48,7 +48,7 @@ muon_beta2 = 0.95
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.2
+ final_lr_frac = 0.2
+-muon_momentum_warmup_steps = 100
++muon_momentum_warmup_steps = 40
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = false
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efb..0701719 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@ warmup_ratio = 0.0
+ warmdown_ratio = 0.2
+ final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 40
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.90
+ muon_momentum_end = 0.95
+ weight_decay_decay = false
+```
+
+Updated results log: [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv)
+
+Current HEAD: `7b1c418`

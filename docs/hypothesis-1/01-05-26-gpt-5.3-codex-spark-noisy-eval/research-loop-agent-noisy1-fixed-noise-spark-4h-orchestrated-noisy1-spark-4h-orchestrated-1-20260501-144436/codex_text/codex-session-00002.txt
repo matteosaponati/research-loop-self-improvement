@@ -1,0 +1,146 @@
+Understood. I’ll follow the loop protocol exactly: check existing `memory/results.tsv`, set up branch and baseline if needed, then run one controlled experiment cycle at a time with commit, train, parse metrics from `run.log`, and update `memory/results.tsv` with keep/discard/crash decisions. I’ll start by checking whether this is a fresh run or a resumed run.
+
+I confirmed this is a resumed run on branch `research-loops/may1` with existing results. Next I’ll inspect the current results history and training/config files to propose the next experiment safely.
+
+Next I’m checking the exact LR/step scheduling logic to make edits that are likely to change optimization dynamics meaningfully rather than random hyperparameter tweaks.
+
+Proposed first change is a minimal single-parameter experiment: reduce `total_batch_size` to increase update frequency at fixed wall-clock budget, then compare validation bpb to the current best `0.985457`. I’ll make only this edit, run, and log the outcome.
+
+Committed edit in `cc7baa7`. Next step is running the training job and then extracting `val_bpb` / `peak_vram_mb` from `run.log` for logging and keep/discard decision.
+
+This run regressed (`val_bpb: 1.046155` vs best `0.985457`), so it’s a discard. I’ll log it to `memory/results.tsv` and reset back to the last kept commit.
+
+I’ll move to a targeted optimizer tweak next: increase `muon_beta2` (the Muon second-moment decay) from `0.95` to `0.98`, since this schedule path hasn’t been explored yet.
+
+Committed this as `bfdbc97`. Running the second experiment now with the same 5-minute protocol.
+
+Second experiment also worsened (`val_bpb: 1.020447`). I’ll log it and return to the last kept commit before continuing.
+
+I’m switching to a higher-impact axis now: reduce `sequence_len` to `1024` to increase optimization efficiency per token and test whether shorter context improves the wall-clock 5-minute validation score in this setup.
+
+Committed this experiment as `3276f67` and will run it now to capture the updated summary metrics.
+
+This also regressed relative to best, so I’ll record it and revert to the last keeper to continue searching.
+
+Next experiment will increase `device_batch_size` to `256` (with `total_batch_size` unchanged), moving to one microstep per update and reducing accumulation overhead. This is the next plausible throughput/stability lever.
+
+This configuration improved relative to many prior attempts but is still worse than the best (`0.987086` vs `0.985457`). I’ll log the result, then revert.
+
+Given we still have headroom, next I’ll test a moderate width increase: set `aspect_ratio` to `72` (model width from 512 to 640) to test whether slightly higher capacity helps val under the same 5-minute budget.
+
+I introduced a bad edit (`#` placeholder) while patching and will fix `aspect_ratio` properly before committing and running.
+
+I’ve started the run; I’ll grab the final metrics once it exits and update results immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index d90ac304d117a60cda1a6df83465ff3a631071c0..eeea3e3509540e996b5cd3d6e1dfb22c71e07431
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+Aspect increase also regressed (`val_bpb: 1.014874`). I’ll log it as discard and restore the working tree to the last keeper.
+
+Next I’m trying a narrower optimizer tweak: reduce `embedding_lr` to `0.5` while keeping other rates unchanged, since this scalar wasn’t directly explored and often impacts convergence here.
+
+This lowered embedding LR also regressed (`1.037281`). I’ll record and revert to the keep point.
+
+I’ll test the opposite direction briefly: increase `embedding_lr` to `0.7` while keeping the best-known stable settings.
+
+A small gain over some earlier runs but still above best (`0.986896` > `0.985457`). I’ll log it and revert.
+
+One final targeted sweep candidate: reduce `unembedding_lr` slightly to `0.003` to see if lowering projection update pressure improves this configuration.
+
+I corrected that edit and now have a clean change (`unembedding_lr = 0.003`). I’ll run it as an experiment.
+
+That one clearly degraded further (`1.073537`). I’ll log and reset.
+
+I’ll do one more low-cost optimization tweak: reduce `muon_ns_steps` from `5` to `3` to increase curvature-adaptation frequency.
+
+This variant also did not improve (`1.002355`). I’ll log it and return to the best commit.
+
+I’ll test a structural head-geometry change by setting `head_dim = 64` (keeping `aspect_ratio = 64`). This is the same layer width but a different attention partitioning and is untested so far.
+
+Running this new head-dimension experiment now.
+
+Head-dimension change regressed (`1.023011`). Logging and reverting now.
+
+One more single-parameter attempt before pausing: raise `softcap` from `15` to `20` to reduce logit clipping pressure and maybe improve calibration in final perplexity.
+
+Running the `softcap` adjustment now.
+
+This also degraded (`1.062723`), so I’m logging it and restoring the baseline keeper state.
+
+I’ll do one last quick sweep parameter: reduce `rotary_seq_len_multiplier` to `1` to remove unnecessary precompute context beyond sequence length.
+
+Rotary sequence multiplier reduction helped compared to some settings but still above best (`1.007647`), so it is also a discard. I’ll log and return to baseline keeper.
+
+I haven’t seen a better run yet, so I’ll try one more directional change: add a small learning-rate warmup (`warmup_ratio = 0.01`) which might stabilize initial updates without the larger warmup penalty seen at 0.05.
+
+Running warmup experiment now; I’ll collect final summary when the run completes.
+diff --git a/editable/config.toml b/editable/config.toml
+index d90ac304d117a60cda1a6df83465ff3a631071c0..c939a9f07c371ba9751a5d979a1b87c75c517a8e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -45,7 +45,7 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.01
+ warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+
+
+Run loop status: continued on existing branch `research-loops/may1` with existing `memory/results.tsv`, did **not** rerun baseline.
+
+Current best remains unchanged:
+- `df536b4` → `val_bpb=0.985457`, `memory_gb=41.1`, `status=keep` (`increase weight_decay to 0.25`)
+
+New experiments run and logged (all `discard`):
+- `cc7baa7` reduce total batch size to 262144 → `1.046155`
+- `bfdbc97` increase muon_beta2 to 0.98 → `1.020447`
+- `3276f67` halve sequence_len to 1024 → `1.013089`
+- `83fa85f` double device batch to 256 → `0.987086`
+- `e4669bb` increase aspect_ratio to 72 → `1.014874`
+- `5528300` reduce embedding_lr to 0.5 → `1.037281`
+- `d24b27c` increase embedding_lr to 0.7 → `0.986896`
+- `9ba3adc` reduce unembedding_lr to 0.003 → `1.073537`
+- `0133caa` reduce muon_ns_steps to 3 → `1.002355`
+- `9a16fac` set head_dim to 64 → `1.023011`
+- `65402a6` increase softcap to 20 → `1.062723`
+- `62e6837` reduce rotary_seq_len_multiplier to 1 → `1.007647`
+- `010846a` add warmup_ratio 0.01 → `1.032517`
+
+`memory/results.tsv` has been updated for each run, and HEAD is back at `df536b4` after each non-improving run as required.
+tokens used
+188,673
+Run loop status: continued on existing branch `research-loops/may1` with existing `memory/results.tsv`, did **not** rerun baseline.
+
+Current best remains unchanged:
+- `df536b4` → `val_bpb=0.985457`, `memory_gb=41.1`, `status=keep` (`increase weight_decay to 0.25`)
+
+New experiments run and logged (all `discard`):
+- `cc7baa7` reduce total batch size to 262144 → `1.046155`
+- `bfdbc97` increase muon_beta2 to 0.98 → `1.020447`
+- `3276f67` halve sequence_len to 1024 → `1.013089`
+- `83fa85f` double device batch to 256 → `0.987086`
+- `e4669bb` increase aspect_ratio to 72 → `1.014874`
+- `5528300` reduce embedding_lr to 0.5 → `1.037281`
+- `d24b27c` increase embedding_lr to 0.7 → `0.986896`
+- `9ba3adc` reduce unembedding_lr to 0.003 → `1.073537`
+- `0133caa` reduce muon_ns_steps to 3 → `1.002355`
+- `9a16fac` set head_dim to 64 → `1.023011`
+- `65402a6` increase softcap to 20 → `1.062723`
+- `62e6837` reduce rotary_seq_len_multiplier to 1 → `1.007647`
+- `010846a` add warmup_ratio 0.01 → `1.032517`
+
+`memory/results.tsv` has been updated for each run, and HEAD is back at `df536b4` after each non-improving run as required.

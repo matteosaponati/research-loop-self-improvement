@@ -1,0 +1,71 @@
+I’ll initialize the research branch flow exactly as specified: check repo state, verify whether a prior `memory/results.tsv` session exists, create or resume the loop branch, ensure data/tokenizer availability, run the baseline first if needed, then start proposing and running one experiment at a time with log/result tracking. I’ll keep all edits confined to `editable/` and record every run in `memory/results.tsv`.
+
+I confirmed this is an active run on branch `research-loops/may1` with an existing `memory/results.tsv` (already with prior experiments). I’ll now inspect current best metrics plus `editable/` training/config files, then propose the next edit and run from that state.
+
+I’ve loaded the current session history and config. Next I’m pulling the remaining `train.py` control flow (optimizer schedule/evaluation/training loop) so I can make a high-impact but low-risk change for the next experiment.
+
+I’m moving to the next experiment from the current keep commit (`9a5f9d6`) by changing one model-family variable likely to affect quality: swap the MLP nonlinearity in `editable/train.py` from `relu^2` to `GeLU`. I’ll commit that change, run a 5‑minute training pass, and then keep/discard based on val_bpb.
+
+Experiment committed. I’m launching the 5-minute training run now and writing full output to `run.log` as required before parsing the final metrics.
+
+The run is still executing; I’ll wait for completion and then extract `val_bpb` and `peak_vram_mb` directly from `run.log`.
+diff --git a/editable/train.py b/editable/train.py
+index 92911e450287940013b4413f61d73f2a7e05c308..33b9ba8bcf1cf908499586c03b2558f57dda9c0b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -130,7 +130,7 @@
+ 
+     def forward(self, x):
+         x = self.c_fc(x)
+-        x = F.relu(x).square()
++        x = F.gelu(x)
+         x = self.c_proj(x)
+         return x
+ 
+
+
+The training process finished; I’m checking `run.log` now for parsed metrics and will write the result row immediately.
+
+This experiment is worse than the current best (`1.013904` vs `0.999133`), so I’m logging it as `discard` and rolling back the committed change before the next attempt.
+
+The first attempt regressed, so I’m switching strategy to a controlled architectural scale-up: increase `aspect_ratio` (model width) to enlarge `n_embd` while keeping depth and optimizer setup unchanged, then evaluate the 5-minute run.
+
+Running the width-upscaled config now with logging to `run.log`; I’ll parse the final `val_bpb` immediately after completion and then either keep or discard this commit.
+
+The second run has completed. I’m extracting the final summary and writing it to the results ledger before deciding keep vs reset.
+
+The width increase regressed (`val_bpb=1.007744`, worse than `0.999133`) and raised memory to ~59.9GB. It’s logged as `discard` and I’ve reset to the current best commit. I’ll now try a different optimizer-schedule change.
+
+Next test is focused on attention geometry: increase `head_dim` to 256 (fewer attention heads with wider head width) while keeping all other settings constant. Running the train job now.
+
+That change also regressed (`1.026005`). Logging it as `discard` and reverting; I’ll now probe schedule behavior by increasing warmup slightly from 3% while keeping the current warmdown and other defaults.
+
+I’m trying a small warmup-ratio nudge (`0.03 → 0.035`) to test sensitivity around the current best scheduling setting without changing model size.
+
+Running the warmup tweak now and then recording/logging the resulting metric before deciding keep vs discard.
+
+I’m going to test capacity reduction next: set `depth` to 6 while keeping batching and schedules unchanged. This should increase step throughput and may improve val bpb by allowing more optimization steps in the fixed 5‑minute window.
+
+Running with depth reduced to 6 now. After completion I’ll parse the final metrics and handle keep/discard plus commit state accordingly.
+
+Depth reduction clearly worsened performance, so I’m resetting and trying a conservative optimizer scaling adjustment: set `dmodel_lr_reference` to `512` so learning rates are not inflated by the 512-width model.
+
+Running the new LR-reference scaling variant next; I’ll parse and log the run outcome as before.
+
+Run complete. Pulling final metrics from `run.log` now to determine whether this LR-reference change improves over best.
+
+Most recent LR-scale tweak also regressed. I’ll now try one scalar regularization adjustment (`weight_decay` from `0.2` to `0.15`) to probe a narrow optimum between the earlier tried extremes.
+
+Launching training for the `weight_decay=0.15` experiment now.
+
+I’ve now logged several more regressions and am keeping the best state. I’ll run one final lightweight precision tweak (`matmul_precision` to `highest`) before pausing; if it regresses we’ll stop after logging.
+
+Applying and committing that compile-math precision change now, then running the standard 5-minute training pass.
+
+Launching run for the `matmul_precision=highest` experiment now.
+
+This run has finished. I’ll extract the final validation summary and then update `memory/results.tsv`.
+
+I’ve completed six experiments in this run; all were worse than current best (`0.999133`). I’ve logged each as `discard` and returned to `9a5f9d6`. I’ll summarize the ledger state and next-best commit now.
+
+I’m continuing with a targeted optimizer-schedule probe: raise `muon_momentum_end` slightly above `0.95` to see if higher late-step momentum helps optimization quality at the current depth/width regime.

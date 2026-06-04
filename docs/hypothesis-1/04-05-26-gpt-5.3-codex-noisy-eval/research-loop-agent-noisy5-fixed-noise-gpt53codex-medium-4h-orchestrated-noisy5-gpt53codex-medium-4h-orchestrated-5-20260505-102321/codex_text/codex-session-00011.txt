@@ -1,0 +1,74 @@
+I’m starting the research loop now: I’ll check whether `memory/results.tsv` already has experiments to decide between resume vs fresh setup, then I’ll run the required setup path and baseline or continue directly with a new experiment.
+
+I found an existing initialized run (`memory/results.tsv` has 25 result rows), so I’m resuming from the current branch/state and moving directly to proposing the next experiment based on `editable/*` and prior results.
+
+I identified drift from the keep/discard policy: `HEAD` is on a worse discarded config. I’m resetting to the best kept commit (`1617173`) first, then I’ll run one focused LR experiment and evaluate by `metrics.json`.
+
+I’m making a single-parameter schedule tweak in `editable/config.toml`: reduce `warmdown_ratio` from `0.5` to `0.4` to keep peak LR longer while still decaying in-budget for the 5-minute run.
+
+The change is committed (`fe03db2`). I’m running the 5-minute training job now and will read only `metrics.json` for the result unless it crashes.
+
+Training is in progress in the background session; I’m polling for completion and will stop it if it exceeds the 10-minute failure limit.
+
+Still running normally; I’m continuing to wait for completion and then I’ll parse `metrics.json`.
+
+Run is still active; I’ll keep polling until it exits, then collect metrics and update `memory/results.tsv`.
+
+I’m still waiting on the run process; no crash signal so far. Polling again.
+
+The training process is still running within the allowed window; I’m continuing to monitor for completion.
+
+The run completed successfully. I’m now reading `metrics.json`, logging the result to `memory/results.tsv`, and applying keep/discard by comparing against the current best `val_bpb` (0.999101).
+
+I have the new metric (`val_bpb=1.018719`, worse). I’m finishing the best-score lookup command, then I’ll append this run as `discard` and reset to the best keep commit.
+
+I confirmed the best kept checkpoint is still `1617173` (`0.999101`), so I’m recording this run as discarded and resetting back to that commit.
+
+I’m launching the next experiment immediately from the best state: a finer LR sweep with `matrix_lr` slightly reduced to `0.0395` (between best `0.04` and previously too-low `0.038`).
+
+The second experiment commit is ready (`b024fed`). I’m running training again now and will collect the metrics on completion.
+
+Run is still in progress; I’m continuing to monitor until it exits.
+
+Training continues within expected runtime. I’ll keep polling and then log and adjudicate keep/discard.
+
+Still running; no failure signal yet. Polling again.
+
+The process is nearing expected completion time; I’m waiting for exit and then reading `metrics.json`.
+
+Completed two new experiments from the best kept checkpoint and applied keep/discard policy correctly.
+
+Current best remains:
+- `1617173` with `val_bpb=0.999101`
+
+Experiments run:
+1. `fe03db2`  
+   - Diff: `warmdown_ratio 0.5 -> 0.4` in `editable/config.toml`  
+   - Result: `val_bpb=1.018719`, `memory_gb=41.1`  
+   - Logged as `discard`, then reset to `1617173`
+
+2. `b024fed`  
+   - Diff: `matrix_lr 0.04 -> 0.0395` in `editable/config.toml`  
+   - Result: `val_bpb=1.047468`, `memory_gb=41.1`  
+   - Logged as `discard`, then reset to `1617173`
+
+`memory/results.tsv` is updated with both rows, and `HEAD` is currently back on `1617173` ready for the next experiment.
+tokens used
+34,858
+Completed two new experiments from the best kept checkpoint and applied keep/discard policy correctly.
+
+Current best remains:
+- `1617173` with `val_bpb=0.999101`
+
+Experiments run:
+1. `fe03db2`  
+   - Diff: `warmdown_ratio 0.5 -> 0.4` in `editable/config.toml`  
+   - Result: `val_bpb=1.018719`, `memory_gb=41.1`  
+   - Logged as `discard`, then reset to `1617173`
+
+2. `b024fed`  
+   - Diff: `matrix_lr 0.04 -> 0.0395` in `editable/config.toml`  
+   - Result: `val_bpb=1.047468`, `memory_gb=41.1`  
+   - Logged as `discard`, then reset to `1617173`
+
+`memory/results.tsv` is updated with both rows, and `HEAD` is currently back on `1617173` ready for the next experiment.

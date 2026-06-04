@@ -1,0 +1,46 @@
+I’ll initialize the loop state first: check git status/branch, detect whether `memory/results.tsv` already has runs, and then either resume or perform the required setup sequence before launching the next experiment.
+
+I found an existing initialized run (`memory/results.tsv` has prior experiments), so I’m resuming from the current branch and skipping baseline/setup. Next I’ll read `editable/` and current result history to choose the next mutation.
+
+I’ve identified the current best as commit `a76a5e5` with `val_bpb=0.997757`. I’m applying a small schedule mutation next: keep the successful LR set, but add a mild LR floor late in training (`final_lr_frac=0.05`) to avoid over-cooling in the last half.
+
+I committed the change (`751d5a5`) and will run the 5-minute training job now, then read `metrics.json` only and decide keep vs reset based on `val_bpb`.
+
+Training is running in the background session; I’m waiting for completion and will parse `metrics.json` immediately after it exits.
+
+The run finished successfully. I’m reading `metrics.json`, updating `memory/results.tsv`, and then either keeping this commit or resetting to the previous best depending on whether `val_bpb` improved.
+
+I got the new run metric (`val_bpb=1.055605`, much worse). I’m finishing the best-so-far lookup, then I’ll log this as `discard` and reset this commit.
+
+I’ve reverted to the best commit (`a76a5e5`) and recorded the failed trial. I’m launching the next experiment now: a small decrease in `matrix_lr` from `0.04` to `0.038` to test whether Muon updates are slightly too aggressive at current settings.
+
+Second run is still in progress; I’m waiting for it to exit and will immediately capture metrics and apply keep/reset logic.
+
+The run completed. I’m now reading `metrics.json`, appending the result to `memory/results.tsv`, and then either keeping this commit or hard-resetting to the prior best.
+
+I discarded that run and reset to `a76a5e5`. I’m starting another trial with a finer step on the best direction so far: increase `embedding_lr` modestly from `0.70` to `0.72` (0.8 was too high, so this tests local optimum width).
+
+The third experiment is still executing; I’m waiting for completion to collect `metrics.json` and decide keep/revert.
+
+Run finished; I’m now evaluating `metrics.json` and applying keep/reset against the current best (`0.997757`).
+
+Loop resumed from existing state and I ran 3 new experiments, each committed, executed, logged, and reverted when worse.
+
+New trials added to `memory/results.tsv`:
+- `751d5a5` `val_bpb=1.055605` `36.5 GB` `discard` `final_lr_frac=0.05`
+- `0b2e350` `val_bpb=1.032284` `36.5 GB` `discard` `matrix_lr=0.038`
+- `f229235` `val_bpb=1.046367` `36.5 GB` `discard` `embedding_lr=0.72`
+
+Current branch head is back at best commit `a76a5e5` with best known `val_bpb=0.997757`.  
+I’m ready to continue with the next mutation from this point.
+tokens used
+38,547
+Loop resumed from existing state and I ran 3 new experiments, each committed, executed, logged, and reverted when worse.
+
+New trials added to `memory/results.tsv`:
+- `751d5a5` `val_bpb=1.055605` `36.5 GB` `discard` `final_lr_frac=0.05`
+- `0b2e350` `val_bpb=1.032284` `36.5 GB` `discard` `matrix_lr=0.038`
+- `f229235` `val_bpb=1.046367` `36.5 GB` `discard` `embedding_lr=0.72`
+
+Current branch head is back at best commit `a76a5e5` with best known `val_bpb=0.997757`.  
+I’m ready to continue with the next mutation from this point.

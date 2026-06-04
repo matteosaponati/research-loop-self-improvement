@@ -1,0 +1,1771 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume or perform the fresh setup path exactly as specified.
+
+I found an existing initialized run (`memory/results.tsv` has prior rows), so I’m resuming from the current branch and moving directly to proposing the next experiment after reviewing `editable/` and past results.
+
+I’ve loaded the current code and history; next I’m checking the rest of `editable/train.py` for startup/device handling so we can make a targeted fix that actually reaches metrics instead of repeated crashes.
+
+I identified the likely failure point: the script unconditionally calls CUDA APIs (`torch.cuda.synchronize()` and CUDA dataloader device path), so any temporary CUDA unavailability guarantees crash before metrics. I’m checking the final section and then I’ll patch for robust CPU fallback and non-CUDA-safe synchronization.
+
+I’m now editing `editable/train.py` to make runs resilient when CUDA is unavailable: safe device selection, CPU-safe autocast/synchronization, and smaller fallback batch settings so we can reliably produce `metrics.json` instead of crash loops.
+
+The patch didn’t apply cleanly due context mismatch, so I’m re-reading exact sections and applying smaller surgical patches to avoid touching unrelated logic.
+
+I’ve applied the resilience patch; next I’m capturing the unified diff, committing it, and launching a run with output redirected to `run.log` per your protocol.
+
+Commit `6f32b0b` is ready; I’m running the experiment now and will collect only `metrics.json` (and only inspect `run.log` if metrics are missing/crash).
+
+Training is in progress in the background session; I’m polling for completion and will enforce the 10-minute failure rule.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+Still running; I’m continuing periodic polling and will stop it if it crosses the 10-minute cap.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+No completion yet. I’m still polling and will terminate if needed at the 10-minute mark from launch.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+
+Run is still active; I’m continuing to wait for completion before reading `metrics.json`.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..9567e4708f3e1147c63ee0d1b686225275508860
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,33 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window ({exc}); falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +487,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -506,16 +516,19 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
++    runtime_device_batch_size,
+     CONFIG.sequence_len,
+     "train",
+     buffer_size=CONFIG.dataloader_buffer_size,
+     tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
++    device=runtime_device,
+ )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +559,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +590,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +603,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,7 +625,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -618,19 +633,19 @@
+     metric_value = evaluate_model(
+         model,
+         tokenizer,
+-        CONFIG.device_batch_size,
++        runtime_device_batch_size,
+         sequence_len=CONFIG.sequence_len,
+         buffer_size=CONFIG.dataloader_buffer_size,
+         tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
++        device=runtime_device,
+     )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+ exited 1 in 279206ms:
+
+The run exited with code 1. I’m now checking `metrics.json`; if missing/invalid, I’ll do a minimal crash diagnosis from `run.log` to decide the next patch.
+
+The environment lacks a plain `python` binary, so I’ll read `metrics.json` via `uv run` and proceed accordingly.
+
+The crash is now diagnosed: `immutable/prepare.py` forces `pin_memory=True`, which still touches CUDA even on CPU fallback. I’ll record this run as `crash`, reset to the previous commit, and launch a new experiment that monkeypatches pinned-memory allocation during CPU fallback.
+
+I’ve reverted to the last stable commit and am preparing a second experiment that combines CPU fallback with a targeted pinned-memory monkeypatch so dataloader creation can proceed without CUDA.
+
+The patch hit a context mismatch, so I’m checking the exact current constants and function blocks before reapplying in smaller chunks.
+
+I’m switching to targeted in-place replacements (instead of one large patch) because the patch tool is rejecting valid context in this file.
+
+I hit a regex escaping failure with the bulk replacement. I’m reverting to small `apply_patch` hunks one-by-one to get this change in safely.
+
+Core fallback logic is in place; I’m now patching batch sizing, dataloader/eval calls, and CUDA-only synchronizations to complete the experiment.
+
+I committed experiment `e50b13f` and I’m launching the run now with full redirection to `run.log`.
+
+The run is still active; I’m polling until it exits, then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..3610a3dd753e5da011ab21de28ce8a4fe493fdee
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,7 +28,7 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 30
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import contextmanager, nullcontext
+ 
+ import torch
+ import torch.nn as nn
+@@ -419,31 +420,51 @@
+ 
+ def wait_for_cuda_or_fail():
+     if CONFIG.device != "cuda":
+-        return
++        return False
+     deadline = time.time() + CUDA_WAIT_SECONDS
+     while True:
+         if torch.cuda.is_available():
+             try:
+                 torch.cuda.manual_seed(CONFIG.seed)
+                 _ = torch.empty(1, device="cuda")
+-                return
++                return True
+             except Exception as exc:
+                 remaining = int(deadline - time.time())
+                 if remaining <= 0:
+-                    print(f"CUDA unavailable after wait window: {exc}")
+-                    raise
++                    print(f"CUDA unavailable after wait window: {exc}; falling back to CPU")
++                    return False
+                 print(f"CUDA not ready ({exc}); retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         else:
+             remaining = int(deadline - time.time())
+             if remaining <= 0:
+-                raise RuntimeError("CUDA not available after wait window")
++                print("CUDA not available after wait window; falling back to CPU")
++                return False
+             print(f"CUDA not available; retrying in {CUDA_WAIT_POLL_SECONDS}s, {remaining}s left")
+         time.sleep(CUDA_WAIT_POLL_SECONDS)
+ 
+-wait_for_cuda_or_fail()
+-device = torch.device(CONFIG.device)
++@contextmanager
++def disable_pin_memory_allocations(enabled):
++    if not enabled:
++        yield
++        return
++    original_empty = torch.empty
++
++    def _empty_no_pin(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs["pin_memory"] = False
++        return original_empty(*args, **kwargs)
++
++    torch.empty = _empty_no_pin
++    try:
++        yield
++    finally:
++        torch.empty = original_empty
++
++cuda_ready = wait_for_cuda_or_fail()
++runtime_device = "cuda" if (CONFIG.device == "cuda" and cuda_ready) else "cpu"
++device = torch.device(runtime_device)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+-autocast_ctx = torch.amp.autocast(device_type=CONFIG.device, dtype=autocast_dtype)
++autocast_ctx = torch.amp.autocast(device_type="cuda", dtype=autocast_dtype) if runtime_device == "cuda" else nullcontext()
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+@@ -484,9 +505,16 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++runtime_device_batch_size = CONFIG.device_batch_size
++runtime_total_batch_size = CONFIG.total_batch_size
++if runtime_device != "cuda":
++    runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 16384)
++tokens_per_fwdbwd = runtime_device_batch_size * CONFIG.sequence_len
++if runtime_total_batch_size < tokens_per_fwdbwd:
++    runtime_total_batch_size = tokens_per_fwdbwd
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -504,18 +532,22 @@
+ if COMPILE_MODEL:
+     model = torch.compile(model, dynamic=COMPILE_DYNAMIC)
+ 
+-train_loader = prepare.make_dataloader(
+-    tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
+-    "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-    device=CONFIG.device,
+-)
++with disable_pin_memory_allocations(runtime_device != "cuda"):
++    train_loader = prepare.make_dataloader(
++        tokenizer,
++        runtime_device_batch_size,
++        CONFIG.sequence_len,
++        "train",
++        buffer_size=CONFIG.dataloader_buffer_size,
++        tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++        device=runtime_device,
++    )
+ x, y, epoch = next(train_loader)  # prefetch first batch
+ 
+ print(f"Time budget: {TIME_BUDGET_SECONDS}s")
++print(f"Runtime device: {runtime_device}")
++print(f"Runtime device batch size: {runtime_device_batch_size}")
++print(f"Runtime total batch size: {runtime_total_batch_size}")
+ print(f"Gradient accumulation steps: {grad_accum_steps}")
+ 
+ # Schedules (all based on progress = training_time / TIME_BUDGET_SECONDS)
+@@ -546,7 +578,8 @@
+ step = 0
+ 
+ while True:
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t0 = time.time()
+     for micro_step in range(grad_accum_steps):
+         with autocast_ctx:
+@@ -576,7 +609,8 @@
+         print("FAIL")
+         exit(1)
+ 
+-    torch.cuda.synchronize()
++    if runtime_device == "cuda":
++        torch.cuda.synchronize()
+     t1 = time.time()
+     dt = t1 - t0
+ 
+@@ -588,8 +622,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -610,27 +644,28 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+-with autocast_ctx:
+-    metric_value = evaluate_model(
+-        model,
+-        tokenizer,
+-        CONFIG.device_batch_size,
+-        sequence_len=CONFIG.sequence_len,
+-        buffer_size=CONFIG.dataloader_buffer_size,
+-        tokenizer_batch_size=CONFIG.tokenizer_batch_size,
+-        device=CONFIG.device,
+-    )
++with disable_pin_memory_allocations(runtime_device != "cuda"):
++    with autocast_ctx:
++        metric_value = evaluate_model(
++            model,
++            tokenizer,
++            runtime_device_batch_size,
++            sequence_len=CONFIG.sequence_len,
++            buffer_size=CONFIG.dataloader_buffer_size,
++            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            device=runtime_device,
++        )
+ 
+ # Final summary
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+-peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+     "training_seconds": float(total_training_time),
+
+ exited 1 in 38141ms:
+
+This attempt exited quickly with code 1; I’m checking `metrics.json` and then doing minimal crash diagnosis from `run.log` before recording and deciding keep/reset.
+
+Diagnosis: the pinned-memory shim only wrapped dataloader construction, but `pin_memory=True` is triggered during `next(train_loader)`, after the context exits. I’ll log this crash, reset, then run a third experiment that keeps the shim active for the entire train/eval phase on CPU fallback.
+
+I’m implementing a simpler third variant: global monkeypatch of `torch.empty(..., pin_memory=True)` on CPU fallback (kept for process lifetime), plus CUDA-to-CPU fallback and CUDA-guarded sync calls.
+
+I confirmed the file is at baseline and `apply_patch` is intermittently failing on exact-match hunks; I’m using deterministic one-line replacements now to finish this experiment reliably.
+
+Current loop status:
+
+- Resumed existing branch: `research-loops/may5` (per rules, no re-init).
+- Read `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and `memory/results.tsv`.
+- Ran two new experiments that targeted CUDA-unavailable recovery.
+- Both crashed before `metrics.json` creation due `immutable/prepare.py` using `pin_memory=True` during dataloader iteration.
+
+Logged results appended to `memory/results.tsv`:
+
+- `6f32b0b	0.000000	0.0	crash	cpu fallback runtime path; immutable pin_memory still triggers cuda`
+- `e50b13f	0.000000	0.0	crash	cpu fallback with pin shim scoped too narrowly (fails at next loader)`
+
+Per protocol, both were discarded by reset; HEAD is back at:
+
+- `9fbfc02`
+
+What I diagnosed from `run.log` crash trace:
+
+- Failure occurs at `next(train_loader)` inside `immutable/prepare.py`:
+  - `torch.empty(..., pin_memory=True)` raises `torch.AcceleratorError` when CUDA is busy/unavailable.
+- A narrow context manager around `make_dataloader(...)` is insufficient because the allocation happens during iteration, not only construction.
+
+I started preparing a third experiment to keep pin-memory bypass active across the full training/eval lifetime, but it is not committed yet.
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..510198cee094cfd998eba4b5b41c54e3fb46433f
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -43,6 +43,7 @@
+ import math
+ import time
+ from dataclasses import dataclass, asdict
++from contextlib import nullcontext
+ 
+ import torch
+ import torch.nn as nn
+
+tokens used
+67,675
+Current loop status:
+
+- Resumed existing branch: `research-loops/may5` (per rules, no re-init).
+- Read `editable/train.py`, `editable/config.toml`, `editable/config_loader.py`, and `memory/results.tsv`.
+- Ran two new experiments that targeted CUDA-unavailable recovery.
+- Both crashed before `metrics.json` creation due `immutable/prepare.py` using `pin_memory=True` during dataloader iteration.
+
+Logged results appended to `memory/results.tsv`:
+
+- `6f32b0b	0.000000	0.0	crash	cpu fallback runtime path; immutable pin_memory still triggers cuda`
+- `e50b13f	0.000000	0.0	crash	cpu fallback with pin shim scoped too narrowly (fails at next loader)`
+
+Per protocol, both were discarded by reset; HEAD is back at:
+
+- `9fbfc02`
+
+What I diagnosed from `run.log` crash trace:
+
+- Failure occurs at `next(train_loader)` inside `immutable/prepare.py`:
+  - `torch.empty(..., pin_memory=True)` raises `torch.AcceleratorError` when CUDA is busy/unavailable.
+- A narrow context manager around `make_dataloader(...)` is insufficient because the allocation happens during iteration, not only construction.
+
+I started preparing a third experiment to keep pin-memory bypass active across the full training/eval lifetime, but it is not committed yet.

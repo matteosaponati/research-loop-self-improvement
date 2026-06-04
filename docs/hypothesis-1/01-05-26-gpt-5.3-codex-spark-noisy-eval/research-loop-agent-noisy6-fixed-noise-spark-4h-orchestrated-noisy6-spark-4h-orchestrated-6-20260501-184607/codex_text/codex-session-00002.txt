@@ -1,0 +1,184 @@
+Got it — I’ll initialize the experiment branch/state, verify the working baseline files, and then start the loop: baseline (or resume), then iterative editable changes + commits + 5-minute train runs, logging each result in `memory/results.tsv` and reverting when non-improving.
+
+I’m on an existing research branch with prior results. Next I’m loading the current experiment log and editable config/model files to pick the best checkpoint and choose the next edit safely.
+
+I found the branch is currently at commit `4ecb18c` (the best kept result so far). I’ll inspect the training loop internals in `train.py` once, then start a focused config-level sweep from this state.
+
+Next experiment target: increase attention granularity by changing only `head_dim` from `128` to `64` (`editable/config.toml`). Current best remains `4ecb18c` (1.000667). I’m making this one change, logging the diff, committing, and running the 5-minute train.
+
+Running first experiment now. I’ll wait for it to finish or timeout, then extract `val_bpb`/`peak_vram_mb` from `run.log` and log the result.
+
+I’m seeing this run still active with no new shell output (all logs are being redirected to `run.log`). I’m continuing to wait; if it exceeds 10 minutes total I’ll abort and treat it as a failure.
+
+First run completed successfully. I’ll now extract `val_bpb`/`peak_vram_mb`, append to `memory/results.tsv`, and decide keep/discard against current best (1.000667).
+
+`head_dim=64` improved val_bpb to `0.983074`, so it is kept. Next I’ll test a width bump by increasing `aspect_ratio` (model depth-related width) from `64` to `80` while keeping other settings fixed.
+
+Second experiment is running with the wider model; I’ll wait for completion and then log outcome versus the current best.
+
+The wider-aspect run is still training. I’ll check for completion and then process the metrics and update `memory/results.tsv` accordingly.
+
+The width increase to `aspect_ratio=80` completed but is worse (`val_bpb: 1.038061`, `peak_vram_mb: 51765.5`). I’ll log it as `discard` and reset back to the best kept commit before continuing.
+
+Next I’m testing a narrower rotary head (`head_dim=32`, giving 16 attention heads at width 512) to check whether finer attention partitioning further improves bpb beyond `0.983074`.
+
+Running this third experiment now; I’ll capture metrics and compare to `0.983074`.
+
+This run is still in progress; I’ll monitor briefly and then finalize when it exits.
+
+This run appears hung longer than expected. I’m checking active processes directly; if it exceeds the 10-minute safety cap, I’ll stop it and record as crash.
+
+I found duplicate training processes still running, likely from sequential runs that weren’t fully cleaned up. I’m going to inspect their ages and terminate any run that has exceeded the 10-minute threshold before proceeding.
+
+The current run is still active but moving; I’m extending the wait until it naturally finishes or reaches the 10-minute cap.
+
+The run completed at about 5 minutes runtime (consistent with timeout). I’ll now parse `run.log`, log the outcome, and cleanly resolve whether this commit is kept or discarded.
+
+I discovered `run.log` is missing the summary lines entirely, implying this run is likely hung/stalled before completion. I’m checking if the process is still alive and taking action if needed.
+
+Understood. I’ll verify the current branch/state and last recorded results, then continue with the next experiment from `editable/config.toml`, keep only improving commits, log each run to `memory/results.tsv`, and revert/rollback non-improvements.
+
+I found we’re currently on commit `34fe197` (head_dim=32 experiment) and no new result row for it yet. I’ll first record that as a crash, then reset back to the last keep (`c32267b`) and run the next new edit from there.
+
+Next I’ll inspect the current `editable/config.toml` and relevant training knobs, then propose one small, fast hypothesis to try before launching the next 5-minute run.
+
+I’m moving to a controlled architecture-size sweep next: keep `head_dim=64` and reduce `aspect_ratio` from `64` to `56` (model dim 512→448, heads 8→7) to test whether lower capacity plus higher step throughput improves `val_bpb`. I’ll commit the edit first, then run one 5-minute train and evaluate strictly by summary metrics.
+
+I’ve committed the `aspect_ratio=56` change (`9d3446b`). Next I’ll run the fixed 5-minute training job, then parse only the final summary fields from `run.log` and log the result.
+
+The run completed with `val_bpb=1.007350` and `peak_vram_mb=37371.4` (memory 36.5 GB), which is worse than best, so I’ll log it as discarded and revert to the last kept commit.
+
+I’ll evaluate `matrix_lr=0.05` (commit `63935d4`) next; if it beats `0.983074` it stays, otherwise I’ll discard and revert immediately.
+
+Run finished. I’m parsing `run.log` now and will apply keep/discard logic exactly against the prior best `0.983074`.
+
+Next I’ll try one architectural capacity increase at constant width: `depth 8 → 9` (head count unchanged). I’ll keep the same data/model settings and evaluate whether extra depth helps `val_bpb` under the fixed 5-minute budget.
+
+This depth-9 attempt completed; I’m extracting the summary and applying keep/discard logic.
+
+I’ll try `aspect_ratio = 72` now (still `head_dim = 64`) as a balanced step up in width (`n_embd=576`, `n_head=9`) to see if slightly larger capacity improves over 0.983074.
+
+Running the 5-minute baseline loop for commit `a4c5ee6` now.
+
+Training has finished for `a4c5ee6`; I’ll parse the final metrics and update results immediately.
+
+I’ll now probe batch-size efficiency: set `total_batch_size` from 524288 to `262144` while keeping `device_batch_size=128` and `sequence_len=2048` (so grad accumulation stays valid). This changes effective batch/noise without changing architecture.
+
+I’ll extract the `val_bpb`/`peak_vram_mb` from `run.log` and then keep or revert according to the 0.983074 benchmark.
+
+That experiment is worse (`1.037274`) and will be discarded with a crash-free log entry; I’ll revert to the best config now.
+
+I’ll test a modest optimizer tweak next: reduce `muon_initial_momentum` from `0.95` to `0.90`, which may stabilize updates early and could improve validation within the same fixed training budget.
+
+That run is complete; I’ll read the final metrics and then apply discard/keep logic against the incumbent best result.
+
+I’ll try one final optimizer-schedule adjustment: disable decay schedule (`weight_decay_decay = false`) to keep Muon weight decay fixed at 0.2 through training; if it helps, we keep it.
+
+Running this scheduling variant now (`5bf3607`) with the standard 5-minute budget.
+
+I’ve got the final metric lines; updating `memory/results.tsv` and reverting if not improved.
+
+I haven’t found an improvement yet, so I’m trying a nearby optimizer tweak: increase `muon_ns_steps` from 5 to 6 to slightly smooth Muon updates.
+
+Running `b44fdb8` now; waiting for completion before metric extraction.
+
+Polling again to capture the completed summary for `b44fdb8`.
+
+I’m doing one learning-rate micro-tuning pass next: raise `unembedding_lr` slightly (0.004 → 0.005) while keeping the best architecture settings, to target faster LM head adaptation.
+
+Starting 5-minute training for `99928df` now.
+
+`99928df` is finished; I’ll read the summary and then either keep it or reset like the loop protocol requires.
+
+I’m exploring a nearby architecture point that didn’t trigger in previous larger/smaller extremes: `head_dim 64 → 48`, which gives slightly more heads (11) and small width increase (528). I’ll run this as one clean single change.
+
+`8d4812e` is running; I’ll capture final summary as soon as it exits and then branch according to result.
+
+I still see no consistent gains; testing one more width variant: `head_dim 64 → 80` (`n_head` drops to 7, `n_embd=560`) to check for a smoother attention bottleneck sweet spot.
+
+`59cd18c` run done; I’ll capture metrics and record/discard as needed.
+
+I’ll try a finer optimizer perturbation around the good matrix learning rate: `matrix_lr 0.06 → 0.065`, leaving other settings at the best-performing baseline.
+
+`1ab9363` finished; grabbing the `run.log` metrics now and applying the loop rule.
+
+I’ll attempt one final low-risk activation-scaling change: raise `softcap` from `15.0` to `20.0`, which may reduce logit saturation in this fixed budget setting.
+
+`ca67d3c` has completed. I’m reading the summary and finalizing keep/discard immediately.
+
+I’ll attempt a sequence-length batching variant: `sequence_len 2048 -> 1536` and `total_batch_size 524288 -> 393216` (keeps grad accumulation integer at 2). This increases optimizer update count for the same wall-clock budget and may sharpen early validation under this short horizon.
+
+That patch failed because the expected `total_batch_size` line was different from current config after resets. I’ll re-open the two lines, apply the intended update, and rerun.
+
+Parsing final metrics for the sequence-length change (`b06b450`) now.
+
+I’m at the checkpoint state after multiple full-duration trials; next I’ll summarize the run status and current best result for your review before deciding whether to continue.
+
+One more targeted change before I pause: remove LR scaling by matching `dmodel_lr_reference` to current model dim (`512`) and evaluate whether it helps generalization.
+
+`9f30194` has finished; extracting summary and closing this experiment turn according to the keep/revert rule.
+
+Experiment loop is running in the requested git-based protocol and is currently at the best kept checkpoint again.
+
+Current state:
+- Branch: `research-loops/may1`
+- Current commit: `c32267b`
+- Working tree: clean
+- Best result remains unchanged: `c32267b` with `val_bpb = 0.983074`, `memory_gb = 41.2`, `status=keep`
+- Latest experiments were all discarded (including one `crash`) and reverted per protocol.
+
+I logged every post-run outcome to:
+- [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy6-spark-4h-orchestrated-6-20260501-184607/research-loop/memory/results.tsv)
+
+Recent attempted commits and outcomes added after best:
+- `34fe197` crash (`0.000000`, `0.0`, `crash`)
+- `9d3446b` 1.007350 discard
+- `63935d4` 1.038644 discard
+- `f4e9149` 1.012980 discard
+- `a4c5ee6` 1.020307 discard
+- `74a1809` 1.037274 discard
+- `de7e3ca` 1.024650 discard
+- `5bf3607` 0.987153 discard
+- `b44fdb8` 1.058078 discard
+- `99928df` 1.073978 discard
+- `8d4812e` 1.030781 discard
+- `59cd18c` 1.042657 discard
+- `1ab9363` 1.018991 discard
+- `ca67d3c` 1.038760 discard
+- `b06b450` 1.018129 discard
+- `9f30194` 1.032786 discard
+
+Most recent `editable/config.toml` edits are no longer active; file is back to keep-state via reset to `c32267b`.
+tokens used
+417,044
+Experiment loop is running in the requested git-based protocol and is currently at the best kept checkpoint again.
+
+Current state:
+- Branch: `research-loops/may1`
+- Current commit: `c32267b`
+- Working tree: clean
+- Best result remains unchanged: `c32267b` with `val_bpb = 0.983074`, `memory_gb = 41.2`, `status=keep`
+- Latest experiments were all discarded (including one `crash`) and reverted per protocol.
+
+I logged every post-run outcome to:
+- [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy6-spark-4h-orchestrated-6-20260501-184607/research-loop/memory/results.tsv)
+
+Recent attempted commits and outcomes added after best:
+- `34fe197` crash (`0.000000`, `0.0`, `crash`)
+- `9d3446b` 1.007350 discard
+- `63935d4` 1.038644 discard
+- `f4e9149` 1.012980 discard
+- `a4c5ee6` 1.020307 discard
+- `74a1809` 1.037274 discard
+- `de7e3ca` 1.024650 discard
+- `5bf3607` 0.987153 discard
+- `b44fdb8` 1.058078 discard
+- `99928df` 1.073978 discard
+- `8d4812e` 1.030781 discard
+- `59cd18c` 1.042657 discard
+- `1ab9363` 1.018991 discard
+- `ca67d3c` 1.038760 discard
+- `b06b450` 1.018129 discard
+- `9f30194` 1.032786 discard
+
+Most recent `editable/config.toml` edits are no longer active; file is back to keep-state via reset to `c32267b`.

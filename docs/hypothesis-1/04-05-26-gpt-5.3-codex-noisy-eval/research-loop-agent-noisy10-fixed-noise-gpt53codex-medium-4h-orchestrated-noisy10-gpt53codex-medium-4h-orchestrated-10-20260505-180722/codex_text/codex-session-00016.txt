@@ -1,0 +1,60 @@
+I’m starting the research loop by checking whether prior results already exist so I can resume correctly, then I’ll either initialize branch/baseline or proceed directly to a new experiment.
+
+I found an active run history and resumed on `research-loops/may5`; best `val_bpb` is `0.989261` at commit `f259efa`. Next I’m reading the current `editable/` code and config to choose a targeted new change.
+
+I’ve confirmed current hyperparameters and need the rest of `train.py` (scheduler and optimizer update logic) before choosing the next tweak, so I’m reading the remaining sections now.
+
+I now have full training-loop context; I’m going to make one conservative scheduler tweak targeting better late-stage convergence while preserving stability, then commit and run a 5-minute trial.
+
+I’m applying a single config change: lower `final_lr_frac` from `0.05` to `0.04` to test whether a slightly deeper cooldown improves `val_bpb` without destabilizing throughput.
+
+The experiment commit is ready (`c92e0a3`). I’m launching the timed training run now and will collect only `metrics.json` when it finishes.
+
+Training is in progress in the background; I’m monitoring completion and will immediately parse `metrics.json` once the run exits.
+
+Run is still active and within budget; I’m continuing to wait for process exit before reading metrics.
+
+I’m still waiting on the same training process; once it exits I’ll extract `val_bpb` and VRAM from `metrics.json` and update the TSV.
+
+This run is taking longer than the nominal 5-minute train window due to startup/eval overhead, but it’s still under the 10-minute failure threshold; I’m continuing to wait.
+
+Training finished successfully. I’m now reading `metrics.json`, recording the result in `memory/results.tsv`, and reverting this commit if it didn’t beat the current best.
+
+I hit a minor command issue (`python` not on PATH) and switched to `uv run python`; metric extraction worked, and I’m finishing the best-score lookup before appending/discarding.
+
+This trial is clearly worse (`1.047440` vs best `0.989261`), so I’m logging it as `discard` and restoring the branch to the previous best commit state.
+
+I’ve logged the discard and reset to `f259efa`, but `git status` still shows local drift; I’m verifying and cleaning that file state so the next experiment starts from a clean baseline.
+
+State is clean again at `f259efa` (only untracked `metrics.json`, which is expected). I’m moving to the next experiment: a smaller momentum warmup (`500 -> 300`) to let Muon reach steady momentum earlier without the aggressiveness of the failed `100`-step setting.
+
+I’ve committed experiment `da9bbb8` and I’m running the 5-minute training trial now.
+
+Run is active; I’m waiting for completion and will read `metrics.json` only when it exits.
+
+The job is still running within expected limits, so I’m continuing to wait for a clean exit before recording results.
+
+It’s still in-flight after the long wait; I’m polling again and will enforce the 10-minute cap if needed.
+
+This run finished successfully. I’m extracting metrics, appending to `memory/results.tsv`, and then either keeping or reverting based on `val_bpb` against `0.989261`.
+
+Result is worse (`0.994446`), so I’m discarding this commit and restoring the branch to the previous best snapshot before continuing.
+
+Completed two experiments and updated memory log.
+
+- Current best remains `f259efa` with `val_bpb=0.989261`.
+- Branch state is restored to that best commit.
+- Logged results in `memory/results.tsv`:
+  - `c92e0a3	1.047440	41.1	discard	set final_lr_frac to 0.04`
+  - `da9bbb8	0.994446	41.1	discard	tune muon_momentum_warmup_steps to 300`
+- Working tree is clean for tracked files (`editable/` matches `f259efa`; only untracked `metrics.json` present).
+tokens used
+28,662
+Completed two experiments and updated memory log.
+
+- Current best remains `f259efa` with `val_bpb=0.989261`.
+- Branch state is restored to that best commit.
+- Logged results in `memory/results.tsv`:
+  - `c92e0a3	1.047440	41.1	discard	set final_lr_frac to 0.04`
+  - `da9bbb8	0.994446	41.1	discard	tune muon_momentum_warmup_steps to 300`
+- Working tree is clean for tracked files (`editable/` matches `f259efa`; only untracked `metrics.json` present).

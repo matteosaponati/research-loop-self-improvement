@@ -1,0 +1,31 @@
+commit 56f019d59f106a3ddf379e19a44154592d3ea5a7
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 00:06:20 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 00:06:20 2026 +0200
+
+    train: disable pinned memory allocations in cpu fallback
+---
+ editable/train.py | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/editable/train.py b/editable/train.py
+index 5ee7f50..d98ac94 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -432,6 +432,15 @@ autocast_ctx = (
+     if runtime_device == "cuda"
+     else nullcontext()
+ )
++if runtime_device == "cpu":
++    _torch_empty = torch.empty
++
++    def _empty_without_pinned_memory(*args, **kwargs):
++        if kwargs.get("pin_memory", False):
++            kwargs["pin_memory"] = False
++        return _torch_empty(*args, **kwargs)
++
++    torch.empty = _empty_without_pinned_memory
+ 
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()

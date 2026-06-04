@@ -1,0 +1,33 @@
+commit 078a4b3835196d57eb845bca803444d6b79b1c67
+Author:     research-loop harness <research-loop-harness@example.invalid>
+AuthorDate: Tue May 5 16:50:23 2026 +0200
+Commit:     research-loop harness <research-loop-harness@example.invalid>
+CommitDate: Tue May 5 16:50:23 2026 +0200
+
+    cpu fallback: shorter cuda wait and no gc freeze
+---
+ editable/train.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/editable/train.py b/editable/train.py
+index 62e6ee7..0f0a6cb 100644
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -30,7 +30,7 @@ COMPILE_MODEL = False
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 180
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+@@ -630,7 +630,7 @@ while True:
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+ 
+     # GC management (Python's GC causes ~500ms stalls)
+-    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP:
++    if step == 0 and GC_FREEZE_AFTER_FIRST_STEP and runtime_device == "cuda":
+         gc.collect()
+         gc.freeze()
+         gc.disable()

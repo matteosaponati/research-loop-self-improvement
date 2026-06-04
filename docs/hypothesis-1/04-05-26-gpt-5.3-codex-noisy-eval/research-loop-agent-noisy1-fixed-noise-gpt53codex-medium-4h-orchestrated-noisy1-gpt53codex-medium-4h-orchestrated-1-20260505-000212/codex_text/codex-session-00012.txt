@@ -1,0 +1,108 @@
+I’m starting the research loop by checking whether `memory/results.tsv` already has prior runs, verifying this is a valid git checkout, and confirming data/tokenizer artifacts exist so I can either resume or initialize correctly.
+
+I found an existing initialized run (`memory/results.tsv` already populated), so I’m resuming from the current branch state and now reading `editable/` + prior results to choose the next experiment.
+
+I’ve identified the current best `val_bpb` as `0.998682` (commit `7b1c418`). Next I’m scanning the remaining training-loop sections to target a high-impact change for this 5-minute budget.
+
+I’m proposing a narrow local search around the current best: reduce `matrix_lr` slightly from `0.045` to `0.044` since both higher (`0.046+`) and lower (`0.042`) were worse; this tests the likely optimum neighborhood with one controlled change. I’ll patch `editable/config.toml`, commit, run, and keep/reset based on `metrics.json`.
+
+I’ve made the single-parameter edit and will now capture the unified diff, commit it, and launch the 5-minute run with output redirected to `run.log`.
+
+Training is running in the background (`session 34874`). I’ll wait for completion, enforce the 10-minute ceiling, then read `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efbc5b1343258bc86bf470437c46e7470c0f..a062356ae7c02d2946bf678491cb70a3ad1729b5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run is still finishing post-training/eval work; I’m continuing to wait and will kill it if it crosses the 10-minute limit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efbc5b1343258bc86bf470437c46e7470c0f..a062356ae7c02d2946bf678491cb70a3ad1729b5
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.045
++matrix_lr = 0.044
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+`python` isn’t on PATH in this harness, so I’m reading `metrics.json` using `uv run` as required by this environment.
+
+The experiment regressed (`val_bpb 1.056181`), so I logged it as `discard` and reset the branch to the previous best commit (`7b1c418`). I’m starting the next trial now from this best point.
+
+Next experiment: increase `muon_momentum_end` slightly from `0.95` to `0.96` to probe between current best and the already-worse `0.97`. I’ll apply, commit, run, and keep/reset by metric.
+
+I’ve patched the config; now committing this single-change diff and launching the run.
+
+The second run is still in its final phase after timed training; I’m waiting for completion and will enforce the 10-minute cap if needed.
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efbc5b1343258bc86bf470437c46e7470c0f..7a6b7c5e87ae3f2340f02f32b9ac45c51052ecb3
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -50,5 +50,5 @@
+ final_lr_frac = 0.2
+ muon_momentum_warmup_steps = 40
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.96
+ weight_decay_decay = false
+
+
+Result is worse again (`1.039543`), so I’m recording it as `discard` and resetting to the best commit before moving to another direction.
+
+I’m continuing the loop with a finer schedule tweak: lowering `final_lr_frac` from `0.20` to `0.18` (both `0.15` and `0.25` were worse), then running the same commit/run/evaluate cycle.
+
+Run 3 is still in post-training/eval; I’m waiting for completion now and then I’ll record/revert according to `val_bpb`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 8943efbc5b1343258bc86bf470437c46e7470c0f..f36f7d616f1db5f7fccc6fe23993139be5ea9f35
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.2
+-final_lr_frac = 0.2
++final_lr_frac = 0.18
+ muon_momentum_warmup_steps = 40
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Completed 3 new experiments and logged all to `memory/results.tsv`, then reset each discard to keep the branch on the best commit.
+
+New experiment results:
+1. `8b79896` `val_bpb=1.056181` `discard` - lower muon matrix lr to `0.044`
+2. `92ae0b9` `val_bpb=1.039543` `discard` - raise muon momentum end to `0.96`
+3. `d4cde69` `val_bpb=1.047293` `discard` - lower final lr fraction to `0.18`
+
+Current state:
+1. Branch: `research-loops/may5`
+2. HEAD: `7b1c418`
+3. Best so far remains `val_bpb=0.998682` at `7b1c418` (`shorten muon momentum warmup from 100 to 40`)
+tokens used
+42,559
+Completed 3 new experiments and logged all to `memory/results.tsv`, then reset each discard to keep the branch on the best commit.
+
+New experiment results:
+1. `8b79896` `val_bpb=1.056181` `discard` - lower muon matrix lr to `0.044`
+2. `92ae0b9` `val_bpb=1.039543` `discard` - raise muon momentum end to `0.96`
+3. `d4cde69` `val_bpb=1.047293` `discard` - lower final lr fraction to `0.18`
+
+Current state:
+1. Branch: `research-loops/may5`
+2. HEAD: `7b1c418`
+3. Best so far remains `val_bpb=0.998682` at `7b1c418` (`shorten muon momentum warmup from 100 to 40`)

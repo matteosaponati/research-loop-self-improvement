@@ -1,0 +1,68 @@
+I’m starting the research loop by checking whether prior results already exist so I can either resume immediately or perform the one-time setup sequence exactly as specified.
+
+I found an initialized run with existing results (`memory/results.tsv` has entries), so I’m resuming from the current branch and moving straight to designing the next experiment from `editable/` context and prior outcomes.
+
+I’ve loaded prior results and config; next I’m pinpointing the LR/momentum schedule logic in `train.py` to choose the highest-probability next tweak for lower `val_bpb`.
+
+I found the schedule section and the current best came from adding warmup; I’m going to run a focused follow-up by increasing `warmup_ratio` in `editable/config.toml` to test if slightly longer ramp improves final `val_bpb` in the fixed 5-minute budget.
+
+The experiment commit is ready (`warmup_ratio` 2% → 4%); I’m running the 5-minute training job now and will read only `metrics.json` when it finishes.
+
+Training is in progress under a timeout guard; I’m waiting for completion, then I’ll parse `metrics.json`, log the result, and keep or reset based on `val_bpb` vs the current best.
+
+Run is still active and within the allowed window. I’m continuing to wait and will only inspect `metrics.json` unless the run fails.
+
+I’m still waiting on the training process; once it exits, I’ll immediately extract metrics, append `memory/results.tsv`, and apply keep/discard reset logic.
+
+Training finished successfully. I’m now reading `metrics.json`, updating `memory/results.tsv`, and deciding whether to keep this commit or reset based on best `val_bpb`.
+
+The shell has no direct `python` binary, so I’m re-running the metrics parsing with `uv run` and then applying the keep/discard decision.
+
+This run is worse than the best (`1.020826` vs `0.995128`), so I’m marking it `discard`, resetting the branch to the previous commit, and confirming the log entry.
+
+I’m continuing the loop with a new hypothesis: keep warmup at 2% (best so far) and test a longer `warmdown_ratio` so the LR decays more gently near the end of the 5-minute budget.
+
+The new commit is ready (`warmdown_ratio` 0.2 → 0.3). I’m launching the next timed run and will evaluate via `metrics.json` only.
+
+Second experiment is running under timeout guard. After completion I’ll parse `metrics.json`, append to `memory/results.tsv`, and keep or discard with reset.
+
+Run is still active and within limits; I’m continuing to wait for clean completion before collecting metrics.
+
+This run hit the 10-minute guard (`timeout` exit 124), so per protocol I’m treating it as a failed run, logging it as `crash`, and resetting to the prior commit.
+
+Completed two new experiments and continued the loop correctly from existing state.
+
+- Current branch/head: `research-loops/may5` at `b88aca6` (best-so-far commit unchanged)
+- Best `val_bpb` remains: `0.995128` (commit `b88aca6`)
+
+Experiments run this turn:
+1. `d86ca7a` (`warmup_ratio 0.02 -> 0.04`)
+- Result: `val_bpb=1.020826`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Logged as `discard`
+- Reverted via `git reset --hard HEAD~1`
+
+2. `7f07134` (`warmdown_ratio 0.2 -> 0.3`)
+- Result: timed out (`EXIT:124`, exceeded 10-minute guard)
+- Logged as `crash` with `0.000000` / `0.0`
+- Reverted via `git reset --hard HEAD~1`
+
+`memory/results.tsv` has been updated with both rows.
+tokens used
+31,687
+Completed two new experiments and continued the loop correctly from existing state.
+
+- Current branch/head: `research-loops/may5` at `b88aca6` (best-so-far commit unchanged)
+- Best `val_bpb` remains: `0.995128` (commit `b88aca6`)
+
+Experiments run this turn:
+1. `d86ca7a` (`warmup_ratio 0.02 -> 0.04`)
+- Result: `val_bpb=1.020826`, `peak_vram_mb=42060.45` (`41.1 GB`)
+- Logged as `discard`
+- Reverted via `git reset --hard HEAD~1`
+
+2. `7f07134` (`warmdown_ratio 0.2 -> 0.3`)
+- Result: timed out (`EXIT:124`, exceeded 10-minute guard)
+- Logged as `crash` with `0.000000` / `0.0`
+- Reverted via `git reset --hard HEAD~1`
+
+`memory/results.tsv` has been updated with both rows.

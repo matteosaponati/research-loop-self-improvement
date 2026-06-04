@@ -1,0 +1,74 @@
+I’m starting the research loop by checking whether prior experiment memory already exists, then I’ll either resume from it or initialize a fresh branch/baseline exactly per your protocol.
+
+A prior results history exists, so I’m resuming from the current branch/state and moving directly to proposing the next experiment after reviewing `editable/` and past outcomes.
+
+I’ve pulled prior results and current hyperparameters; best so far is `0.989261` with `final_lr_frac=0.05`. Next I’m scanning the remaining scheduler/optimizer code paths in `train.py` to pick a high-leverage, low-risk change.
+
+I found the scheduler is still mostly flat then linearly cools to `0.05`; with this short budget, a slightly lower floor is a plausible next move. I’m applying a single-parameter experiment (`final_lr_frac` to `0.02`), then I’ll show the unified diff, commit, run, and record/keep-or-revert based on `metrics.json`.
+
+I’ve made the change and captured the diff. Next I’m committing this experiment and launching the 5-minute run with output redirected to `run.log`.
+
+The training run is in progress under a timeout guard; I’m waiting for completion, then I’ll read `metrics.json` only and update `memory/results.tsv`.
+
+Run still executing normally. I’m continuing to wait for completion before collecting metrics.
+
+Still running within expected duration; I’ll keep waiting and then immediately evaluate against the current best `0.989261`.
+
+I’m monitoring until the process exits, then I’ll parse only `metrics.json` and apply keep/discard logic with git reset if needed.
+
+Training is still active; I’ll continue waiting for termination and then finalize this experiment record.
+
+This should be near completion now; once it exits I’ll immediately compute outcome and update the TSV row.
+
+The process is still running but remains under the 10-minute failure threshold. I’m continuing to wait for a clean finish.
+
+I’m still waiting on the guarded run command; once it returns I’ll proceed straight to metrics extraction and branch advancement/revert.
+
+The run completed successfully. I’m now reading `metrics.json`, logging the result to `memory/results.tsv`, and applying keep/discard with a git reset if it did not beat the best score.
+
+The shell doesn’t have `python` directly on PATH here, so I’m using `uv run` for metrics parsing and result comparison.
+
+I have the new run’s metrics (`val_bpb 1.002114`), which is clearly worse than the known best. I’m finalizing the comparison command, then I’ll append a `discard` row and reset the commit.
+
+I’ve reverted to the best-known commit and logged the discarded trial. I’m proceeding immediately with a new experiment: keep `final_lr_frac=0.05` and test a gentler decay by reducing `warmdown_ratio` from `0.3` to `0.25` to keep peak LR longer.
+
+The second run is now active with the new `warmdown_ratio` schedule. I’ll wait for completion, then read `metrics.json`, log the row, and keep or reset based on improvement.
+
+Run is still progressing normally under timeout. I’m continuing to wait for finish before collecting metrics.
+
+Still in-flight. Once it exits, I’ll immediately compare against `0.989261` and apply keep/discard.
+
+I’m continuing to monitor this run; no crash indicators so far. I’ll finalize and log as soon as the process returns.
+
+The experiment is still running within limits. I’ll keep waiting and then do metrics-only evaluation and branch decision.
+
+Near the expected completion window now; I’m waiting for process exit to record this trial.
+
+Still active and under guard; I’m holding until completion and will then immediately apply the keep/revert logic.
+
+I’m still blocked on this run command returning; it hasn’t exceeded the 10-minute cutoff yet, so I’m continuing to wait.
+
+The run has finished. I’m now extracting `metrics.json`, logging the result, and either keeping this commit or resetting based on whether it beats the current best.
+
+Experiment loop is running and resumed correctly from existing memory on `research-loops/may5`.
+
+Completed new trials:
+- `5526277` `val_bpb=1.002114` `peak_vram=41.1 GB` `discard`  
+  change: `final_lr_frac 0.05 -> 0.02`
+- `6b41fc2` `val_bpb=1.005311` `peak_vram=41.1 GB` `discard`  
+  change: `warmdown_ratio 0.3 -> 0.25`
+
+Both were worse than best keep `0.989261`, so both commits were reverted via reset, and branch head is back at `f259efa` (best-known config).  
+`memory/results.tsv` is updated with both discard rows.
+tokens used
+28,179
+Experiment loop is running and resumed correctly from existing memory on `research-loops/may5`.
+
+Completed new trials:
+- `5526277` `val_bpb=1.002114` `peak_vram=41.1 GB` `discard`  
+  change: `final_lr_frac 0.05 -> 0.02`
+- `6b41fc2` `val_bpb=1.005311` `peak_vram=41.1 GB` `discard`  
+  change: `warmdown_ratio 0.3 -> 0.25`
+
+Both were worse than best keep `0.989261`, so both commits were reverted via reset, and branch head is back at `f259efa` (best-known config).  
+`memory/results.tsv` is updated with both discard rows.

@@ -1,0 +1,92 @@
+I’m starting the research loop now: first I’ll check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your setup rules.
+
+I found an existing initialized run (`memory/results.tsv` has 27 results), so I’m resuming from the current branch and skipping setup/baseline. Next I’ll read `editable/` and previous results to choose the next experiment.
+
+I’ve loaded prior results and config; best so far is `0.991891` from warmdown ratio `0.55`. I’m now checking the scheduler/training sections in `train.py` to pick a high-probability next change.
+
+I identified the next test as a momentum-schedule tweak while keeping the best LR shape: I’ll change `muon_momentum_end` from `0.95` to `0.96`, commit it, run, and keep only if `val_bpb` improves over `0.991891`.
+
+The edit is committed as `859580d`; I’m running the 5-minute training now and will read only `metrics.json` for result collection.
+
+Training is in progress in the background; I’m waiting for completion and then I’ll parse `metrics.json` and apply keep/revert logic.
+
+Run is still executing within the expected window; I’m continuing to wait and will finalize as soon as it exits.
+
+I’m still waiting on the process; once it exits I’ll immediately capture metrics, append `memory/results.tsv`, and reset if this is not a new best.
+
+The training command is still active but under the 10-minute failure limit; I’m continuing to monitor until completion.
+
+I’m still polling the run session; no completion signal yet, so I’ll keep waiting and enforce the timeout outcome automatically.
+
+The run finished successfully; I’m now reading `metrics.json`, logging the result to `memory/results.tsv`, and applying keep/discard by comparing against the best historical `val_bpb`.
+
+I hit an environment detail (`python` not on PATH), so I’m re-reading metrics using `uv run` and proceeding with the same keep/revert flow.
+
+I’ve discarded that commit and restored the code state; next I’m testing a smaller terminal LR by changing `final_lr_frac` from `0.01` to `0.005` while keeping the winning warmdown setting.
+
+I committed `5f0593a` and started the next run; after it completes I’ll parse `metrics.json`, log to TSV, and keep/reset based on `0.991891`.
+
+Second experiment is running; I’m monitoring the session and will process results immediately when it exits.
+
+The process is still active and within limits; I’m continuing to wait on completion.
+
+I’m still waiting for the run to finish; once done I’ll read only `metrics.json`, update `memory/results.tsv`, and apply keep/discard.
+
+Run is still in progress; I’m keeping it under watch and will finalize the decision as soon as it returns.
+
+The training command hasn’t exited yet, but it’s still below the failure timeout threshold; I’ll keep polling.
+
+This run completed with worse validation (`1.011233`), so I’m recording it as `discard` and resetting to the prior best code state before continuing the next experiment.
+
+Experiment loop resumed and I ran 2 new experiments end-to-end (commit → run → metrics.json → log → keep/discard).
+
+Results appended to `memory/results.tsv`:
+- `859580d` | `val_bpb=1.031448` | `41.1 GB` | `discard` | increase `muon_momentum_end` to `0.96`
+- `5f0593a` | `val_bpb=1.011233` | `41.1 GB` | `discard` | lower `final_lr_frac` to `0.005`
+
+Both were worse than current best `0.991891`, so I reset code back to commit `9ec63f8` after each run.
+
+Current best remains:
+- `830c1f5` | `val_bpb=0.991891` | `keep`
+
+Latest diffs tested:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.96
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.01
++final_lr_frac = 0.005
+```
+tokens used
+53,558
+Experiment loop resumed and I ran 2 new experiments end-to-end (commit → run → metrics.json → log → keep/discard).
+
+Results appended to `memory/results.tsv`:
+- `859580d` | `val_bpb=1.031448` | `41.1 GB` | `discard` | increase `muon_momentum_end` to `0.96`
+- `5f0593a` | `val_bpb=1.011233` | `41.1 GB` | `discard` | lower `final_lr_frac` to `0.005`
+
+Both were worse than current best `0.991891`, so I reset code back to commit `9ec63f8` after each run.
+
+Current best remains:
+- `830c1f5` | `val_bpb=0.991891` | `keep`
+
+Latest diffs tested:
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.96
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-final_lr_frac = 0.01
++final_lr_frac = 0.005
+```

@@ -1,0 +1,43 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or perform the required first-time setup path.
+
+I found an initialized run with existing `memory/results.tsv`, so I’m resuming from current branch and moving to the next experiment by reading `editable/` files and prior results.
+
+I’ve loaded the current code and prior trials; next I’m extracting the best historical `val_bpb` and then I’ll make one targeted config tweak around that basin before running a new 5-minute trial.
+
+I identified the best run at `0.991891` with `warmdown_ratio=0.55`; I’m now testing a nearby optimizer-shape change by raising `muon_momentum_start` slightly to reduce early underdamping while keeping that schedule intact.
+
+I’ve committed the experiment and I’m launching the 5-minute training run now; once it ends I’ll read `metrics.json`, log the row, and keep or reset based on `val_bpb`.
+
+The run is in progress in the background session; I’m waiting for completion and will collect metrics immediately when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..4860a40c524e4abe84cc05a62f09e6ae06c87a4f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.88
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training is still running past the first wait window, so I’m polling once more; if total wall time crosses 10 minutes I’ll terminate and mark failure per the loop rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index 12f32145b0c917d2d44de77b81e52e69bc9a74bc..4860a40c524e4abe84cc05a62f09e6ae06c87a4f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.55
+ final_lr_frac = 0.01
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.88
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+This trial regressed (`1.031928`), so I’m reverting the code commit to continue from the prior best branch state while keeping the logged result in `memory/results.tsv`.
+
+I’m continuing the loop with another nearby sweep point: `warmdown_ratio=0.56` (between the best `0.55` and worse `0.58`) to test whether a slightly longer decay helps.

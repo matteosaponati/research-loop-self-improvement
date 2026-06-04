@@ -1,0 +1,165 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs, verify git state and data artifacts, then either resume or initialize branch/baseline exactly per your protocol.
+
+I found an existing initialized loop (`memory/results.tsv` has 33 result rows), so I’m resuming from the current branch/state without re-initialization and moving directly to proposing the next experiment from current best.
+
+I’ve identified the current best as `0.999101` and will test a single high-impact change next: halve `total_batch_size` to `262144` to double optimizer-step frequency within the fixed 5-minute budget. I’ll patch `editable/config.toml`, commit, run, then keep/reset based on `val_bpb`.
+
+I’ve made the config edit; next I’m recording the exact unified diff, committing it, and launching the 5-minute run with output redirected to `run.log`.
+
+The experiment run is in progress under a hard timeout guard (`610s`) to enforce your failure rule. I’ll read only `metrics.json` when it exits and then decide keep vs reset.
+web search: 
+web search: time: {"utc_offset":"+02:00"}
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m still waiting on the training process; once it returns I’ll parse `metrics.json`, append `memory/results.tsv`, and immediately keep or discard via git reset based on improvement.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+Run is still active and within the allowed window. I’ll continue monitoring and only inspect `run.log` if `metrics.json` is missing/invalid at the end.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+I’m polling the same run session; no output is being streamed by design due redirection, so I’m waiting for process completion to collect metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..606d16d0c6d8c36c2ea1ba7b322b058512f0246a
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -8,7 +8,7 @@
+ 
+ # Data and run budget
+ sequence_len = 2048
+-total_batch_size = 524288
++total_batch_size = 262144
+ device_batch_size = 128
+ dataloader_buffer_size = 1000
+ tokenizer_batch_size = 128
+
+
+The run finished successfully; I’m now extracting `metrics.json` and updating `memory/results.tsv`, then I’ll reset the experiment commit if it did not beat the current best `val_bpb`.
+
+I discarded that commit and reset back to the best checkpoint (`1617173`). I’m immediately launching the next experiment: adjust `softcap` from `15.0` to `20.0` to reduce logit clipping pressure and test whether it improves validation bpb.
+
+Completed one full experiment cycle and continued autonomously until blocked by harness policy.
+
+- Resumed existing loop on branch `research-loops/may5` (no re-init, as `memory/results.tsv` already had prior rows).
+- Ran experiment commit `54272d0`: changed `total_batch_size` `524288 -> 262144`.
+- Training completed successfully; `metrics.json` result:
+  - `val_bpb = 1.049956`
+  - `peak_vram_mb = 41940.4` (`41.0 GB` rounded)
+- Logged to `memory/results.tsv`:
+  - `54272d0	1.049956	41.0	discard	halve total_batch_size to 262144 (grad_accum 1)`
+- Since worse than best (`0.999101`), reset branch back to `1617173` as required.
+
+I then prepared the next edit (`softcap 15.0 -> 20.0`), but the environment refused `git commit` with:
+`HARNESS_SOFT_DEADLINE_REACHED: 718s remain; refusing git commit`.
+
+Current state now:
+- HEAD: `1617173`
+- `editable/config.toml` has an uncommitted `softcap` change staged in working tree (not yet committed/run).
+diff --git a/editable/config.toml b/editable/config.toml
+index 7f600ba9cd31d5a1905a378625c592a8f49c0236..0b0a414ef8bdf98c51b6861d87db293702adbe78
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -21,7 +21,7 @@
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+

@@ -1,0 +1,3581 @@
+I’m starting the research loop now: first I’ll check whether `memory/results.tsv` already has prior runs so I can either resume immediately or do the required branch/baseline setup.
+
+I found an existing experiment history with prior rows, so I’m resuming from the current branch/state and moving directly to a new experiment by re-reading `editable/` and results context.
+
+I identified the core blocker: repeated CUDA unavailability leads to CPU fallback that still uses GPU-sized hyperparameters and gets killed. I’m editing `editable/train.py` to use a much smaller CPU-only runtime config path so fallback runs can complete and produce `metrics.json`.
+
+I’m cleaning up a few duplicate assignment lines introduced by the patch so the experiment code is minimal and unambiguous before committing and running.
+
+Code is committed as a single experiment (`0f8eae2`). I’m running the 5-minute training job now and will collect results strictly from `metrics.json` afterward.
+
+The training process is running in the background. I’m waiting for completion and then I’ll parse `metrics.json` and update `memory/results.tsv`.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+Still running; I’m continuing to wait without reading `run.log`, and will only inspect it if the run fails and `metrics.json` is missing.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+I’m still waiting on the training process; next step remains reading `metrics.json` and logging the result.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+The run is still active; I’ll keep waiting and then immediately record keep/discard based on `val_bpb`.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8996c3d6659300edd3c47934958aa3e20413a919
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -452,17 +452,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +506,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +528,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +624,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +646,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +661,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +672,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +683,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +694,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +711,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+ exited 1 in 366023ms:
+
+The run exited with code 1. I’m checking `metrics.json` first; if it’s missing/invalid I’ll classify this experiment as a crash and then inspect minimal crash context.
+
+`metrics.json` is missing, so this is a crash. I’m doing a minimal crash diagnosis from `run.log` now, then I’ll log it in `memory/results.tsv` and reset to the pre-experiment commit.
+
+I diagnosed the crash: CPU fallback still hits a bf16/float dtype mismatch in attention projection. I’m recording this as a `crash` in `memory/results.tsv` and resetting to the pre-experiment commit per loop rules.
+
+I’m continuing with the next iteration immediately. The next experiment will directly fix the CPU dtype mismatch by avoiding bf16 embedding casting when running on CPU.
+
+I restored the small-runtime CPU fallback commit and I’m now layering the dtype fix on top so this next run can train instead of failing at the first forward pass.
+
+I’ve committed experiment `20be928` and I’m running training again now. After it finishes, I’ll read `metrics.json` and decide keep/discard.
+
+The second run is in progress. I’m waiting for completion and will only use `metrics.json` for result collection unless it crashes.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+Still running; once it exits I’ll log to `memory/results.tsv` and apply keep/reset automatically.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+Training is still active; I’m continuing to wait and will enforce the crash/keep/discard flow as soon as it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..8bd886df73ef54eeab7f8b08b65c798844b681c8
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -452,17 +453,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +507,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +529,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +625,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +647,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +662,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +673,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +684,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +695,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +712,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+ exited 1 in 322667ms:
+
+Crash cause is now clear: `@torch.compile` on optimizer kernels triggers inductor/CUDA initialization even in CPU fallback. I’m logging this crash and resetting, then I’ll run a new experiment that disables compiled optimizer kernels.
+
+Next experiment: I’m removing compiled optimizer kernels so CPU fallback won’t trigger inductor/CUDA paths. Then I’ll rerun training.
+
+I committed experiment `603024f` with both CPU dtype and compile-path fixes, and I’m launching the next run now.
+
+This run is currently active; I’m waiting for completion, then I’ll read `metrics.json`, log to `memory/results.tsv`, and keep/reset automatically.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..62e6ee742f7fe1553c68eb4725e8fcdf543ac75c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -288,7 +289,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -299,7 +299,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -452,17 +451,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +505,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +527,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +623,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +645,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +660,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +671,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +682,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +693,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +710,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..62e6ee742f7fe1553c68eb4725e8fcdf543ac75c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -288,7 +289,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -299,7 +299,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -452,17 +451,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +505,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +527,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +623,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +645,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +660,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +671,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +682,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +693,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +710,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..62e6ee742f7fe1553c68eb4725e8fcdf543ac75c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -288,7 +289,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -299,7 +299,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -452,17 +451,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +505,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +527,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +623,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +645,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +660,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +671,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +682,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +693,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +710,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+The process is still running after an extended wait (likely spending time in CUDA wait window plus training). I’m checking once more and will kill it if it crosses the 10-minute failure threshold.
+diff --git a/editable/train.py b/editable/train.py
+index 4549e02cc32ce237c5fa937b8c74fb64313f9303..62e6ee742f7fe1553c68eb4725e8fcdf543ac75c
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -190,8 +190,9 @@
+         head_dim = self.config.n_embd // self.config.n_head
+         cos, sin = self._precompute_rotary_embeddings(self.rotary_seq_len, head_dim)
+         self.cos, self.sin = cos, sin
+-        # Cast embeddings to bf16
+-        self.transformer.wte.to(dtype=torch.bfloat16)
++        # Keep CPU path in fp32 to avoid bf16/fp32 mismatch in Linear matmuls.
++        if self.transformer.wte.weight.device.type == "cuda":
++            self.transformer.wte.to(dtype=torch.bfloat16)
+ 
+     def _precompute_rotary_embeddings(self, seq_len, head_dim, base=None, device=None):
+         if base is None:
+@@ -288,7 +289,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -299,7 +299,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -452,17 +451,32 @@
+     else nullcontext()
+ )
+ 
++if runtime_device == "cpu":
++    runtime_sequence_len = 256
++    runtime_device_batch_size = 8
++    runtime_total_batch_size = 8192
++    runtime_depth = max(2, min(CONFIG.depth, 4))
++    runtime_dataloader_buffer_size = 32
++    runtime_tokenizer_batch_size = 16
++else:
++    runtime_sequence_len = CONFIG.sequence_len
++    runtime_device_batch_size = CONFIG.device_batch_size
++    runtime_total_batch_size = CONFIG.total_batch_size
++    runtime_depth = CONFIG.depth
++    runtime_dataloader_buffer_size = CONFIG.dataloader_buffer_size
++    runtime_tokenizer_batch_size = CONFIG.tokenizer_batch_size
++
+ tokenizer = prepare.Tokenizer.from_directory(os.path.expanduser(str(prepare.TOKENIZER_DIR)))
+ vocab_size = tokenizer.get_vocab_size()
+ print(f"Vocab size: {vocab_size:,}")
+ 
+ def build_model_config():
+-    base_dim = CONFIG.depth * CONFIG.aspect_ratio
++    base_dim = runtime_depth * CONFIG.aspect_ratio
+     model_dim = ((base_dim + CONFIG.head_dim - 1) // CONFIG.head_dim) * CONFIG.head_dim
+     num_heads = model_dim // CONFIG.head_dim
+     return GPTConfig(
+-        sequence_len=CONFIG.sequence_len, vocab_size=vocab_size,
+-        n_layer=CONFIG.depth, n_head=num_heads, n_embd=model_dim,
++        sequence_len=runtime_sequence_len, vocab_size=vocab_size,
++        n_layer=runtime_depth, n_head=num_heads, n_embd=model_dim,
+         mlp_hidden_multiplier=CONFIG.mlp_hidden_multiplier,
+         rotary_seq_len_multiplier=CONFIG.rotary_seq_len_multiplier,
+         rotary_base=CONFIG.rotary_base,
+@@ -491,9 +505,9 @@
+ num_flops_per_token = model.estimate_flops()
+ print(f"Estimated FLOPs per token: {num_flops_per_token:e}")
+ 
+-tokens_per_fwdbwd = CONFIG.device_batch_size * CONFIG.sequence_len
+-assert CONFIG.total_batch_size % tokens_per_fwdbwd == 0
+-grad_accum_steps = CONFIG.total_batch_size // tokens_per_fwdbwd
++tokens_per_fwdbwd = runtime_device_batch_size * runtime_sequence_len
++assert runtime_total_batch_size % tokens_per_fwdbwd == 0
++grad_accum_steps = runtime_total_batch_size // tokens_per_fwdbwd
+ 
+ optimizer = model.setup_optimizer(
+     unembedding_lr=CONFIG.unembedding_lr,
+@@ -513,11 +527,11 @@
+ 
+ train_loader = prepare.make_dataloader(
+     tokenizer,
+-    CONFIG.device_batch_size,
+-    CONFIG.sequence_len,
++    runtime_device_batch_size,
++    runtime_sequence_len,
+     "train",
+-    buffer_size=CONFIG.dataloader_buffer_size,
+-    tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++    buffer_size=runtime_dataloader_buffer_size,
++    tokenizer_batch_size=runtime_tokenizer_batch_size,
+     device=runtime_device,
+ )
+ def next_batch(loader):
+@@ -609,8 +623,8 @@
+     smooth_train_loss = ema_beta * smooth_train_loss + (1 - ema_beta) * train_loss_f
+     debiased_smooth_loss = smooth_train_loss / (1 - ema_beta**(step + 1))
+     pct_done = 100 * progress
+-    tok_per_sec = int(CONFIG.total_batch_size / dt)
+-    mfu = 100 * num_flops_per_token * CONFIG.total_batch_size / dt / CONFIG.h100_bf16_peak_flops
++    tok_per_sec = int(runtime_total_batch_size / dt)
++    mfu = 100 * num_flops_per_token * runtime_total_batch_size / dt / CONFIG.h100_bf16_peak_flops
+     remaining = max(0, TIME_BUDGET_SECONDS - total_training_time)
+ 
+     print(f"\rstep {step:05d} ({pct_done:.1f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt*1000:.0f}ms | tok/sec: {tok_per_sec:,} | mfu: {mfu:.1f}% | epoch: {epoch} | remaining: {remaining:.0f}s    ", end="", flush=True)
+@@ -631,7 +645,7 @@
+ 
+ print()  # newline after \r training log
+ 
+-total_tokens = step * CONFIG.total_batch_size
++total_tokens = step * runtime_total_batch_size
+ 
+ # Final eval
+ model.eval()
+@@ -646,10 +660,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ else:
+@@ -657,10 +671,10 @@
+         metric_value = evaluate_model(
+             model,
+             tokenizer,
+-            CONFIG.device_batch_size,
+-            sequence_len=CONFIG.sequence_len,
+-            buffer_size=CONFIG.dataloader_buffer_size,
+-            tokenizer_batch_size=CONFIG.tokenizer_batch_size,
++            runtime_device_batch_size,
++            sequence_len=runtime_sequence_len,
++            buffer_size=runtime_dataloader_buffer_size,
++            tokenizer_batch_size=runtime_tokenizer_batch_size,
+             device=runtime_device,
+         )
+ 
+@@ -668,7 +682,7 @@
+ t_end = time.time()
+ startup_time = t_start_training - t_start
+ timed_steps = step - WARMUP_STEPS_EXCLUDED_FROM_TIMING
+-steady_state_mfu = 100 * num_flops_per_token * CONFIG.total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
++steady_state_mfu = 100 * num_flops_per_token * runtime_total_batch_size * timed_steps / total_training_time / CONFIG.h100_bf16_peak_flops if total_training_time > 0 else 0
+ peak_vram_mb = torch.cuda.max_memory_allocated() / 1024 / 1024 if runtime_device == "cuda" else 0.0
+ metrics = {
+     "val_bpb": float(metric_value),
+@@ -679,7 +693,7 @@
+     "total_tokens_M": float(total_tokens / 1e6),
+     "num_steps": int(step),
+     "num_params_M": float(num_params / 1e6),
+-    "depth": int(CONFIG.depth),
++    "depth": int(runtime_depth),
+ }
+ metrics_tmp_path = METRICS_PATH.with_suffix(".json.tmp")
+ with metrics_tmp_path.open("w", encoding="utf-8") as f:
+@@ -696,4 +710,4 @@
+ print(f"total_tokens_M:   {total_tokens / 1e6:.1f}")
+ print(f"num_steps:        {step}")
+ print(f"num_params_M:     {num_params / 1e6:.1f}")
+-print(f"depth:            {CONFIG.depth}")
++print(f"depth:            {runtime_depth}")
+
+
+The run has crossed the allowed runtime window. I’m force-stopping it now and marking it as a failed run per the 10-minute rule.

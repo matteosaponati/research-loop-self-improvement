@@ -1,0 +1,338 @@
+I’m starting the research loop now by checking git state, branch status, prior `memory/results.tsv`, and whether setup is already initialized so I can either resume or do the fresh baseline path.
+
+I found a fresh state: no `memory/results.tsv` yet, so I’ll do full setup next (new branch, data/tokenizer check, initialize results, baseline run).
+
+Branch namespace is clear and data/tokenizer links exist, so I’m creating `research-loops/may5`, initializing `memory/results.tsv`, then launching the baseline run (about 5 minutes).
+
+Baseline training is running in the background session now; I’m polling it until completion and will treat anything beyond 10 minutes as failure.
+
+Training is still running normally with no terminal output (as expected due to redirection); continuing to wait.
+
+Still in progress. I’m continuing to poll and will stop it if it crosses the 10-minute ceiling.
+
+Run is ongoing; I’m waiting for the process to exit before reading `metrics.json`.
+
+Baseline is still active, so I’m continuing the wait loop.
+
+I’m at the expected completion window now and polling for process exit.
+
+Baseline finished successfully. I’m now reading `metrics.json`, logging baseline to `memory/results.tsv`, then I’ll inspect `editable/` to design the first experiment.
+
+The environment has no plain `python` on PATH, so I’m using `uv run python` to parse `metrics.json` and append the baseline row.
+
+Baseline is recorded (`val_bpb=0.998475`). Next I’m reading `editable/train.py`, `editable/config.toml`, and `editable/config_loader.py` to choose a targeted first change.
+
+I have config context; I’m reading the rest of `train.py` now to target a high-impact change likely to improve 5-minute validation efficiency.
+
+I’ve identified likely high-leverage knobs: short-horizon optimization schedule and regularization strength in `config.toml`. I’m checking the tail of `train.py` and current git status, then I’ll apply one focused config-only experiment and run it.
+
+I’m making a single controlled experiment in `editable/config.toml`: add a small warmup and soften embedding LR to reduce early instability in this short 5-minute horizon. I’ll commit just that file, then run.
+
+Committed experiment `f272ebd` with the diff above. I’m running training now and will score from `metrics.json` only.
+
+Experiment run is active; I’m polling to completion and enforcing the 10-minute cutoff rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Run still in progress with output redirected; continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Still running, no crash signal yet. I’m continuing the polling loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Experiment remains active; I’ll keep waiting for process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Approaching expected finish window now; polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d4fc26defea3b2867b71bbf40a5c0e0b6d946d7e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@
+ init_matrix_scale = 1.7320508075688772
+ 
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.45
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+ weight_decay = 0.2
+@@ -45,9 +45,9 @@
+ muon_beta2 = 0.95
+ 
+ # Schedules
+-warmup_ratio = 0.0
++warmup_ratio = 0.02
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+Training completed successfully. I’m reading `metrics.json`, appending this trial to `memory/results.tsv`, then deciding keep/discard by comparing against baseline best.
+
+This trial regressed (`1.005624` vs baseline `0.998475`), so I’m resetting branch state back to the pre-experiment commit per loop rules, then launching the next hypothesis.
+
+Next experiment will test lighter regularization for this short budget: reducing `weight_decay` only, keeping all other baseline settings fixed to isolate effect.
+
+Committed `660aa79` (single-parameter change). I’m running the experiment now.
+
+Run is in progress; I’m polling to completion and will record/keep-or-revert immediately after it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still running normally with redirected logs; continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Experiment remains active; I’m continuing the polling loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+No exit yet; continuing to wait for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Approaching the expected finish window now, polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still active; one more poll should catch process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..9dfe10b62fc81dd2e946a8415193760e06bb319e
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Run finished. I’m reading `metrics.json`, writing this row to `memory/results.tsv`, and applying keep/discard with git reset if needed.
+
+Initialized and started the loop on branch `research-loops/may5`, ran baseline, and completed two experiments.
+
+Current best is still baseline:
+
+- `2bf028d` → `val_bpb=0.998475`, `memory_gb=41.1` (`keep`)
+
+Completed experiments:
+
+- `f272ebd` → `val_bpb=1.005624`, `memory_gb=41.1` (`discard`)  
+  Change: `embedding_lr 0.6→0.45`, `warmup_ratio 0.0→0.02`, `final_lr_frac 0.0→0.1`
+- `660aa79` → `val_bpb=1.004009`, `memory_gb=41.1` (`discard`)  
+  Change: `weight_decay 0.2→0.1`
+
+Per loop rules, both worse commits were reverted; HEAD is back at `2bf028d`.
+
+Results log is updated at [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-gpt53codex-medium-4h-orchestrated-3-20260505-000213/research-loop/memory/results.tsv).
+tokens used
+37,588
+Initialized and started the loop on branch `research-loops/may5`, ran baseline, and completed two experiments.
+
+Current best is still baseline:
+
+- `2bf028d` → `val_bpb=0.998475`, `memory_gb=41.1` (`keep`)
+
+Completed experiments:
+
+- `f272ebd` → `val_bpb=1.005624`, `memory_gb=41.1` (`discard`)  
+  Change: `embedding_lr 0.6→0.45`, `warmup_ratio 0.0→0.02`, `final_lr_frac 0.0→0.1`
+- `660aa79` → `val_bpb=1.004009`, `memory_gb=41.1` (`discard`)  
+  Change: `weight_decay 0.2→0.1`
+
+Per loop rules, both worse commits were reverted; HEAD is back at `2bf028d`.
+
+Results log is updated at [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy3-gpt53codex-medium-4h-orchestrated-3-20260505-000213/research-loop/memory/results.tsv).

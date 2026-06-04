@@ -1,0 +1,313 @@
+I’m starting the research loop now by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized loop with prior rows, so I’m resuming from the current branch and moving to step (2): read `editable/` files, pick the next code experiment, commit, run, and log.
+
+I’ve reviewed the main config surface; next I’m reading the remainder of `editable/train.py` to target a small, high-probability stability/perf tweak that can complete within the fixed 5-minute budget.
+
+I’ve identified the likely next high-value trial: reduce `matrix_lr` to improve optimization stability while keeping throughput unchanged. I’m applying that single config edit, committing it, then launching one 5-minute run and collecting only `metrics.json`.
+
+The config change is committed (`4345c84`). I’m starting the experiment run now with full log redirection, and then I’ll read `metrics.json` to decide keep vs revert.
+
+The run is in progress. I’m waiting for completion and will only touch `metrics.json` unless this exits abnormally.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running under the timeout window; I’m continuing to wait for process exit before collecting results.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The training process is still active; I’m polling until it exits so we can classify the run and update `memory/results.tsv`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Run is ongoing and hasn’t returned yet; continuing to wait for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still executing. I’ll keep polling until it exits or hits the 610s timeout guard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+No exit yet; I’m continuing to wait on the same run session.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..a5b12541f2ceb78f365bc757a6b20820406f02b0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.02
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The run exited non-zero and did not produce `metrics.json`, so this is a crash. I’m doing a minimal crash diagnosis from `run.log` to capture the failure cause for the experiment record.
+
+I reverted the failed commit and am starting the next experiment: reduce CUDA wait time in `editable/train.py` so retries are fast when the GPU is busy, which should let us iterate until we catch an available slot and get a real metric run.
+
+The new retry-focused commit is in (`0d0ace3`). I’m running it now; if CUDA is still unavailable this should fail quickly, and I’ll record and immediately roll to the next iteration.
+
+Run is active; I’m polling for completion and then I’ll classify from `metrics.json` first.
+
+diff --git a/editable/train.py b/editable/train.py
+index e08ba56ee46c720489b6f1a087e6a5b5143a1ea4..8ebddd40a0af2979cc07b657d75ecc9c87c43e6b
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -28,7 +28,7 @@
+ COMPILE_DYNAMIC = False
+ 
+ TIME_BUDGET_SECONDS = 300
+-CUDA_WAIT_SECONDS = 270
++CUDA_WAIT_SECONDS = 30
+ CUDA_WAIT_POLL_SECONDS = 10
+ WARMUP_STEPS_EXCLUDED_FROM_TIMING = 10
+ LOSS_FAIL_THRESHOLD = 100.0
+
+
+This run also crashed with CUDA unavailable (no `metrics.json`). I’m recording it as `crash` and resetting to the previous commit before starting another experiment.
+
+I’m proceeding with another training-focused trial while GPU availability is intermittent: set `matrix_lr` to `0.03` (between the current `0.04` and prior failed `0.02`) and run again from a clean base.
+
+The `matrix_lr=0.03` experiment is committed (`b0dc0e0`) and running now; I’ll classify via `metrics.json` on exit and keep/reset accordingly.
+
+Run is in progress; I’m polling for completion.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running under the timeout window; continuing to wait for process exit.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+The process hasn’t exited yet; I’m continuing to poll until completion or timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..ff74137e4e84189f51a3a34c5ff3dd17c015d706
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.04
++matrix_lr = 0.03
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still active; I’m waiting for the run to finish so I can read `metrics.json` and decide keep/discard.
+
+This run exited with code 1; I’m checking `metrics.json` first and then recording/resetting based on the crash outcome.
+
+Completed 3 new experiment iterations in the loop and logged all outcomes to `memory/results.tsv`.
+
+Runs performed:
+1. `4345c84`  
+- Diff: `editable/config.toml` `matrix_lr 0.04 -> 0.02`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+2. `0d0ace3`  
+- Diff: `editable/train.py` `CUDA_WAIT_SECONDS 270 -> 30`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+3. `b0dc0e0`  
+- Diff: `editable/config.toml` `matrix_lr 0.04 -> 0.03`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+Current HEAD is back at `9fbfc02`, and `memory/results.tsv` now includes these new rows:
+- `4345c84	0.000000	0.0	crash	matrix_lr 0.02; cuda unavailable`
+- `0d0ace3	0.000000	0.0	crash	reduce CUDA wait to 30s for faster retries; cuda unavailable`
+- `b0dc0e0	0.000000	0.0	crash	matrix_lr 0.03; cuda unavailable`
+
+
+tokens used
+71,778
+Completed 3 new experiment iterations in the loop and logged all outcomes to `memory/results.tsv`.
+
+Runs performed:
+1. `4345c84`  
+- Diff: `editable/config.toml` `matrix_lr 0.04 -> 0.02`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+2. `0d0ace3`  
+- Diff: `editable/train.py` `CUDA_WAIT_SECONDS 270 -> 30`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+3. `b0dc0e0`  
+- Diff: `editable/config.toml` `matrix_lr 0.04 -> 0.03`  
+- Result: `crash` (`metrics.json` missing), CUDA unavailable  
+- Logged: `0.000000`, `0.0 GB`  
+- Action: reset to previous commit
+
+Current HEAD is back at `9fbfc02`, and `memory/results.tsv` now includes these new rows:
+- `4345c84	0.000000	0.0	crash	matrix_lr 0.02; cuda unavailable`
+- `0d0ace3	0.000000	0.0	crash	reduce CUDA wait to 30s for faster retries; cuda unavailable`
+- `b0dc0e0	0.000000	0.0	crash	matrix_lr 0.03; cuda unavailable`
+
+

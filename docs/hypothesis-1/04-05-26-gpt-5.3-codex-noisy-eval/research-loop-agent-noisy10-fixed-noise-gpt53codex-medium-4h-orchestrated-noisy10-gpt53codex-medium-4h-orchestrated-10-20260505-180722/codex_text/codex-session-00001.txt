@@ -1,0 +1,106 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or initialize exactly per your protocol.
+
+`memory/results.tsv` is not present, so I’ll do first-time setup: create a date-tagged branch, verify data artifacts, initialize results TSV, then run and log baseline.
+
+Data/tokenizer paths are symlinks; next I’m confirming the resolved directories contain actual artifacts before running baseline.
+
+I’ve initialized the branch and results header. I’m running the 5-minute baseline now and will parse `metrics.json` only once it finishes.
+
+Baseline is in progress in a live session; I’m waiting for completion and then I’ll extract metrics and log the first row.
+
+Training is still running; I’m continuing to wait and will stop only after the process exits or hits the run limit.
+
+Run is still active. I’m polling again and will immediately parse `metrics.json` as soon as it exits.
+
+Still waiting on the baseline process; I’ll keep polling without reading `run.log` and move straight to metrics extraction on completion.
+
+The baseline is still within expected runtime; I’m continuing to poll until it exits, then logging metrics to `memory/results.tsv`.
+
+Baseline finished successfully, but local `python` isn’t on PATH here. I’m re-running the metrics extraction with `uv run python` and appending the baseline row now.
+
+I’m moving to experiment design now: reading all in-scope `editable/` files and prior results, then I’ll make one targeted code change, commit, run, and keep/reset based on `val_bpb`.
+
+I found the main tunable leverage in `config.toml`: the LR schedule decays to zero for the last 50% of training. I’m testing a single change to keep a non-zero tail (`final_lr_frac`) so optimization stays active later in the 5-minute budget.
+
+I’ve applied the experiment change and captured the unified diff. Next I’m committing this candidate, then running training and scoring via `metrics.json`.
+
+Experiment run is live. I’m waiting for it to finish, then I’ll read `metrics.json`, append the TSV row, and keep or reset based on `val_bpb`.
+
+Training is still running normally within budget; I’m continuing to poll and will avoid `run.log` unless `metrics.json` is missing.
+
+Run is still active; I’m continuing to wait for process exit before scoring and branch decision.
+
+I’m in the final stretch of this run and will immediately compute keep/discard from `metrics.json` once it exits.
+web search: 
+web search: time: {"utc_offset":"+02:00"}
+
+The experiment completed successfully. I’m now reading `metrics.json`, comparing against best `val_bpb`, logging to `memory/results.tsv`, and resetting this commit if it didn’t improve.
+
+First experiment regressed and was discarded, branch is reset to baseline commit. I’m launching a second experiment with a short LR warmup (`warmup_ratio`) to reduce early instability while preserving the original cooldown.
+
+The warmup experiment is committed and I’m running it now under the same 5-minute budget.
+
+Run is in progress; I’m waiting for completion and then I’ll evaluate strictly from `metrics.json` and keep/reset accordingly.
+
+Training is still running within the expected window; continuing to poll.
+
+Still running; I’ll keep waiting and then perform the same keep/discard bookkeeping automatically.
+
+The run is at the tail end; next step is metrics parse and branch decision.
+
+Run completed. I’m logging metrics and applying keep/discard now.
+
+Both schedule-only tweaks regressed, so I reset each one. I’m now testing optimizer magnitude directly by reducing `matrix_lr` from `0.04` to `0.03`.
+
+Third experiment is running now; I’ll evaluate it the same way from `metrics.json` and keep/reset immediately.
+
+Run is still active and within budget; continuing to poll until exit.
+
+Still training. I’ll finalize this cycle as soon as the process exits.
+
+The run finished. I’m recording the result and applying keep/discard now.
+
+Current loop state:
+
+- Branch: `research-loops/may5`
+- Best so far: `val_bpb=1.001992` (baseline, commit `e19816e`)
+- `memory/results.tsv` is initialized and updated.
+
+Experiments run this turn:
+
+1. `67b2202` - `final_lr_frac=0.2`  
+   - `val_bpb=1.020122`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+2. `29d3618` - `warmup_ratio=0.02`  
+   - `val_bpb=1.040191`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+3. `3db4635` - `matrix_lr=0.03`  
+   - `val_bpb=1.047789`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+`memory/results.tsv` now contains all four rows (baseline + 3 discards), and `HEAD` is back at `e19816e`.
+tokens used
+62,146
+Current loop state:
+
+- Branch: `research-loops/may5`
+- Best so far: `val_bpb=1.001992` (baseline, commit `e19816e`)
+- `memory/results.tsv` is initialized and updated.
+
+Experiments run this turn:
+
+1. `67b2202` - `final_lr_frac=0.2`  
+   - `val_bpb=1.020122`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+2. `29d3618` - `warmup_ratio=0.02`  
+   - `val_bpb=1.040191`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+3. `3db4635` - `matrix_lr=0.03`  
+   - `val_bpb=1.047789`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+`memory/results.tsv` now contains all four rows (baseline + 3 discards), and `HEAD` is back at `e19816e`.

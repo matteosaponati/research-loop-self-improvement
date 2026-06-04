@@ -1,0 +1,142 @@
+I’m starting the research loop by checking whether prior memory exists, then I’ll either resume or initialize branch/data/results and run the baseline exactly as specified.
+
+I found a clean git checkout on `master` with a `memory/` directory already present; next I’ll verify whether `memory/results.tsv` has rows and then perform fresh setup if needed.
+
+I confirmed data/tokenizer artifacts exist, so no prepare step is needed. I’ll now create the dated research branch, initialize `memory/results.tsv`, and run the baseline with output redirected to `run.log`.
+
+`memory/` is gitignored in this repo, so I kept the TSV as runtime state without committing it. I’m proceeding with the baseline run now and will record metrics from `metrics.json` only.
+
+Baseline training is running in the background session; I’ll wait for completion and then parse `metrics.json` to log the result.
+
+Still waiting on the baseline run; once it exits I’ll immediately extract metrics and append the TSV entry.
+
+The baseline process is still active within the expected 5-minute budget window; I’m continuing to wait for clean completion.
+
+The run finished successfully; I hit a local `python` binary issue, so I’ll read `metrics.json` via `uv run python` and then log baseline plus best-so-far selection.
+
+I’ve logged the baseline (`1.044913`) and loaded the editable configs; next I’m scanning the rest of `train.py` to target a single high-impact change for the next 5-minute run.
+
+I identified a low-risk next experiment in `config.toml`: keep learning rates higher later in the 5-minute window by shortening warmdown and leaving a nonzero final LR floor. I’m applying that single config change now, then I’ll commit and run.
+
+The experiment commit is in place (`4a07291`), and I’m launching the 5-minute training run now with full log redirection, then I’ll evaluate strictly from `metrics.json`.
+
+Run is active; I’m waiting for completion and will log keep/discard based on whether `val_bpb` beats `1.044913`.
+
+Training is still in progress within expected runtime; I’ll continue waiting and then parse metrics immediately on exit.
+
+The process hasn’t exited yet; continuing to wait for the end-of-run metrics writeout.
+
+This experiment improved to `1.033613`, so I’m keeping commit `4a07291`, appending it as `keep`, and immediately launching the next iteration with one additional schedule tweak.
+
+I’m making a second, incremental LR-schedule experiment by pushing the same direction further (`warmdown_ratio` down, `final_lr_frac` up) to test whether late-stage higher LR continues to help.
+
+Commit `9c0153c` is ready; starting the next 5-minute run now and then I’ll keep or reset based on `metrics.json`.
+
+The new run is in progress; I’m waiting for completion and will apply keep/discard rules immediately after parsing metrics.
+
+Still running within the expected envelope; continuing to wait for clean process exit.
+
+This improved again to `1.030764`, so I’m keeping `9c0153c`, logging it, and moving to another incremental tail-LR test.
+
+I’m testing one more step in the same direction (`warmdown_ratio=0.1`, `final_lr_frac=0.4`) to probe where the benefit saturates in this 5-minute regime.
+
+Running experiment `74bf73c` now; I’ll keep it only if `val_bpb` beats `1.030764`, otherwise I’ll log `discard` and reset to `9c0153c`.
+
+The run is active; I’m waiting for completion and will finalize keep/discard with a reset if needed.
+
+Current loop status:
+
+- Initialized branch: `research-loops/may5`
+- Baseline completed and logged.
+- Ran 3 schedule experiments, all improved and were kept.
+- Current best `val_bpb`: `1.024856` at commit `74bf73c`.
+
+Unified diffs applied (each committed before run):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.3
+-final_lr_frac = 0.2
++warmdown_ratio = 0.2
++final_lr_frac = 0.3
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.2
+-final_lr_frac = 0.3
++warmdown_ratio = 0.1
++final_lr_frac = 0.4
+```
+
+`memory/results.tsv` now:
+
+```tsv
+commit	val_bpb	memory_gb	status	description
+cd1e91e	1.044913	41.1	keep	baseline
+4a07291	1.033613	41.1	keep	shorter warmdown 0.3 plus final lr floor 0.2
+9c0153c	1.030764	41.1	keep	pushed LR tail higher warmdown 0.2 final lr frac 0.3
+74bf73c	1.024856	41.1	keep	further increase late-stage LR floor
+```
+
+I can continue immediately with the next experiment from this best commit.
+tokens used
+48,421
+Current loop status:
+
+- Initialized branch: `research-loops/may5`
+- Baseline completed and logged.
+- Ran 3 schedule experiments, all improved and were kept.
+- Current best `val_bpb`: `1.024856` at commit `74bf73c`.
+
+Unified diffs applied (each committed before run):
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.3
++final_lr_frac = 0.2
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.3
+-final_lr_frac = 0.2
++warmdown_ratio = 0.2
++final_lr_frac = 0.3
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@
+-warmdown_ratio = 0.2
+-final_lr_frac = 0.3
++warmdown_ratio = 0.1
++final_lr_frac = 0.4
+```
+
+`memory/results.tsv` now:
+
+```tsv
+commit	val_bpb	memory_gb	status	description
+cd1e91e	1.044913	41.1	keep	baseline
+4a07291	1.033613	41.1	keep	shorter warmdown 0.3 plus final lr floor 0.2
+9c0153c	1.030764	41.1	keep	pushed LR tail higher warmdown 0.2 final lr frac 0.3
+74bf73c	1.024856	41.1	keep	further increase late-stage LR floor
+```
+
+I can continue immediately with the next experiment from this best commit.

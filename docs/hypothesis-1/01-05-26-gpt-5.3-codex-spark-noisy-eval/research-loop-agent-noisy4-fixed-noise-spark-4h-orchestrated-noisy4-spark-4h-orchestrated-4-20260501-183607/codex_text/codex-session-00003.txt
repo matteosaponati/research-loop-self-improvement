@@ -1,0 +1,34 @@
+I’ll initialize the experiment branch/run state exactly as specified: verify prior `memory/results.tsv`, check branch and data/tokenizer presence, create/continue the research branch, run one baseline, then start iterative edits with keep/discard logic and logging.
+
+I confirmed this is a resumed run with existing results, so I’ll skip branch creation and baseline rerun and continue from the current state/commit, selecting the best previous baseline as the working point.
+
+I found this branch is currently one uncommitted experiment ahead of the best logged commit (`muon_initial_momentum=0.97` vs `0.95`), so I’ll treat it as the active baseline and evaluate it before proposing additional edits. I’ll now inspect the editable training/config files once, then run the next experiment.
+
+Baseline-attempt run is still active; I’m monitoring and will capture the summary once it exits, then immediately log and apply keep/discard logic against the best prior result.
+
+Current run was worse than the best (`0.977780` at `1cdf3d7`), logged as discarded, and I’ve reset back to `1cdf3d7`. Next I’m selecting a new hyperparameter change in `editable/config.toml`, commit, and running another 5-minute evaluation.
+
+Proposed experiment is a momentum policy change: increasing `muon_momentum_start` from `0.85` to `0.9` while keeping `muon_momentum_end=0.98`. I’ll record the diff, commit, then run the 5-minute job.
+
+I’ve started the next run with commit `44dec35`; I’ll wait for completion, then log `val_bpb`, compare to `0.977780`, and either keep or reset accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 3471d779f7df5f9ad1d173452fa27ddf15385d00..eda24ef977a2d0f4ff9500d88aa567d0136fd5a9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -49,6 +49,6 @@
+ warmdown_ratio = 0.2
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+-muon_momentum_start = 0.85
++muon_momentum_start = 0.9
+ muon_momentum_end = 0.98
+ weight_decay_decay = true
+
+
+This run also worsened (`val_bpb≈1.032`), so I’m logging it as discarded and returning to the prior keep state. I’ll fix one logging formatting slip and continue.
+
+I’ve ruled out `muon_momentum_start` and will now test one orthogonal knob: shorter momentum warmup (`muon_momentum_warmup_steps=100`) to enter the high-momentum regime earlier while keeping current winning settings intact.
+
+`muon_momentum_warmup_steps` is now set to `100`; I’ll run and evaluate this commit next to see if a shorter ramp helps val_bpb versus 0.977780.
+
+That adjustment is still worse than best (`1.020126`). I’ll continue with a narrow follow-up on `muon_beta2`, lowering it to `0.85` to see if gentler variance scaling helps.

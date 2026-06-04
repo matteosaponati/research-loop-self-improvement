@@ -1,0 +1,455 @@
+Understood. I’ll start with the required setup checks in order, create/continue the research branch and baseline run if needed, then iterate experiments by editing `editable/` only, committing each try, running `editable/train.py`, logging to `memory/results.tsv`, and rolling back on non-improving runs.
+
+I’ve created the experiment branch `research-loops/may1`, initialized `memory/results.tsv` with the required header, and confirmed tokenizer exists but dataset files are not present, so I’ll run the provided immutable prep script next.
+
+Running baseline now with untouched `editable/train.py`, then I’ll capture `val_bpb` and memory from `run.log` and append the first result row.
+
+The baseline is still running; I’ll wait for completion and then parse the log immediately once it exits.
+
+Baseline training finished. I’ll extract validation perplexity and peak VRAM, then log the baseline row to `memory/results.tsv`.
+
+Baseline is logged. Next I’ll inspect `editable/train.py`, `editable/config.toml`, and `editable/config_loader.py` and then start a focused hyperparameter sweep by editing `editable/train.py` for the first trial.
+
+First trial: increase model width slightly by raising `aspect_ratio` from `64` to `72` (n_embd becomes 640). This keeps depth unchanged and should increase capacity without changing optimization settings. I’ll patch `editable/config.toml`, show diff, commit, run, and log outcome.
+
+Running trial 1 (aspect ratio 72). I’ll wait for completion, then read `val_bpb`/`peak_vram_mb` and update `memory/results.tsv` with status rules.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f1645d16d57038334f43295033f3f8e0b9eaefa9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..f1645d16d57038334f43295033f3f8e0b9eaefa9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+Trial 1 improved val_bpb (1.014599 vs 1.032102). I’ll log it as a kept experiment and move to the next candidate.
+
+Next I’ll try one capacity increase from the winning setup by raising `depth` to `9` while keeping the wider width, then run and compare directly against best val_bpb so far.
+
+I’m running this second geometry-tradeoff trial now; I’ll wait for it to finish and then log pass/fail against the best metric.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..18b82b1de6fadd6d862fb600c731a00ef0256a39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,8 +15,8 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 9
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..18b82b1de6fadd6d862fb600c731a00ef0256a39
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,8 +15,8 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
+-aspect_ratio = 64
++depth = 9
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+
+
+Trial 2 regressed (`1.021201 > 1.014599`) and used ~66.7GB. I’m logging it as discarded, then resetting back to the best commit before the next experiment.
+
+Next trial: keep the winning width/depth but change attention granularity from `head_dim=128` to `head_dim=64` (more heads) and keep total width unchanged. This is a low-risk architecture tweak.
+
+Starting this attention-head trial now.
+
+This head-size change regressed (`1.033254`). I’ll log it as discarded and reset to the current best commit to continue from the strongest baseline.
+
+Next candidate is a modest optimizer tweak: raise `matrix_lr` from `0.04` to `0.05` while leaving other settings unchanged to test faster updates for matrix parameters.
+
+Running trial complete. I’ll now extract metrics and decide keep/discard versus `1.014599`.
+
+This made things worse (`1.038298`). I’ll log the discarded result and restore the best config before continuing.
+
+Trying a scheduler change next: set `warmdown_ratio` to `0.0` so the learning-rate schedule stays at peak for the full 5-minute run, which may improve early convergence stability.
+
+Running the constant-LR schedule trial now.
+
+This is better: val_bpb improved to `1.009518` with constant LR. I’ll keep this commit and continue next experiments from it.
+
+Continuing from the current best, I’ll test a modest regularization cut: `weight_decay` from `0.2` to `0.1` while keeping the constant-LR schedule.
+
+Running reduced-weight-decay run now.
+
+Another improvement (`1.004865`). I’ll keep this run as the current best and continue probing nearby settings from this commit.
+
+I’ll now test whether keeping weight decay constant (`weight_decay_decay = false`) improves this best configuration, since warmdown is disabled and decay may otherwise collapse regularization too early.
+
+Running this decay-schedule variant now.
+
+This worsened (`1.026290`). I’ll log it as discarded and restore the current best commit before probing further.
+
+I’ll test a small warmup (`warmup_ratio = 0.02`) with the current best settings to see if it stabilizes early updates and improves final val perplexity.
+
+Small warmup also worsened (`1.015086`). I’ll log discard and return to the winning commit.
+
+Next I’ll try a small adjustment to the unembedding/head LR, from `0.004` to `0.005`, since that often interacts positively with larger models.
+
+Running this unembedding learning-rate experiment now.
+
+This is a strong improvement (`0.994335`), now below 1.0. I’ll keep this configuration and continue further refinements from this commit.
+
+I’ll test one nearby optimization tweak: raise `embedding_lr` from `0.6` to `0.7` while keeping the current best settings.
+
+Embedding LR increase regressed. I’ll log discard and revert to `9f7774a` before continuing.
+
+I’ll test a slight increase in `matrix_lr` from `0.04` to `0.045` while retaining the current best setup; matrix updates may still benefit from a bit more step size.
+
+Running matrix LR up-tune now.
+
+Matrix LR 0.045 is slightly worse (`1.000302`). I’ll keep only the better run and reset.
+
+I’ll now test a slightly lower `weight_decay` (`0.08`) around the best-performing config to see if it improves further.
+
+Lowering weight decay hurt (`1.022223`). I’ll log and revert to the best commit.
+
+I’ll probe momentum scheduling by setting `muon_momentum_start` to `0.9` (from `0.85`) and evaluate whether it further helps on this best setup.
+
+Momentum-start trial is running; I’ll capture results once done and decide keep/discard based on the 0.994335 best.
+
+That change was clearly worse (`1.045891`). Logging discard and restoring best commit.
+
+I’ll try a more conservative end-point for Muon momentum (`muon_momentum_end = 0.9`) as a potential stability tweak after the poor result with higher start momentum.
+
+Running with reduced final Muon momentum now.
+
+Momentum end reduction also regressed. I’ll record it as discarded and return to `9f7774a`.
+
+I’ll test batch sizing next: reduce `total_batch_size` to `262144` so updates happen every micro-batch (`grad_accum_steps=1`) which may improve early convergence in this fixed-time run.
+
+Halving total batch size regressed. I’ll log discard and reset to best.
+
+I’ll try a higher MLP width (`mlp_hidden_multiplier` 5) while keeping the best config; this is a direct capacity increase that often helps perplexity.
+
+Running MLP-width expansion now.
+
+I’ll check this run’s val_bpb and peak VRAM and compare to current best.
+
+MLP widening regressed significantly. Logging discard and restoring best commit.
+
+Next I’ll test a larger model jump by setting `aspect_ratio = 81`, which pushes `n_embd` to `768`, to verify if extra capacity continues improving val_bpb under memory budget.
+
+Launching the larger-width run (aspect ratio 81) now.
+
+I’m monitoring the larger model run to completion now; if it crashes or exceeds thresholds we’ll still log it according to protocol.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..91530314a0c818de400382a5080660e431a5bb17
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 81
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+As expected, the much wider model regressed (`1.022846`, +~59.9GB). I’ll log and revert to the best 0.994335 commit.
+
+Next test: a small step on the strong lever—raise `unembedding_lr` to `0.006` while keeping the current best config unchanged elsewhere.
+
+Running unembedding LR 0.006 now.
+
+That was clearly too aggressive (`1.034143`). Logging discard and restoring the best.
+
+Now testing a model-architecture variant in `editable/train.py`: switch MLP activation from `relu().square()` to `gelu`, while keeping config at the current best (`9f7774a`). This is one-shot change to check representational effect.
+
+Running GELU run has finished; I’ll evaluate the metric immediately.
+
+GELU improved over baseline but not over `0.994335` best. Logging as discarded and reverting to previous best commit.
+
+One remaining quick optimizer probe: reduce `muon_ns_steps` from `5` to `4` to make Muon updates less aggressive and check val_bpb impact.
+
+Running Muon-step variant now.
+
+I’ll pull the result for this Muon-step experiment once it finishes.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bfc48c163ee4bdbc58698fe846355d802c94e2cf
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,20 +33,20 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+ muon_initial_momentum = 0.95
+-muon_ns_steps = 5
++muon_ns_steps = 4
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+That change regressed (`1.014888`), so I’m logging discard and restoring the best commit again.
+
+I’ll probe Muon momentum baseline by setting `muon_initial_momentum = 0.93` to see if slightly lower momentum improves updates.
+
+Running Muon initial momentum 0.93 experiment now.
+
+This run is in progress; I’ll wait for completion and then record pass/fail.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..2db366fc7592043c0cf7a9ab3a0dbd20058d5e31
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,20 +33,20 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+ dmodel_lr_reference = 768
+-muon_initial_momentum = 0.95
++muon_initial_momentum = 0.93
+ muon_ns_steps = 5
+ muon_beta2 = 0.95
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Momentum lower test slightly worse (`1.002936`), so I’ll log discard and revert.
+
+I’ll do one last nearby momentum check by raising `muon_initial_momentum` to `0.97` before pausing, to bracket the optimum around the current best.
+
+Running this high-momentum variant now.
+
+This also regressed; logging and restoring best commit before stopping.
+
+I’ll probe one final low-risk optimizer tweak on the winning setup: increase `adam_beta1` to `0.9` (keeping beta2 unchanged) to test if smoother first-moment smoothing helps.
+
+Running `adam_beta1 = 0.9` experiment now.
+
+That was worse (`1.032070`). I’ll mark it discarded and return to the best commit.
+
+I’ll continue with one additional architectural-scale experiment: increase `softcap` from `15.0` to `20.0` in the logits softcapping to test output calibration effects under the best schedule/config.
+
+Running the softcap experiment now; will report the resulting metrics as usual.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..025fe12bda460882d15dc8140a544a9b91847a9c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,12 +16,12 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+ rotary_base = 10000.0
+-softcap = 15.0
++softcap = 20.0
+ ignore_index = -1
+ 
+ # Initialization
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Softcap increase regressed. I’ll log discard and return to best config; with no clear trend to improve beyond `0.994335`, I’m ready to stop unless you want continued exploration.
+
+I’ll run one final tuned learning-rate-reference test: set `dmodel_lr_reference` to `640` (matching current model width) to remove the built-in scaling uplift and assess impact.
+
+That last sweep regressed (`1.039077`). I’ll log and revert; best remains the current commit.
+
+I’m doing one more optimizer probe after the final keep: set `muon_beta2` to `0.98` (from `0.95`) to test smoother variance tracking in Muon updates.
+
+`muon_beta2 = 0.98` improved over some runs but not over best (`1.007011`). Logging discard and restoring best again.
+
+[research-loops/may1](.) initialized and baseline logged.
+
+Best result so far is:
+- Commit `9f7774a`: `val_bpb = 0.994335`, `memory_gb = 50.4`, status `keep`
+- It uses:
+  - `aspect_ratio = 72`
+  - `warmdown_ratio = 0.0`
+  - `weight_decay = 0.1`
+  - `unembedding_lr = 0.005`
+
+All experiments are logged in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy5-spark-4h-orchestrated-5-20260501-184107/research-loop/memory/results.tsv) (28 lines total: 1 header + 27 runs).
+
+Keep rows in the log currently:
+- `a6b3e7d` baseline `1.032102`
+- `691252f` `1.014599`
+- `e7b7983` `1.009518`
+- `ffd99d5` `1.004865`
+- `9f7774a` `0.994335` (current best)
+
+No crashes occurred; all other non-keep runs were reverted immediately after logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..dd3f13ae6a8248a1b0a26efe0b67fc8ffb6d62b9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -16,7 +16,7 @@
+ # Model architecture
+ vocab_size_default = 32768
+ depth = 8
+-aspect_ratio = 64
++aspect_ratio = 72
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+ rotary_seq_len_multiplier = 10
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.005
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+tokens used
+287,202
+[research-loops/may1](.) initialized and baseline logged.
+
+Best result so far is:
+- Commit `9f7774a`: `val_bpb = 0.994335`, `memory_gb = 50.4`, status `keep`
+- It uses:
+  - `aspect_ratio = 72`
+  - `warmdown_ratio = 0.0`
+  - `weight_decay = 0.1`
+  - `unembedding_lr = 0.005`
+
+All experiments are logged in [memory/results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy5-spark-4h-orchestrated-5-20260501-184107/research-loop/memory/results.tsv) (28 lines total: 1 header + 27 runs).
+
+Keep rows in the log currently:
+- `a6b3e7d` baseline `1.032102`
+- `691252f` `1.014599`
+- `e7b7983` `1.009518`
+- `ffd99d5` `1.004865`
+- `9f7774a` `0.994335` (current best)
+
+No crashes occurred; all other non-keep runs were reverted immediately after logging.

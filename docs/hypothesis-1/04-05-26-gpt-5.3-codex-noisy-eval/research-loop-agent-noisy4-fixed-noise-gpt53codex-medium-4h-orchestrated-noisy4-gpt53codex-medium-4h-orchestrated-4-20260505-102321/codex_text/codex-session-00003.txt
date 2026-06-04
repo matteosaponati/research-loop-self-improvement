@@ -1,0 +1,58 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs, so I can either resume or initialize exactly per your protocol.
+
+I found an existing initialized run history with prior experiments, so I’m resuming from the current branch and skipping setup/baseline. Next I’ll read all in-scope `editable/` files to choose the next experiment.
+
+I’ve reviewed the current trajectory: `matrix_lr=0.037` was the best so far, and `0.045`/`0.034` both regressed, so I’ll keep LR fixed and test schedule shape next by reducing decay aggressiveness near the end (`final_lr_frac`) to preserve more learning rate in the last phase.
+
+I committed the experiment (`983f483`) and I’m running the 5-minute training job now, with output redirected to `run.log`. After it finishes, I’ll read `metrics.json`, append `memory/results.tsv`, and keep or reset based on `val_bpb`.
+
+Training is in progress; I’m waiting for completion and then I’ll collect metrics from `metrics.json` only.
+
+The timed training window has elapsed; I’m waiting for evaluation and process exit before reading metrics.
+
+I hit an environment issue (`python` not on PATH in this shell), so I’m rerunning the metrics parsing via `uv run` to record and decide keep/discard correctly.
+
+I have the current best (`1.005541`) and I’m now pulling the just-finished run’s `metrics.json` payload from the still-running read command.
+
+The experiment regressed (`val_bpb 1.012803`), so I reset to the previous best commit and logged it as `discard`. I’m immediately launching the next trial: a slightly lower LR floor (`final_lr_frac=0.05`) to test stronger end-of-run annealing.
+
+I committed `4cb8584` and started the run; once it exits I’ll read `metrics.json`, log to TSV, and keep or reset based on whether it beats `1.005541`.
+
+Training time budget has finished; I’m waiting for final evaluation and process completion before collecting metrics.
+
+That run also regressed (`1.036576`), so I reset back to the best commit and logged it. I’m now testing a tight LR-local search around the current optimum by nudging `matrix_lr` from `0.037` to `0.038`.
+
+This run is in post-training eval now; I’m waiting for clean exit and then I’ll parse `metrics.json` and apply keep/discard.
+
+Current loop state after running 3 new experiments:
+
+- Best remains commit `d6a34b0` with `val_bpb=1.005541` (kept).
+- I ran and logged:
+1. `983f483` (`final_lr_frac=0.2`) → `1.012803`, `41.1 GB`, `discard`
+2. `4cb8584` (`final_lr_frac=0.05`) → `1.036576`, `41.1 GB`, `discard`
+3. `dc2c1c3` (`matrix_lr=0.038`) → `1.038831`, `41.1 GB`, `discard`
+
+Actions completed:
+- Each run used `uv run --extra research python editable/train.py > run.log 2>&1`.
+- Results were read from `metrics.json` only.
+- `memory/results.tsv` was updated for all runs.
+- Branch was reset back to best commit `d6a34b0` after each non-improving run.
+
+I’m positioned on `d6a34b0` and ready to continue the next experiment iteration.
+tokens used
+52,185
+Current loop state after running 3 new experiments:
+
+- Best remains commit `d6a34b0` with `val_bpb=1.005541` (kept).
+- I ran and logged:
+1. `983f483` (`final_lr_frac=0.2`) → `1.012803`, `41.1 GB`, `discard`
+2. `4cb8584` (`final_lr_frac=0.05`) → `1.036576`, `41.1 GB`, `discard`
+3. `dc2c1c3` (`matrix_lr=0.038`) → `1.038831`, `41.1 GB`, `discard`
+
+Actions completed:
+- Each run used `uv run --extra research python editable/train.py > run.log 2>&1`.
+- Results were read from `metrics.json` only.
+- `memory/results.tsv` was updated for all runs.
+- Branch was reset back to best commit `d6a34b0` after each non-improving run.
+
+I’m positioned on `d6a34b0` and ready to continue the next experiment iteration.

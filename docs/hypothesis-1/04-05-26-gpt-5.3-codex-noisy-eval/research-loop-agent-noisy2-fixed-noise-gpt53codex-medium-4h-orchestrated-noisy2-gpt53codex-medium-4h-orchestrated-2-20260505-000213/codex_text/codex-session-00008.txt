@@ -1,0 +1,134 @@
+I’m starting the research loop now by checking whether prior results already exist, then I’ll either resume from them or initialize branch/results and run the baseline exactly as specified.
+
+I found an existing initialized run with history, so I’m resuming from current branch state and moving to the next experiment cycle by re-reading `editable/` and picking a new targeted change.
+
+I’ve finished context gathering and will run a focused hyperparameter probe next: reduce `embedding_lr` while keeping the best-known `matrix_lr=0.035`, then commit, run, and keep/reset based on `val_bpb`.
+
+I’m committing this single-parameter change now, then launching the 5-minute run with full output redirected to `run.log`.
+
+The training process is running in the background session now; I’ll wait for completion, then read `metrics.json` and update `memory/results.tsv` without touching `run.log`.
+
+Run is still in progress and within expected timing; I’m continuing to wait and will collect metrics immediately once it exits.
+
+Training is still active, so I’m waiting another interval and then moving straight to metrics parsing and keep/discard decision.
+
+I’m still waiting on the same run; once it exits I’ll parse `metrics.json`, append the TSV row, and reset if it does not beat `0.994859`.
+
+The run finished successfully; I hit an environment issue (`python` not on PATH), so I’m re-reading `metrics.json` and best-so-far via `uv run python` now.
+
+I’ve got the metrics (`val_bpb=1.010534`, worse than best `0.994859`), so I’m logging this as `discard` in `memory/results.tsv` and resetting to the prior commit for the next trial.
+
+I’m proceeding directly to the next experiment from the restored best commit: I’ll test a gentler LR floor by setting `final_lr_frac` to `0.05` during warmdown.
+
+The next 5-minute training run is starting now with output redirected; I’ll wait for completion and then evaluate only through `metrics.json`.
+
+Run is active; I’m waiting for it to finish before collecting metrics and applying keep/discard with reset if needed.
+
+Training completed; I’m reading `metrics.json` now and then I’ll append the result row and either keep this commit or reset back based on `val_bpb`.
+
+Experiment loop resumed and executed for 2 new trials from current best commit `bd0053e` (`val_bpb=0.994859`).
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..8e5d012 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.035
+ weight_decay = 0.2
+```
+
+Committed as `e9199be`, run completed, `metrics.json` gave:
+- `val_bpb=1.010534`
+- `peak_vram_mb=42060.447` (`41.1 GB`)
+Decision: `discard` (worse than 0.994859), then reset to `bd0053e`.
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..e793cf6 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Committed as `baff253`, run completed, `metrics.json` gave:
+- `val_bpb=1.025360`
+- `peak_vram_mb=42060.447` (`41.1 GB`)
+Decision: `discard`, then reset to `bd0053e`.
+
+`memory/results.tsv` was appended with:
+
+- `e9199be	1.010534	41.1	discard	lower embedding lr to 0.5`
+- `baff253	1.025360	41.1	discard	set final lr fraction to 0.05`
+
+Current HEAD is back at best-known keep commit: `bd0053e`.
+tokens used
+27,954
+Experiment loop resumed and executed for 2 new trials from current best commit `bd0053e` (`val_bpb=0.994859`).
+
+Unified diffs used:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..8e5d012 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -32,7 +32,7 @@ init_lm_head_std = 0.001
+ init_matrix_scale = 1.7320508075688772
+
+ # Optimization
+-embedding_lr = 0.6
++embedding_lr = 0.5
+ unembedding_lr = 0.004
+ matrix_lr = 0.035
+ weight_decay = 0.2
+```
+
+Committed as `e9199be`, run completed, `metrics.json` gave:
+- `val_bpb=1.010534`
+- `peak_vram_mb=42060.447` (`41.1 GB`)
+Decision: `discard` (worse than 0.994859), then reset to `bd0053e`.
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+index 6025da7..e793cf6 100644
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -47,7 +47,7 @@ muon_beta2 = 0.95
+ # Schedules
+ warmup_ratio = 0.0
+ warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++final_lr_frac = 0.05
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+```
+
+Committed as `baff253`, run completed, `metrics.json` gave:
+- `val_bpb=1.025360`
+- `peak_vram_mb=42060.447` (`41.1 GB`)
+Decision: `discard`, then reset to `bd0053e`.
+
+`memory/results.tsv` was appended with:
+
+- `e9199be	1.010534	41.1	discard	lower embedding lr to 0.5`
+- `baff253	1.025360	41.1	discard	set final lr fraction to 0.05`
+
+Current HEAD is back at best-known keep commit: `bd0053e`.

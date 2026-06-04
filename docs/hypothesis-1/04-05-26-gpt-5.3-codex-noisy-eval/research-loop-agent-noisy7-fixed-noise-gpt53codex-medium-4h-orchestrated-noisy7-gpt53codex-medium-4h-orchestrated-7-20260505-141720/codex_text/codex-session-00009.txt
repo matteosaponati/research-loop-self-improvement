@@ -1,0 +1,498 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from current state or perform the required branch/baseline setup before launching the next experiment.
+
+I found an existing initialized run (`memory/results.tsv` already has rows), so I’m resuming directly from step (2). Next I’ll read `editable/` and prior results to choose the next high-impact experiment.
+
+I’ve identified the current best as `0.994222` (commit `136abd7`). I’m going to try a conservative optimizer tweak next: slightly lowering `weight_decay` from `0.2` to `0.15`, then commit, run, and keep/reset strictly based on `val_bpb`.
+
+I confirmed we’re at commit `136abd7`; I also noticed plain `python` isn’t available here, so I’ll use `uv run python` for result parsing and bookkeeping.
+
+I’m now editing `editable/config.toml` for the `weight_decay` experiment and will commit that single change before running the 5-minute training job.
+
+The experiment commit is in place (`748e31f`). I’m launching training now with log redirection and a hard timeout guard so runs over 10 minutes are treated as failures.
+
+Training is running in the background session; I’ll wait for completion and then read `metrics.json` only for evaluation and logging.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Still waiting on the run; once it exits I’ll immediately parse `metrics.json`, append `memory/results.tsv`, and decide keep vs reset against the current best `0.994222`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+I’m continuing to wait for process completion; no log inspection needed unless it crashes, and result collection will come strictly from `metrics.json`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+Run is still active; I’m polling until it exits, then I’ll perform the keep/discard decision and branch state update.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..8deb07d058b65a8c07e70f65d09575307bb4a266
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.038
+-weight_decay = 0.2
++weight_decay = 0.15
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run finished and underperformed (`val_bpb 1.041188`), so I’m recording it as `discard` and resetting to the previous best lineage before starting the next experiment.
+
+I noticed a formatting artifact in `memory/results.tsv` (a literal `\n` in the description), so I’m fixing that row now before launching the next experiment.
+
+Next experiment: refine around the current best `matrix_lr=0.038` by testing `0.0375` (since `0.036` was worse, this checks whether the optimum is just below current value). I’m editing, committing, then running.
+
+The new commit is ready (`9138841`); I’m starting the timed run now and will evaluate from `metrics.json` when it exits.
+
+Run is active; I’m polling for completion and will then append result + keep/reset decision immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Still running. I’ll continue waiting and won’t inspect `run.log` unless `metrics.json` is missing or invalid afterward.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m still waiting on the training process; once it exits I’ll parse metrics, log to TSV, and either keep this commit or hard-reset it.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+Process is still active; continuing to poll until completion, then I’ll apply the keep/discard rule against best `0.994222`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I’m in the final wait window for this run. As soon as it exits I’ll record metrics and reset if it doesn’t beat the best.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..1415fdb4e2bd8568c3f1c79bf43ead24c400d0fc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -34,7 +34,7 @@
+ # Optimization
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+-matrix_lr = 0.038
++matrix_lr = 0.0375
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+
+
+I hit a TSV formatting issue from a missing trailing newline (the latest row got concatenated). I’m normalizing `memory/results.tsv` now so each experiment is a clean tab-separated line.
+
+I’ve restored the branch to the current best commit (`136abd7`) and cleaned the results log. I’m starting another experiment now, targeting `unembedding_lr` (small downward step) to probe output-head stability.
+
+The run for commit `639227b` is in progress. I’ll wait for completion, then log and keep/reset using the same rule.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Training is still active; I’m continuing to poll until exit and then I’ll update `memory/results.tsv` and branch state.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+I’m in the final wait window for this run and will process results immediately when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+Still running; I’m continuing to wait for completion before making the keep/discard decision.
+diff --git a/editable/config.toml b/editable/config.toml
+index 10ed3775bdcf8380b04ea4e60bc7e35fb644fa08..23601446442697b10a4ea0febea6fd5263f6812c
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,7 +33,7 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.0035
+ matrix_lr = 0.038
+ weight_decay = 0.2
+ adam_beta1 = 0.8
+
+
+I introduced the same escaped-newline artifact in the latest TSV append; I’m correcting it and resetting this discarded commit now.
+
+Completed 3 experiments and applied keep/discard with resets as required.
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD = 136abd7` (best kept so far)
+
+New experiments run this turn:
+1. `748e31f`  
+   - Change: `weight_decay 0.2 -> 0.15`  
+   - Result: `val_bpb=1.041188`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+2. `9138841`  
+   - Change: `matrix_lr 0.038 -> 0.0375`  
+   - Result: `val_bpb=1.007072`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+3. `639227b`  
+   - Change: `unembedding_lr 0.004 -> 0.0035`  
+   - Result: `val_bpb=1.062704`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+Best overall remains:
+- `136abd7` with `val_bpb=0.994222`
+
+I also fixed TSV formatting artifacts and updated `memory/results.tsv` accordingly.
+tokens used
+38,181
+Completed 3 experiments and applied keep/discard with resets as required.
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD = 136abd7` (best kept so far)
+
+New experiments run this turn:
+1. `748e31f`  
+   - Change: `weight_decay 0.2 -> 0.15`  
+   - Result: `val_bpb=1.041188`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+2. `9138841`  
+   - Change: `matrix_lr 0.038 -> 0.0375`  
+   - Result: `val_bpb=1.007072`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+3. `639227b`  
+   - Change: `unembedding_lr 0.004 -> 0.0035`  
+   - Result: `val_bpb=1.062704`, `memory_gb=41.1`  
+   - Status: `discard` (reset)
+
+Best overall remains:
+- `136abd7` with `val_bpb=0.994222`
+
+I also fixed TSV formatting artifacts and updated `memory/results.tsv` accordingly.

@@ -1,0 +1,112 @@
+I’m starting the research loop by checking git status/branch state and whether `memory/results.tsv` already has prior runs so I can resume correctly or initialize a fresh branch and baseline.
+
+The workspace is already initialized (`memory/results.tsv` has prior experiments), so I’m resuming directly from step (2). Next I’ll read `editable/` code and the results table to choose the next experiment.
+
+I’ve reviewed prior runs; best so far is `0.998682` with shorter Muon momentum warmup. I’m testing a focused schedule tweak next: increase `muon_momentum_end` from `0.95` to `0.97` while keeping the improved warmup, then commit and run.
+
+The change is committed as `d205573`; I’m running the 5-minute training job now and will collect results strictly from `metrics.json` when it finishes.
+
+Training is in progress in the background session; I’m waiting for completion and will stop only if it exceeds the failure limit.
+
+Run is still active and within expected duration; I’m continuing to wait and then I’ll parse `metrics.json` directly.
+
+The process is still running normally. I’ll keep polling until it exits, then record the experiment result and apply keep/discard logic.
+
+Waiting for the training session to finish; once it exits I’ll read only `metrics.json` and update `memory/results.tsv`.
+
+Still running and not past the failure threshold yet. I’ll continue polling and finalize as soon as it exits.
+
+The run is still alive; I’m continuing to monitor and will enforce the 10-minute cutoff if needed.
+
+I’m at the tail end of the expected runtime window; checking for process completion now.
+
+The job is running longer than the nominal 5-minute training window on this machine; I’m continuing to monitor against the hard 10-minute failure cutoff.
+
+The run completed successfully. I’m now reading `metrics.json`, logging the result to `memory/results.tsv`, and applying keep/discard with a reset if it didn’t beat the best `val_bpb`.
+
+This experiment regressed (`1.013147` vs best `0.998682`), so I’m discarding it by resetting the code commit and then appending a `discard` row to `memory/results.tsv`.
+
+I’ve reverted to the best branch state and recorded the discard. I’m launching the next experiment now: reduce `final_lr_frac` from `0.2` to `0.15` to strengthen late-stage annealing without changing warmdown duration.
+
+The second experiment commit is `24511a8`. I’m running training again and will evaluate it from `metrics.json` only after completion.
+
+Training is running in the background; I’ll keep polling and enforce the same 10-minute cutoff rule.
+
+Run is still in progress and healthy. I’m continuing to wait for completion before reading metrics.
+
+Still running within expected wall time on this host; I’ll keep polling until exit and then apply keep/discard.
+
+Process is still active; continuing to monitor toward completion.
+
+I’m past the nominal 5-minute point but still below the failure cap; waiting for the process to terminate cleanly.
+
+Still running; I’m continuing to poll and will kill it only if it crosses 10 minutes.
+
+The run has completed. I’m extracting `metrics.json`, updating `memory/results.tsv`, and then either keeping this commit or resetting it based on `val_bpb`.
+
+Completed two new experiments and applied keep/discard correctly.
+
+Current best remains:
+- `val_bpb`: `0.998682`
+- commit: `7b1c418`
+
+Experiments run:
+1. `d205573` (`muon_momentum_end: 0.95 -> 0.97`)  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+```
+- Result: `val_bpb=1.013147`, `peak_vram_mb=0.0`
+- Status: `discard` (worse), reset to previous commit
+
+2. `24511a8` (`final_lr_frac: 0.2 -> 0.15`)  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-final_lr_frac = 0.2
++final_lr_frac = 0.15
+```
+- Result: `val_bpb=1.001314`, `peak_vram_mb=0.0`
+- Status: `discard` (worse), reset to previous commit
+
+`memory/results.tsv` has been updated with both rows:
+- `d205573	1.013147	0.0	discard	raise muon momentum end to 0.97`
+- `24511a8	1.001314	0.0	discard	lower final lr fraction to 0.15`
+tokens used
+29,763
+Completed two new experiments and applied keep/discard correctly.
+
+Current best remains:
+- `val_bpb`: `0.998682`
+- commit: `7b1c418`
+
+Experiments run:
+1. `d205573` (`muon_momentum_end: 0.95 -> 0.97`)  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.97
+```
+- Result: `val_bpb=1.013147`, `peak_vram_mb=0.0`
+- Status: `discard` (worse), reset to previous commit
+
+2. `24511a8` (`final_lr_frac: 0.2 -> 0.15`)  
+```diff
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@
+-final_lr_frac = 0.2
++final_lr_frac = 0.15
+```
+- Result: `val_bpb=1.001314`, `peak_vram_mb=0.0`
+- Status: `discard` (worse), reset to previous commit
+
+`memory/results.tsv` has been updated with both rows:
+- `d205573	1.013147	0.0	discard	raise muon momentum end to 0.97`
+- `24511a8	1.001314	0.0	discard	lower final lr fraction to 0.15`

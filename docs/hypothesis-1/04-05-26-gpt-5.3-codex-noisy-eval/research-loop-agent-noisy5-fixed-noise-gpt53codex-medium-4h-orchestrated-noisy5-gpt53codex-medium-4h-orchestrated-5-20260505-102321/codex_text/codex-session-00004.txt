@@ -1,0 +1,44 @@
+I’m starting the research loop by checking git state, whether `memory/results.tsv` already has prior runs, and the current branch so I can either resume or initialize correctly.
+
+This workspace is already initialized (`research-loops/may5` with existing `memory/results.tsv`), so I’m resuming from the current branch and reading `editable/` plus prior results to pick the next experiment.
+
+I’ve identified the current best as `1.023195` and most recent schedule tweaks mostly regressed. Next experiment will keep schedules fixed and reduce `matrix_lr` slightly (`0.04 -> 0.035`) to test whether a less aggressive Muon matrix step improves final validation within the 5-minute budget.
+
+I committed the config change (`682065f`) and I’m now running the 5-minute training job, then I’ll read only `metrics.json` and decide keep vs revert.
+
+Training is in progress under a timeout guard; I’m waiting for completion and will collect metrics immediately after it exits.
+
+The run is still executing (likely finishing eval/startup overhead after the fixed 5-minute train window); I’m continuing to wait within the 10-minute cap.
+
+I hit a minor environment issue (`python` not on PATH) and switched to `uv run python`; I’m now finishing metrics extraction and then I’ll log and reset/keep based on improvement.
+
+The experiment regressed (`1.034781`), so I reverted code to `b570970` and kept the result logged in `memory/results.tsv`. I’m launching a new experiment next: increase `unembedding_lr` from `0.006` to `0.008` while keeping everything else fixed.
+
+I committed `5e5f369` and started the next timed run; once it exits I’ll read `metrics.json`, append the TSV row, and keep or reset based on the best `val_bpb`.
+
+Training is still active; I’m waiting for process completion, then I’ll collect metrics and finalize the keep/discard decision.
+
+This run is also worse than best (`1.031525` vs `1.023195`), so I’m recording it as `discard` and resetting code back to the best kept commit baseline branch state.
+
+Completed two new experiments and updated `memory/results.tsv` for both.
+
+- Current code state reset to kept best commit: `b570970`
+- Current best `val_bpb`: `1.023195`
+
+New logged results:
+- `682065f` → `1.034781`, `41.1 GB`, `discard`, `lower Muon matrix LR to 0.035`
+- `5e5f369` → `1.031525`, `41.1 GB`, `discard`, `increase unembedding LR to 0.008`
+
+I followed the loop rules: committed each edit, ran timed training with output redirected to `run.log`, read only `metrics.json` for results, logged to TSV, and reset on non-improvement.
+tokens used
+38,347
+Completed two new experiments and updated `memory/results.tsv` for both.
+
+- Current code state reset to kept best commit: `b570970`
+- Current best `val_bpb`: `1.023195`
+
+New logged results:
+- `682065f` → `1.034781`, `41.1 GB`, `discard`, `lower Muon matrix LR to 0.035`
+- `5e5f369` → `1.031525`, `41.1 GB`, `discard`, `increase unembedding LR to 0.008`
+
+I followed the loop rules: committed each edit, ran timed training with output redirected to `run.log`, read only `metrics.json` for results, logged to TSV, and reset on non-improvement.

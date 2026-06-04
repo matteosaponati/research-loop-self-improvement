@@ -1,0 +1,424 @@
+Starting the loop now: I’ll initialize/continue the experiment branch exactly per your protocol, verify data/tokenizer availability, run baseline if needed, then apply one experiment at a time with commit, run, grep results, and log to `memory/results.tsv` with keep/discard handling based on validation bpb.
+
+Initialization is in place: branch `research-loops/may1` created. I’m now writing `memory/results.tsv` with the required header and starting the baseline run.
+
+Running baseline exactly once with default settings, with full output captured to `run.log`.
+
+Baseline is still in progress; I’ll keep polling and then parse the log once it exits.
+
+I’m letting the baseline complete under the 10-minute guard; if it exceeds that I’ll treat it as failed and continue with a clean retry baseline protocol.
+
+The baseline process is active (Python PID 5202), so I’ll let it finish under the 10-minute cap and then capture the summary from `run.log` to populate the baseline row.
+
+I confirmed the baseline run is actively training (log shows step progression and remaining time). I’ll now wait for completion and then parse final metrics from `run.log`.
+
+Baseline finished successfully (`val_bpb 1.018635`, peak VRAM `42060.4` MB). I’ll log this as the baseline row in `memory/results.tsv` and then start the first experiment.
+
+First experiment idea: increase model depth by +1 (`depth: 8 → 9`) to raise capacity with a modest memory increase while keeping training budget and other settings unchanged. I’ll patch `editable/config.toml`, commit, run, and log the new result.
+
+Experiment committed (`281e81d`). Running it now with `uv run --extra research python editable/train.py > run.log 2>&1`.
+
+Baseline is complete; I’ve started experiment #1 (`depth=9`) and I’ll wait for completion then parse `val_bpb` and VRAM from `run.log` to decide keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The process is active and progressing (`etime` around 35s). I’ll wait for completion and then immediately score it against baseline.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d454196f57393d4b54898925c388af78a16d9c2f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -15,7 +15,7 @@
+ 
+ # Model architecture
+ vocab_size_default = 32768
+-depth = 8
++depth = 9
+ aspect_ratio = 64
+ head_dim = 128
+ mlp_hidden_multiplier = 4
+
+
+The 5-minute budget run is still in the final phase (likely near evaluation). I’ll wait for completion and then parse metrics immediately.
+
+Run #1 finished (with 5-min window) and exited successfully. I’ll now parse summary metrics from `run.log` and decide keep/discard against baseline.
+
+Depth increased memory too much with worse bpb, so reverted. Next experiment: remove LR warmdown (`warmdown_ratio` from 0.5 → 0.0) to keep full LR for the full budget and test if validation improves.
+
+Committed (`06b24df`) and now launching run with constant LR schedule (no warmdown).
+
+Second experiment is running; I’ll keep waiting for completion and then evaluate whether this scheduler change improved bpb.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+This run is progressing near expected timing; I’ll hold until it exits and then immediately record the metric and compare.
+
+The run is still active beyond 4 minutes; I’m letting it fully complete so we capture final validation metrics before deciding keep/discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..47c90bd42bc9fc24c93918a7e54c44d3e87168e1
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+Second experiment finished; extracting summary metrics now and I’ll append row, then either keep this commit or revert depending on improvement.
+
+I will continue the experiment loop from the current state: commit the pending `weight_decay_decay` change as a trial, run `editable/train.py` for 5 minutes, log the outcome, then decide keep or revert and immediately move to the next trial.
+
+I found the branch is still `research-loops/may1`, current head is the keeped LR-change run (`06b24df`), and one uncommitted experiment is staged in `editable/config.toml` (`weight_decay_decay` toggled). I’ll commit that as the next trial and run it.
+
+Running trial for `d4236ef` now with the exact 5-minute training command, logging to `run.log`, then I’ll parse `val_bpb` and `peak_vram_mb`.
+
+The first run hasn’t finished yet; continuing to wait for completion and will parse the logged summary as soon as it exits.
+
+I’ll check the generated `run.log` and process status to confirm whether the run completed or failed; then I’ll record results and decide keep/discard.
+
+Trial `d4236ef` produced a worse result, so I’ll log it as `discard`, then revert code changes to return to the best committed state (`06b24df`) while preserving the log row.
+
+I hit an `.gitignore` guard on `memory/`; I’ll append the result directly (as required) and continue with revert using `git reset --hard 06b24df`.
+
+So far 4 experiments are logged, and the latest `weight_decay_decay=false` change was worse (`1.057138`) so branch was reset to the best `06b24df` state. Next I’ll try another targeted hyperparameter adjustment and continue the loop.
+
+I’ll make a minimal config-only tweak next: keep the successful warmdown disabled but lower the relatively aggressive `weight_decay` to test generalization, then run and keep/discard by val_bpb.
+
+Next experiment is to reduce `weight_decay` from `0.2` to `0.1` while keeping warmdown disabled, to test whether lighter decay improves validation bpb further without increasing memory.
+
+I’ve applied the config diff; I’ll commit this as trial `weight_decay=0.1` and launch the 5-minute training run.
+
+Running this trial at commit `a97b871` now with the required command and redirected logging.
+
+The run is still in progress; polling for completion and then I’ll parse the summary metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..de4ec61d858af274ab47d4d432e60c57ed286961
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.1
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+I’ll inspect `run.log` for the final metrics now; if the run has completed this will contain the summary block.
+
+I’ll test a small learning-rate increase for transformer matrices next (`matrix_lr 0.04 → 0.05`) while keeping all other winning settings unchanged.
+
+Running commit `8a0ae17` now.
+
+Checking for summary metrics from this run now.
+
+This one is worse than the current best, so I’ll record it as discard and revert to the `06b24df` baseline state for the next trial.
+
+I’ll quickly confirm `memory/results.tsv` still has the baseline row plus all logged experiments before moving to the next trial.
+
+Next trial: introduce a short LR warmdown (`warmdown_ratio = 0.1`, `final_lr_frac = 0.1`) while keeping the keep-LR warmup and weight decay settings.
+
+Running this warmdown trial now.
+
+Poll for completion and then I’ll extract summary metrics.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..aa7e9312e0b25f73e8c99727d7f0e97d2d640aa8
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,8 +46,8 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
++warmdown_ratio = 0.1
++final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+
+
+This attempt is worse than current best, so I’m logging it as discard and resetting back to the current best commit.
+
+I’ll test a small learning-rate warmup (`warmup_ratio = 0.05`) with no warmdown to check if a short ramp helps stability and validation bpb.
+
+Running commit `76e8082` now.
+
+No improvement there either; logging discard and restoring to best again.
+
+I’ll probe the other direction for matrix step size next: lower `matrix_lr` to `0.03` (keeping warmdown off) to see if a gentler update helps val bpb.
+
+Running matrix-lr-reduction trial now.
+
+That’s also worse; recording discard and returning to keep commit.
+
+I’ll try one more optimizer-family direction by slightly increasing weight decay to `0.25` while keeping the current best warmup/warmdown settings.
+
+Running `df536b4` now.
+
+This is a meaningful improvement (`0.985457`, lower than current best), so I’m logging it as `keep` and keeping the branch at this commit. I’ll append the result and continue with a new trial from here.
+
+New best is `df536b4` (`val_bpb 0.985457`). I’ll test whether keeping weight decay constant (`weight_decay_decay=false`) still helps at this higher decay level (`0.25`).
+
+Running this constant-decay variant now.
+
+This run regressed, so I’ll mark it as discard and reset back to the current best commit `df536b4`.
+
+I’ll continue probing near the new optimum by stepping weight decay up slightly (`0.25 → 0.3`) while keeping decay schedule enabled.
+
+Running `539f5a7` now.
+
+This trial is worse than the best; I’m logging it as discard and returning to `df536b4`.
+
+I’ll inspect how `dmodel_lr_reference` is used and then test a nearby value (`704`) to move along the direction that reduced `val_bpb`.
+
+I’ll probe `dmodel_lr_reference` next, setting it to `1024` to increase the scaled embedding/lm-head learning rates while keeping the working best settings.
+
+Running `53c41be` now.
+
+This is worse; I’ll log it as discard and reset to `df536b4` (best so far).
+
+I’ll also test the opposite LR scaling direction (`dmodel_lr_reference = 512`) to lower scaled embedding head rates.
+
+Running `c3e5efd` now.
+
+I’ll parse this run’s summary to decide keep/discard.
+
+I’m going to test optimizer/regularization knobs next; first I’ll quickly inspect the model construction mapping to ensure any small structural tweaks stay within memory (especially around attention width and momentum settings).
+
+I’m now testing `muon_initial_momentum`, stepping it down from `0.95` to `0.90` to see if gentler matrix updates improve generalization at this working optimum.
+
+Running `7110379` now.
+
+This is worse than best; I’ll log discard and return to `df536b4`.
+
+I’ll test a small output-head learning-rate increase (`unembedding_lr 0.004 -> 0.006`) while keeping the current best matrix/decode settings.
+
+Running this unembedding learning-rate trial now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..5ddd74ab14ff633d7e0b26cf0695bdfa13ef2c32
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -33,9 +33,9 @@
+ 
+ # Optimization
+ embedding_lr = 0.6
+-unembedding_lr = 0.004
++unembedding_lr = 0.006
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+
+This trial also regressed, so I’m marking it discard and reverting to `df536b4`.
+
+I’ll try one last lightweight LR perturbation: reduce `embedding_lr` slightly (`0.6 → 0.5`) to check if smaller token-embedding updates help further while holding the successful decay setting.
+
+That regressed too; recording discard and restoring to best commit for the loop state.
+
+I’ll test an architecture-family change with lower head width (`head_dim 128 → 64`) while keeping total width unchanged (`n_embd=512`), to see if attention granularity affects val_bpb.
+
+Running `622067b` now to assess this smaller-head variant.
+
+Head-dimension reduction is worse (and slightly higher VRAM), so I’ll log it as discard and return to the best commit.
+
+I’ll do one nearby fine-tune around the successful regularization point (`weight_decay 0.25 → 0.23`) to see whether the optimum is near a slightly lower value.
+
+Lowering weight decay to `0.23` underperformed; I’ll log discard and restore to `df536b4` as current keep.
+
+I’ll check a slightly higher adjacent value (`weight_decay 0.28`) to bracket the best region around 0.25.
+
+Running `0c02e19` now.
+
+This also regressed, so I’m recording it as discard and returning to `df536b4`.
+
+Research loop executed and advancing state updated.
+
+- Active branch: `research-loops/may1`
+- Best current commit: `df536b4`
+- Keep result recorded in [`memory/results.tsv`](memory/results.tsv): `val_bpb=0.985457`, `memory_gb=41.1`, status `keep`, description `increase weight_decay to 0.25`
+
+Latest explored commits and outcomes:
+1. `f23f0b4` → `1.018635` keep (baseline)
+2. `06b24df` → `0.999542` keep (disable warmdown)
+3. `281e81d` → `1.022863` discard (depth 9)
+4. `d4236ef` → `1.057138` discard (weight_decay_decay=false at wd=0.2)
+5. `a97b871` → `1.022027` discard (wd=0.1)
+6. `8a0ae17` → `1.011282` discard (matrix_lr=0.05)
+7. `24df9c4` → `1.024503` discard (warmdown 0.1 / final_lr 0.1)
+8. `76e8082` → `1.026781` discard (warmup 0.05)
+9. `d8444cd` → `1.036376` discard (matrix_lr=0.03)
+10. `df536b4` → `0.985457` **keep** (wd=0.25)
+11. `c95864c` → `1.028336` discard (wd constant)
+12. `539f5a7` → `1.018411` discard (wd=0.3)
+13. `53c41be` → `1.008717` discard (dmodel_lr_reference=1024)
+14. `c3e5efd` → `1.042976` discard (dmodel_lr_reference=512)
+15. `7110379` → `1.012801` discard (muon_initial_momentum=0.90)
+16. `bc041e8` → `1.035491` discard (unembedding_lr=0.006)
+17. `89d4e3b` → `1.032654` discard (embedding_lr=0.5)
+18. `622067b` → `1.052749` discard (head_dim=64)
+19. `92da90f` → `1.057523` discard (wd=0.23)
+20. `0c02e19` → `1.046988` discard (wd=0.28)
+
+If you want, I can keep searching automatically for a better `val_bpb` by exploring adjacent `weight_decay`, matrix/Adam lr balances, or small architecture tweaks next.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..d90ac304d117a60cda1a6df83465ff3a631071c0
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.6
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.2
++weight_decay = 0.25
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+@@ -46,7 +46,7 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
++warmdown_ratio = 0.0
+ final_lr_frac = 0.0
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+
+tokens used
+316,009
+Research loop executed and advancing state updated.
+
+- Active branch: `research-loops/may1`
+- Best current commit: `df536b4`
+- Keep result recorded in [`memory/results.tsv`](memory/results.tsv): `val_bpb=0.985457`, `memory_gb=41.1`, status `keep`, description `increase weight_decay to 0.25`
+
+Latest explored commits and outcomes:
+1. `f23f0b4` → `1.018635` keep (baseline)
+2. `06b24df` → `0.999542` keep (disable warmdown)
+3. `281e81d` → `1.022863` discard (depth 9)
+4. `d4236ef` → `1.057138` discard (weight_decay_decay=false at wd=0.2)
+5. `a97b871` → `1.022027` discard (wd=0.1)
+6. `8a0ae17` → `1.011282` discard (matrix_lr=0.05)
+7. `24df9c4` → `1.024503` discard (warmdown 0.1 / final_lr 0.1)
+8. `76e8082` → `1.026781` discard (warmup 0.05)
+9. `d8444cd` → `1.036376` discard (matrix_lr=0.03)
+10. `df536b4` → `0.985457` **keep** (wd=0.25)
+11. `c95864c` → `1.028336` discard (wd constant)
+12. `539f5a7` → `1.018411` discard (wd=0.3)
+13. `53c41be` → `1.008717` discard (dmodel_lr_reference=1024)
+14. `c3e5efd` → `1.042976` discard (dmodel_lr_reference=512)
+15. `7110379` → `1.012801` discard (muon_initial_momentum=0.90)
+16. `bc041e8` → `1.035491` discard (unembedding_lr=0.006)
+17. `89d4e3b` → `1.032654` discard (embedding_lr=0.5)
+18. `622067b` → `1.052749` discard (head_dim=64)
+19. `92da90f` → `1.057523` discard (wd=0.23)
+20. `0c02e19` → `1.046988` discard (wd=0.28)
+
+If you want, I can keep searching automatically for a better `val_bpb` by exploring adjacent `weight_decay`, matrix/Adam lr balances, or small architecture tweaks next.

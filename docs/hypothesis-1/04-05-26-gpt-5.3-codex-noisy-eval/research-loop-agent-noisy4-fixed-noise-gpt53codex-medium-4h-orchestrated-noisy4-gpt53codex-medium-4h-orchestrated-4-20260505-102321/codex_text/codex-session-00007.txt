@@ -1,0 +1,112 @@
+I’m starting the research loop by checking whether prior results already exist, then I’ll either resume from the current branch state or do the full setup path before running the next experiment.
+
+I found an active loop with prior runs, so I’m resuming directly from the current branch and best score. Next I’ll read all in-scope `editable/` files and pick the next targeted tweak based on what has already failed.
+
+I’ve finished reading the training/config code and prior outcomes. I’m applying one focused change next: lower `muon_momentum_end` to reduce late-training update inertia, since increasing it hurt and this axis hasn’t been explored downward yet.
+
+I’ve made the edit and captured the exact diff. I’m committing this experiment now, then I’ll run the 5-minute training job and read only `metrics.json` for evaluation.
+
+The experiment commit is in place (`08f3608`). I’m launching the run now with full log redirection and will wait for completion before parsing `metrics.json`.
+
+Training is running in the background session; I’m monitoring it non-verbosely and will only collect the final metrics artifact when it exits.
+
+Run is still in progress. I’m continuing to wait for clean completion, then I’ll read `metrics.json`, append `memory/results.tsv`, and decide keep vs revert.
+
+Still running normally. I’m waiting for process exit and then will evaluate strictly from `metrics.json` per the loop rules.
+
+I’m still waiting on the same run session; no diagnostics needed yet since there’s no crash signal. I’ll proceed to metrics extraction as soon as it exits.
+
+Run is near budget window; I’m continuing to wait for termination and then moving directly to result logging and branch decision.
+
+The process is still active without error output; I’m staying with it until it exits, then I’ll parse and record metrics.
+
+Training completed successfully. I hit a minor environment issue (`python` not on PATH), so I’m re-reading metrics via `uv run python` and then finalizing keep/discard bookkeeping.
+
+I have the new run metric (`val_bpb=1.0201478`), which is worse than the current best, so this will be a discard. I’m finishing the best-score check process and then reverting to the previous commit.
+
+I’m now recording this experiment in `memory/results.tsv` as `discard`, then resetting branch HEAD back one commit to keep the best-known state for the next trial.
+
+I’ve returned to the best commit (`d6a34b0`) and logged the discard. I’m proceeding immediately with the next experiment: increasing warmup slightly to `0.03` since shorter warmup hurt and this gentler variant hasn’t been tested yet.
+
+The second experiment commit (`ecadc11`) is ready. I’m running the 5-minute training job now and will evaluate from `metrics.json` once it exits.
+
+Training is underway; I’m monitoring the session and will only pull final artifacts after completion.
+
+Run is still active without failure signals. I’m continuing to wait and will immediately parse metrics at exit.
+
+The process remains healthy and within the expected runtime window. I’m staying on it until completion, then I’ll log and decide keep/discard.
+
+I’m in the final wait phase for this run. Once it exits I’ll update `memory/results.tsv` and continue the loop from the resulting best commit.
+
+This run regressed (`val_bpb=1.035572144` vs best `1.005541`), so I’m recording it as `discard` and resetting to the prior best commit before starting the next idea.
+
+Experiment loop resumed from existing branch/history and I ran 2 new experiments end-to-end.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.6
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -45,7 +45,7 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+
+ # Schedules
+-warmup_ratio = 0.02
++warmup_ratio = 0.03
+ warmdown_ratio = 0.6
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `08f3608` → `val_bpb=1.020148`, `41.1 GB`, `discard`, `lower muon_momentum_end to 0.93`
+- `ecadc11` → `val_bpb=1.035572`, `41.1 GB`, `discard`, `increase warmup_ratio to 0.03`
+
+Branch state after each discard was reset with `git reset --keep HEAD~1`, so current HEAD is back at best commit `d6a34b0` (best known `val_bpb=1.005541`).
+tokens used
+27,387
+Experiment loop resumed from existing branch/history and I ran 2 new experiments end-to-end.
+
+Unified diffs applied:
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -50,5 +50,5 @@ warmdown_ratio = 0.6
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+ muon_momentum_start = 0.85
+-muon_momentum_end = 0.95
++muon_momentum_end = 0.93
+ weight_decay_decay = true
+```
+
+```diff
+diff --git a/editable/config.toml b/editable/config.toml
+@@ -45,7 +45,7 @@ muon_ns_steps = 5
+ muon_beta2 = 0.95
+
+ # Schedules
+-warmup_ratio = 0.02
++warmup_ratio = 0.03
+ warmdown_ratio = 0.6
+ final_lr_frac = 0.1
+ muon_momentum_warmup_steps = 300
+```
+
+Results recorded in `memory/results.tsv`:
+
+- `08f3608` → `val_bpb=1.020148`, `41.1 GB`, `discard`, `lower muon_momentum_end to 0.93`
+- `ecadc11` → `val_bpb=1.035572`, `41.1 GB`, `discard`, `increase warmup_ratio to 0.03`
+
+Branch state after each discard was reset with `git reset --keep HEAD~1`, so current HEAD is back at best commit `d6a34b0` (best known `val_bpb=1.005541`).

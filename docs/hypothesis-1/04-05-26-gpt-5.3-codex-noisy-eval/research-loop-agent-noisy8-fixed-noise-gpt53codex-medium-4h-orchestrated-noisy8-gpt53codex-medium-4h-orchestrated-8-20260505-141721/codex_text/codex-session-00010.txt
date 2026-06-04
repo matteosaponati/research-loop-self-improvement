@@ -1,0 +1,102 @@
+Starting the research loop now. I’ll first check git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+This workspace is already initialized with prior results (`memory/results.tsv` has 25 experiment rows), so I’m resuming from the current branch/state and moving directly to proposing the next experiment. I’ll read `editable/` and prior results to pick a targeted change.
+
+I found a valid prior best (`val_bpb=1.013162`, commit `078a4b3`) and config currently uses `matrix_lr=0.04` with zero warmup. I’m reading the remainder of `train.py` now to target a low-risk optimization change for the next run.
+
+I have enough context to run a focused trial. Plan: raise `matrix_lr` slightly (most leverage on this setup), keep schedule and fallback logic untouched for stability, then run/score/keep-or-reset based strictly on `val_bpb`.
+
+I’m applying a minimal high-impact change: increase `matrix_lr` to `0.045` to test whether the current setup is slightly under-stepping Muon updates. Then I’ll commit and run the 5-minute trial.
+
+The commit is in place (`5f9f101`). I’m launching the run now with log redirection and a hard 10-minute timeout guard, then I’ll read only `metrics.json` for scoring.
+
+Run is in progress. I’ll wait for completion and then parse `metrics.json` to decide keep vs discard/reset.
+
+Still running within the timeout window; no log inspection needed unless it crashes. I’m continuing to wait for process exit.
+
+Training is still active. I’ll keep waiting and then move straight to `metrics.json` extraction when it exits.
+
+Process is still running and has not hit the 10-minute guard yet. Continuing to wait for completion.
+
+Run is still in-flight. I’m polling until it exits, then I’ll record results and perform keep/revert automatically.
+
+Still running; continuing to wait. If timeout kills it, I’ll mark crash and revert per loop rules.
+
+This is past the 5-minute training window but still under the 10-minute failure cap, likely in startup/eval overhead. I’m waiting for final exit and then scoring from `metrics.json`.
+
+Still active; I’m continuing to poll until completion or timeout.
+
+Run finished successfully. I’ll now read `metrics.json`, append this trial to `memory/results.tsv`, and keep or reset based on improvement vs current best.
+
+The environment only has Python via `uv`, so I’m re-reading metrics and prior best using `uv run` and proceeding with result logging.
+
+This trial is worse than the best-so-far (`1.020296` vs `1.013162`), so I’ll mark it `discard`, append to `memory/results.tsv`, and reset the branch to the previous commit.
+
+I’ve reverted to the current best commit and started the next iteration immediately. Next test: slightly lower `matrix_lr` to `0.035` to check if the current setting is overshooting on this CPU-fallback path.
+
+The new commit (`b71d4d6`) is ready. I’m running the experiment now with the same timeout guard, then I’ll score and keep/reset automatically.
+
+Second run is in progress. I’ll wait for process exit and then read only `metrics.json` for evaluation.
+
+Run is still active and within the timeout budget. Continuing to wait for completion.
+
+Still running; I’ll keep polling and then immediately apply keep/discard logic once metrics are written.
+
+Process remains in-flight; no crash signal yet. Continuing wait.
+
+Training is still active and under the 10-minute cap. I’m waiting for exit before scoring.
+
+Still running; continuing to poll.
+
+No completion yet; waiting for final exit or timeout trigger.
+
+This has crossed the nominal 5-minute train budget and is likely in overhead/eval again; still within the 10-minute hard limit. Continuing to wait.
+
+Still active; one more poll cycle before timeout should force exit if it doesn’t finish naturally.
+
+Waiting for final process termination now.
+
+Run completed. I’m extracting `metrics.json`, logging the result, and applying keep/revert against the current best.
+
+One metrics read command is still finishing in the background; I’m polling it now to complete result logging.
+
+That read command stalled unexpectedly, so I’m rerunning a direct one-shot metrics parse and finishing the keep/discard step.
+
+Completed two new experiments and updated the loop state.
+
+- Resumed existing run history on branch `research-loops/may5` (no re-init/baseline rerun).
+- Current best remains commit `078a4b3` with `val_bpb=1.013162`.
+
+New experiments run:
+
+1. Commit `5f9f101`  
+- Change: `matrix_lr 0.04 -> 0.045` in `editable/config.toml`  
+- Result: `val_bpb=1.020296`, `peak_vram_mb=0.0`  
+- Decision: `discard` (worse), reset branch
+
+2. Commit `b71d4d6`  
+- Change: `matrix_lr 0.04 -> 0.035` in `editable/config.toml`  
+- Result: `val_bpb=1.056941`, `peak_vram_mb=0.0`  
+- Decision: `discard` (worse), reset branch
+
+`memory/results.tsv` has been appended for both runs, and git is now reset back to best commit `078a4b3` ready for the next experiment.
+tokens used
+35,366
+Completed two new experiments and updated the loop state.
+
+- Resumed existing run history on branch `research-loops/may5` (no re-init/baseline rerun).
+- Current best remains commit `078a4b3` with `val_bpb=1.013162`.
+
+New experiments run:
+
+1. Commit `5f9f101`  
+- Change: `matrix_lr 0.04 -> 0.045` in `editable/config.toml`  
+- Result: `val_bpb=1.020296`, `peak_vram_mb=0.0`  
+- Decision: `discard` (worse), reset branch
+
+2. Commit `b71d4d6`  
+- Change: `matrix_lr 0.04 -> 0.035` in `editable/config.toml`  
+- Result: `val_bpb=1.056941`, `peak_vram_mb=0.0`  
+- Decision: `discard` (worse), reset branch
+
+`memory/results.tsv` has been appended for both runs, and git is now reset back to best commit `078a4b3` ready for the next experiment.

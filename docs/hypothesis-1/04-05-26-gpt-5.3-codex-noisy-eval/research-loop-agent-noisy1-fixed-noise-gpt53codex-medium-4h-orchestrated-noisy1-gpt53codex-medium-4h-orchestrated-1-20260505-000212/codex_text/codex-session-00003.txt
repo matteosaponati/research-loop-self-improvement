@@ -1,0 +1,955 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior experiment rows, so I can either resume or initialize exactly per your protocol.
+
+I found an existing branch and prior results, so I’m resuming from the current state (no re-baseline). Next I’ll read `editable/` and the results table to pick the next experiment.
+
+I’ve loaded current configs and prior outcomes; I’ll now inspect the remaining training code to identify the highest-impact safe tweak for a 5-minute run.
+
+I identified the controllable levers: mostly optimizer/schedule settings in `editable/config.toml`. I’ll run one targeted schedule experiment next and keep/revert strictly by `val_bpb`.
+
+I’m applying a focused optimizer-schedule change: shorter Muon momentum warmup and less aggressive end-of-run LR decay, which should better fit the ~100-step 5-minute CPU run regime.
+
+I committed the experiment and will now run training with the standard command, capped at 10 minutes to enforce the failure rule.
+
+The run is in progress in the background; I’m polling until it exits, then I’ll read `metrics.json` only and record the result.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training is still running. I’ll keep polling and then immediately collect `metrics.json` once the process exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still in-flight; continuing to wait for completion before evaluating keep vs discard.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Run is still active; I’m continuing the wait loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+No exit yet; I’ll keep polling until it finishes or hits timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still running; continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Run remains active. I’ll keep polling and then process the metric snapshot immediately.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still in progress; continuing to wait.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+I’m still waiting on the process; one more poll cycle.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Training hasn’t exited yet; continuing to monitor until completion/timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+Still active; polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4a4bf502d3f871b5070e89ee187765a64184471d
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+ weight_decay_decay = true
+
+
+The run finished successfully. I’m now reading `metrics.json`, logging this experiment in `memory/results.tsv`, and then applying keep/discard based on `val_bpb`.
+
+The experiment improved `val_bpb` to `1.026187`, so I kept it and advanced the branch. I’m launching the next trial: keep weight decay constant during the short run (`weight_decay_decay = false`) to test whether late-stage under-regularization is hurting validation.
+
+Second experiment run is started with timeout protection; I’ll poll until completion, then read `metrics.json` and keep/discard accordingly.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Training is still active; continuing to wait for exit before scoring.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Run is still in progress. I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Still running; continuing to monitor.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+No completion yet; polling again now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Run remains active; I’ll keep waiting.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Still in progress; continuing the polling loop.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Training has not exited yet; I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Still running; waiting for finish/timeout.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+Run is still active. I’ll keep monitoring until it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+
+The run completed. I’m extracting metrics now, logging to TSV, and reverting this commit if it did not beat `1.026187`.
+
+Best is now `1.015167`. Next experiment removes LR cooldown entirely for this short run by making the scheduler robust to `warmdown_ratio = 0`, then using constant LR across training.
+
+I’m editing both scheduler logic and config: adding a safe zero-warmdown path in `train.py`, then setting `warmdown_ratio` to `0.0` in config for a true constant LR run.
+
+This constant-LR experiment is committed and I’m running it now with the same 10-minute safety timeout.
+
+Third run is in progress; I’m monitoring until it exits, then I’ll record and keep/revert.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+Run is still active; continuing to poll.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+Still training; I’ll keep waiting and process metrics immediately when it exits.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+No exit yet; continuing monitoring.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+Training is still in-flight. I’m polling again.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+Still running; waiting for completion now.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+No exit yet; continuing to poll until it returns.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..4127293107459324284281df0b55a085b5ac0ecc
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.0
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+diff --git a/editable/train.py b/editable/train.py
+index 15e5769eb04a32859a4f1fd5cddc29587639c810..ae97e2181eec3d5f1a0b211b2580cf9ac43f2384
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -526,6 +526,8 @@
+ def get_lr_multiplier(progress):
+     if progress < CONFIG.warmup_ratio:
+         return progress / CONFIG.warmup_ratio if CONFIG.warmup_ratio > 0 else 1.0
++    if CONFIG.warmdown_ratio <= 0:
++        return 1.0
+     elif progress < 1.0 - CONFIG.warmdown_ratio:
+         return 1.0
+     else:
+
+
+The run just finished. I’m extracting `metrics.json`, updating `memory/results.tsv`, and applying keep/discard now.
+
+This one regressed (`1.020658`), so I’m marking it `discard` and resetting to the previous best commit.
+
+Completed 3 experiments and applied keep/discard rules exactly.
+
+Current best:
+- Commit: `00f6b04`
+- `val_bpb`: `1.015167` (improved from `1.045861`)
+
+What I ran:
+1. `4ea09ef` (`keep`)  
+   - Change: `warmdown_ratio 0.5 -> 0.2`, `final_lr_frac 0.0 -> 0.2`, `muon_momentum_warmup_steps 300 -> 100`  
+   - Result: `val_bpb 1.026187`
+
+2. `00f6b04` (`keep`)  
+   - Change: `weight_decay_decay = false`  
+   - Result: `val_bpb 1.015167` (new best)
+
+3. `cf935c1` (`discard`)  
+   - Change: zero-warmdown constant LR schedule (`warmdown_ratio = 0` + safe scheduler guard in `train.py`)  
+   - Result: `val_bpb 1.020658` (worse), reset hard to `00f6b04`
+
+I updated `memory/results.tsv` for all runs and the branch head is now back on best commit `00f6b04`.
+diff --git a/editable/config.toml b/editable/config.toml
+index 67c3f6e4e7fbbee9dd2dd7b31209c6f7e2d80820..bc8410acce5c5887fd6ec5f71d9bcb4bc31bd84f
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -46,9 +46,9 @@
+ 
+ # Schedules
+ warmup_ratio = 0.0
+-warmdown_ratio = 0.5
+-final_lr_frac = 0.0
+-muon_momentum_warmup_steps = 300
++warmdown_ratio = 0.2
++final_lr_frac = 0.2
++muon_momentum_warmup_steps = 100
+ muon_momentum_start = 0.85
+ muon_momentum_end = 0.95
+-weight_decay_decay = true
++weight_decay_decay = false
+
+tokens used
+42,374
+Completed 3 experiments and applied keep/discard rules exactly.
+
+Current best:
+- Commit: `00f6b04`
+- `val_bpb`: `1.015167` (improved from `1.045861`)
+
+What I ran:
+1. `4ea09ef` (`keep`)  
+   - Change: `warmdown_ratio 0.5 -> 0.2`, `final_lr_frac 0.0 -> 0.2`, `muon_momentum_warmup_steps 300 -> 100`  
+   - Result: `val_bpb 1.026187`
+
+2. `00f6b04` (`keep`)  
+   - Change: `weight_decay_decay = false`  
+   - Result: `val_bpb 1.015167` (new best)
+
+3. `cf935c1` (`discard`)  
+   - Change: zero-warmdown constant LR schedule (`warmdown_ratio = 0` + safe scheduler guard in `train.py`)  
+   - Result: `val_bpb 1.020658` (worse), reset hard to `00f6b04`
+
+I updated `memory/results.tsv` for all runs and the branch head is now back on best commit `00f6b04`.

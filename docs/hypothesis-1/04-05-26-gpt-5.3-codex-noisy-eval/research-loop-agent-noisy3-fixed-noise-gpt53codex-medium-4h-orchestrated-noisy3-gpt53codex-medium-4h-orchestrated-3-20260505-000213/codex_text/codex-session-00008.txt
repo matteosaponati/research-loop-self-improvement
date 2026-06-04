@@ -1,0 +1,124 @@
+I’m starting the research loop by checking git state and whether `memory/results.tsv` already has prior runs so I can either resume or initialize exactly per your protocol.
+
+I found an active run state (`research-loops/may5`) with existing results, so I’m resuming from current branch and skipping baseline/setup. Next I’ll read `editable/` and `memory/results.tsv` to pick the next experiment.
+
+I’ve reviewed prior runs: best is `0.997757` at commit `a76a5e5`, and most changes around LR/schedules regressed. I’m testing a narrow regularization tweak next by slightly lowering `weight_decay` from `0.18` to `0.16` to see if it improves fit without destabilizing Muon updates.
+
+I’m committing this single-parameter experiment now, then I’ll run training for the 5-minute budget and collect metrics from `metrics.json` only.
+
+I spotted an inconsistency in that first diff output, so I’m verifying the exact committed patch and current config before running, to avoid testing the wrong change.
+
+Training is running in the background now; I’ll wait for completion, then read `metrics.json`, append the TSV row, and keep/reset based on `val_bpb` vs `0.997757`.
+diff --git a/editable/config.toml b/editable/config.toml
+index d3adf4951caaf647bce6393bd6237b7d6668c5c1..a2faed51c3d9d5a1916a86ac2c6d80c55342f368
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.18
++weight_decay = 0.16
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d3adf4951caaf647bce6393bd6237b7d6668c5c1..a2faed51c3d9d5a1916a86ac2c6d80c55342f368
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.18
++weight_decay = 0.16
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run finished successfully. I’m collecting only `metrics.json`, logging to `memory/results.tsv`, and then applying keep/discard via git reset rule.
+
+The shell has no global `python`, so I’ll read metrics and compute best using `uv run python` instead.
+
+Result is worse than the current best, so I’m recording it as `discard` and resetting one commit back to continue from the best-known branch state.
+
+I’m continuing immediately with the next experiment from `a76a5e5`. Next test: increase `weight_decay` moderately to `0.20` to check whether stronger regularization helps early validation within the fixed 5-minute budget.
+
+Second run is in progress with `weight_decay=0.20`; once it exits, I’ll again use only `metrics.json`, append TSV, and keep or reset automatically.
+diff --git a/editable/config.toml b/editable/config.toml
+index d3adf4951caaf647bce6393bd6237b7d6668c5c1..5bc5c7d877699f838c699a3eded3f73db50645f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.18
++weight_decay = 0.20
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+diff --git a/editable/config.toml b/editable/config.toml
+index d3adf4951caaf647bce6393bd6237b7d6668c5c1..5bc5c7d877699f838c699a3eded3f73db50645f9
+--- a/editable/config.toml
++++ b/editable/config.toml
+@@ -35,7 +35,7 @@
+ embedding_lr = 0.7
+ unembedding_lr = 0.004
+ matrix_lr = 0.04
+-weight_decay = 0.18
++weight_decay = 0.20
+ adam_beta1 = 0.8
+ adam_beta2 = 0.95
+ adam_eps = 0.0000000001
+
+
+The run completed; I’m extracting metrics, writing the results row, and then deciding keep/discard against the best `0.997757`.
+
+I found a formatting issue in the last TSV row (literal `\n` text at the end), so I’m fixing that line to keep `memory/results.tsv` clean for future parsing.
+
+Completed 2 new experiments and continued the loop correctly from the current best commit.
+
+Current branch/head:
+- `research-loops/may5`
+- `a76a5e5` (best kept state)
+
+New experiments run:
+- `aa276b4` (`weight_decay: 0.18 -> 0.16`)  
+  - `val_bpb=1.033424`, `memory_gb=36.5`, `status=discard`
+- `a02eb19` (`weight_decay: 0.18 -> 0.20`)  
+  - `val_bpb=1.045985`, `memory_gb=36.5`, `status=discard`
+
+Actions taken:
+- Appended both results to `memory/results.tsv`.
+- Reset branch back after each non-improving run (`git reset --hard HEAD~1`) per protocol.
+- Fixed a TSV formatting artifact on the last row (removed literal `\n` text).
+
+Best result remains:
+- Commit `a76a5e5`
+- `val_bpb=0.997757`
+tokens used
+22,293
+Completed 2 new experiments and continued the loop correctly from the current best commit.
+
+Current branch/head:
+- `research-loops/may5`
+- `a76a5e5` (best kept state)
+
+New experiments run:
+- `aa276b4` (`weight_decay: 0.18 -> 0.16`)  
+  - `val_bpb=1.033424`, `memory_gb=36.5`, `status=discard`
+- `a02eb19` (`weight_decay: 0.18 -> 0.20`)  
+  - `val_bpb=1.045985`, `memory_gb=36.5`, `status=discard`
+
+Actions taken:
+- Appended both results to `memory/results.tsv`.
+- Reset branch back after each non-improving run (`git reset --hard HEAD~1`) per protocol.
+- Fixed a TSV formatting artifact on the last row (removed literal `\n` text).
+
+Best result remains:
+- Commit `a76a5e5`
+- `val_bpb=0.997757`

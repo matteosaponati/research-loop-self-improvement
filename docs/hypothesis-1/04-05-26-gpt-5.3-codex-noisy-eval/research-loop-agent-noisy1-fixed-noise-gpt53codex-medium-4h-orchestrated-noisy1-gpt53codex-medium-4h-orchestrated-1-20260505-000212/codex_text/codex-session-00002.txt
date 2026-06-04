@@ -1,0 +1,245 @@
+I’m starting the research loop now: I’ll first check whether `memory/results.tsv` already has prior runs, then either resume or initialize branch/baseline exactly per your protocol.
+web search: 
+web search: 
+
+I found an existing initialized loop with prior results, so I’m resuming directly from step (2). Next I’ll read all `editable/` files and identify the best current baseline to beat.
+
+I’ve finished reading the editable code and prior results. I’m now making a targeted stability experiment to eliminate remaining CUDA-touchpoints when CUDA is partially broken, so we can get the first non-crash metric and then optimize `val_bpb`.
+
+I committed the experiment and I’m running a full 5-minute training trial now with output redirected to `run.log`. After it finishes, I’ll read only `metrics.json` and log the result.
+
+The run is in progress. I’m waiting for completion, then I’ll parse `metrics.json` and decide keep/discard with a git reset if needed.
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..cf2f55126a8d80cc90239a03d35bc6a8fb83a3ef
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -414,18 +414,21 @@
+ 
+ t_start = time.time()
+ torch.manual_seed(CONFIG.seed)
+-if torch.cuda.is_available():
+-    torch.cuda.manual_seed(CONFIG.seed)
++cuda_ready = False
++if CONFIG.device == "cuda" and torch.cuda.is_available():
++    try:
++        _ = torch.empty(1, device="cuda")
++        torch.cuda.manual_seed(CONFIG.seed)
++        cuda_ready = True
++    except Exception:
++        cuda_ready = False
+ torch.set_float32_matmul_precision(CONFIG.matmul_precision)
+ autocast_dtype = getattr(torch, CONFIG.autocast_dtype)
+ 
+ runtime_device = CONFIG.device
+-if CONFIG.device == "cuda":
+-    try:
+-        _ = torch.empty(1, device="cuda")
+-    except Exception:
+-        runtime_device = "cpu"
+-        print("WARN: CUDA unavailable at runtime; falling back to CPU.")
++if CONFIG.device == "cuda" and not cuda_ready:
++    runtime_device = "cpu"
++    print("WARN: CUDA unavailable at runtime; falling back to CPU.")
+ device = torch.device(runtime_device)
+ autocast_ctx = (
+     torch.amp.autocast(device_type=runtime_device, dtype=autocast_dtype)
+
+
+The run crashed and `metrics.json` was not produced. I’m diagnosing the crash via targeted search in `run.log`, then I’ll record it as `crash` in `memory/results.tsv` and proceed to the next fix.
+
+I identified the failure source: `@torch.compile` on optimizer fused steps still invokes inductor and touches CUDA even in CPU fallback. I’ll log this crash, reset to the previous commit, then run a new experiment removing compile decorators from those optimizer kernels.
+
+I’ve applied the next experiment edit to disable optimizer-kernel compilation, which should prevent inductor from probing CUDA during CPU fallback. I’m committing and launching another run now.
+
+The new run is active. I’ll wait for completion and then read `metrics.json` only for result collection.
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..15e5769eb04a32859a4f1fd5cddc29587639c810
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+
+
+Training is still running within the timeout window; I’m continuing to wait and will capture metrics as soon as the process exits.
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..15e5769eb04a32859a4f1fd5cddc29587639c810
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..15e5769eb04a32859a4f1fd5cddc29587639c810
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+
+
+The run completed successfully. I’m now extracting `metrics.json`, logging the experiment row, and keeping this commit as the new best (first non-crash result).
+
+I’ve logged the first valid metric (`val_bpb=1.045861`) and kept the commit. Next experiment: reduce CPU fallback `runtime_total_batch_size` from `8192` to `4096` to increase optimizer update frequency and test if short-horizon validation improves.
+
+I committed the new batch-size experiment and started another 5-minute run. I’ll record metrics and keep or reset based on `val_bpb`.
+
+The experiment is running now; I’m waiting for completion and will only read `metrics.json` for evaluation once it exits.
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..895a07f0ed01e2edc24cd64c900783b1d395ea0d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -443,7 +441,7 @@
+     torch.empty = _empty_without_pinned_memory
+     runtime_sequence_len = min(CONFIG.sequence_len, 512)
+     runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-    runtime_total_batch_size = min(CONFIG.total_batch_size, 8192)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 4096)
+ else:
+     runtime_sequence_len = CONFIG.sequence_len
+     runtime_device_batch_size = CONFIG.device_batch_size
+
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..895a07f0ed01e2edc24cd64c900783b1d395ea0d
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+@@ -443,7 +441,7 @@
+     torch.empty = _empty_without_pinned_memory
+     runtime_sequence_len = min(CONFIG.sequence_len, 512)
+     runtime_device_batch_size = min(CONFIG.device_batch_size, 8)
+-    runtime_total_batch_size = min(CONFIG.total_batch_size, 8192)
++    runtime_total_batch_size = min(CONFIG.total_batch_size, 4096)
+ else:
+     runtime_sequence_len = CONFIG.sequence_len
+     runtime_device_batch_size = CONFIG.device_batch_size
+
+
+This run finished successfully. I’m extracting metrics, updating `memory/results.tsv`, and then I’ll keep or reset based on improvement over `1.045861`.
+
+Completed two experiments and updated the loop state.
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD = bea1ada` (kept as current best)
+
+What I changed:
+- Kept: removed `@torch.compile(...)` from optimizer fused functions in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/editable/train.py)
+- Tried then discarded: reduced CPU fallback `runtime_total_batch_size` 8192→4096 in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/editable/train.py)
+
+Results logged in [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv):
+- `7b0e138` crash (`0.000000`) — cuda readiness gating attempt
+- `bea1ada` keep `1.045861` — first successful non-crash run
+- `9767b7d` discard `1.057803` — worse than best, reset back to `bea1ada`
+
+Best `val_bpb` so far: `1.045861` at commit `bea1ada`.
+diff --git a/editable/train.py b/editable/train.py
+index 7d14653b9afdc0b0a836790250d14de3123fcf67..15e5769eb04a32859a4f1fd5cddc29587639c810
+--- a/editable/train.py
++++ b/editable/train.py
+@@ -285,7 +285,6 @@
+     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
+ ]
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def adamw_step_fused(p, grad, exp_avg, exp_avg_sq, step_t, lr_t, beta1_t, beta2_t, eps_t, wd_t):
+     p.mul_(1 - lr_t * wd_t)
+     exp_avg.lerp_(grad, 1 - beta1_t)
+@@ -296,7 +295,6 @@
+     step_size = lr_t / bias1
+     p.add_(exp_avg / denom, alpha=-step_size)
+ 
+-@torch.compile(dynamic=False, fullgraph=True)
+ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momentum_buffer,
+                     momentum_t, lr_t, wd_t, beta2_t, ns_steps, red_dim):
+     # Nesterov momentum
+
+tokens used
+66,343
+Completed two experiments and updated the loop state.
+
+Current branch/head:
+- `research-loops/may5`
+- `HEAD = bea1ada` (kept as current best)
+
+What I changed:
+- Kept: removed `@torch.compile(...)` from optimizer fused functions in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/editable/train.py)
+- Tried then discarded: reduced CPU fallback `runtime_total_batch_size` 8192→4096 in [train.py](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/editable/train.py)
+
+Results logged in [results.tsv](/home/matteosaponati/research-loops-stresstest/.local/harness/noisy1-gpt53codex-medium-4h-orchestrated-1-20260505-000212/research-loop/memory/results.tsv):
+- `7b0e138` crash (`0.000000`) — cuda readiness gating attempt
+- `bea1ada` keep `1.045861` — first successful non-crash run
+- `9767b7d` discard `1.057803` — worse than best, reset back to `bea1ada`
+
+Best `val_bpb` so far: `1.045861` at commit `bea1ada`.
