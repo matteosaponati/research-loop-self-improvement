@@ -1,80 +1,42 @@
 # Automatic research loop
 
-This repo is an automatic ML research sandbox. You are a completely autonomous researcher. The only visible workspace is this directory, which contains a local `.git` checkout plus `editable/`, `immutable/`, `program.md`, `pyproject.toml`, and `uv.lock`. The goal is to get the lowest val_bpb after training an LLM using `editable/train.py`. The time budget is fixed to 5 mins for each run. You have full freedom in editing files inside the `editable/` directory. Each experiment runs on a single GPU. The training script runs for a fixed time budget of 5 minutes (wall clock training time, excluding startup/compilation). You launch it simply as: `uv run --extra research python editable/train.py`.
+This repo is an automatic ML research sandbox. You are a completely autonomous researcher. The only visible workspace is this directory, which contains a local `.git` checkout plus `editable/`, `immutable/`, `program.md`, `pyproject.toml`, and `uv.lock`. The goal is to get the lowest `val_bpb` after training an LLM through `editable/train.py`. The time budget is fixed to 3 minutes for each run. You have full freedom in editing files inside the `editable/` directory only. `editable/train.py` exposes training code only through `train_model()`. Run experiments with `immutable/run_experiment.py`; it imports `editable.train`, trains the model in memory, evaluates it with the immutable evaluator, prints the final summary, and creates or updates `memory/results.tsv` automatically. Provide a short one-line summary of the experiment with `--description`.
+
+Example:
+
+```
+uv run --extra research python immutable/run_experiment.py --description "baseline" > run.log 2>&1
+```
 
 # Rules
 
 - The visible workspace must be a git checkout. If `.git` is not available to git from this directory, the branch/commit/reset loop will not work.
 - You may ONLY edit code files inside the `editable/` directory.
-- You may write run logs, `metrics.json`, and `memory/results.tsv` in this workspace.
-- You MUST NOT edit or inspect files inside `immutable/`. Files there are strictly immutable. The only allowed direct use is executing `immutable/prepare.py` if data/tokenizer artifacts are missing.
+- You MUST NOT edit or inspect files inside `immutable/`. Files there are strictly immutable. The only allowed direct uses are executing `immutable/prepare.py` if data/tokenizer artifacts are missing and executing `immutable/run_experiment.py` for an experiment.
 - You MUST NOT install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
-- The loop is git-based: edit → commit → run → decide keep/revert.
-- Each experiment runs on a single GPU. The training script runs for a fixed time budget of 5 minutes (wall clock training time, excluding startup/compilation).
-- If a run exceeds 10 minutes, kill it and treat it as a failure (discard and revert).
-- Normal result collection MUST read only `metrics.json`, never the full training log. Do not run `cat`, `sed`, `head`, `tail`, `less`, or broad `grep` on `run.log` unless you are diagnosing a crash. The run log may contain very large step-by-step progress output that wastes context.
+- The loop is git-based: edit -> commit -> run experiment -> decide keep/revert.
+- Each experiment runs on a single GPU. The training script runs for a fixed time budget of 3 minutes (wall clock training time, excluding startup/compilation).
+- Experiments run through a GPU broker in this harness; expect roughly 3 minutes before the command returns with final `results.tsv` updates.
+- Ensure `editable/config.toml` keeps `device = "cuda"` for brokered runs; the broker refuses CPU-only configs.
+- `immutable/run_experiment.py` enforces a 10-minute wall-clock limit and records a crash if the run fails or exceeds the limit. If the process hangs past 10 minutes and does not exit by itself, kill it and treat the experiment as `crash`, then discard and revert.
+- Do not inspect the full training log unless you are diagnosing a crash. The run log may contain very large step-by-step progress output that wastes context.
 - You run indefinitely until the human stops you. NEVER ask for permission to continue.
 
-# Output format
+# Results
 
-Once the script finishes it prints a summary like this:
-
-```
----
-val_bpb:          0.997900
-training_seconds: 300.1
-total_seconds:    325.9
-peak_vram_mb:     45060.2
-mfu_percent:      39.80
-total_tokens_M:   499.6
-num_steps:        953
-num_params_M:     50.3
-depth:            8
-```
-
-Note that the script is configured to always stop after 5 minutes, so depending on the computing platform of this computer the numbers might look different. 
-
-The script also writes the same final values to `metrics.json` in compact JSON form. Use this file for normal result collection:
+`memory/results.tsv` is tab-separated and is managed by `immutable/run_experiment.py`. It has one row per finalized experiment:
 
 ```
-{
-  "depth": 8,
-  "mfu_percent": 39.8,
-  "num_params_M": 50.3,
-  "num_steps": 953,
-  "peak_vram_mb": 45060.2,
-  "total_seconds": 325.9,
-  "total_tokens_M": 499.6,
-  "training_seconds": 300.1,
-  "val_bpb": 0.9979
-}
+commit	val_bpb	training_seconds	total_seconds	peak_vram_mb	mfu_percent	total_tokens_M	num_steps	num_params_M	depth	status	description
 ```
 
-# Logging Results
-
-When an experiment is done, log it to `memory/results.tsv` (tab-separated, NOT comma-separated — commas break in descriptions).
-
-The TSV has a header row and 5 columns:
+Example row:
 
 ```
-commit	val_bpb	memory_gb	status	description
+a1b2c3d	0.997900	180.1	325.9	45060.2	39.80	499.6	953	50.3	8	keep	baseline
 ```
 
-1. git commit hash (short, 7 chars)
-2. val_bpb achieved (e.g. 1.234567) — use 0.000000 for crashes
-3. peak memory in GB, round to .1f (e.g. 12.3 — divide peak_vram_mb by 1024) — use 0.0 for crashes
-4. status: `keep`, `discard`, or `crash`
-5. short text description of what this experiment tried
-
-Example:
-
-```
-commit	val_bpb	memory_gb	status	description
-a1b2c3d	0.997900	44.0	keep	baseline
-b2c3d4e	0.993200	44.2	keep	increase LR to 0.04
-c3d4e5f	1.005000	44.0	discard	switch to GeLU activation
-d4e5f6g	0.000000	0.0	crash	double model width (OOM)
-```
+`status` is `keep`, `discard`, or `crash`. The runner marks a run as `keep` only if it strictly improves over previous kept rows, otherwise `discard`; crashes are recorded automatically.
 
 # Experiments
 
@@ -82,26 +44,22 @@ To test ideas and run experiments, follow exactly these steps in strict order.
 
 ## (1) Setup.
 
-First, you setup the stage for your experimentation by doing the following:
-
 1. **Resume if already initialized**: If `memory/results.tsv` already exists and contains at least one result row after the header, do not create a new branch, do not overwrite `memory/results.tsv`, and do not rerun the baseline. Continue directly with step (2) from the current git branch and current best result.
 2. **Define a tag** based on today's date (e.g. mar5). The branch `research-loops/<tag>` must not already exist for a fresh run. If it already exists but `memory/results.tsv` has no result rows, pick a unique suffix such as `research-loops/<tag>-2`.
-3. **Create the branch**: git checkout -b research-loops/<tag> from current master.
+3. **Create the branch**: git checkout -b `research-loops/<tag>` from current master.
 4. **Verify data exists**: Check that `.local/data` and `.local/tokenizer` contain data shards and a tokenizer. If not, run `uv run --extra research python immutable/prepare.py`.
-5. **Initialize results**: Create the `memory/` directory and `memory/results.tsv` with just the header row. This is your ephemeral working memory where you store the results. The baseline will be recorded after the first run.
-6. **Run baseline**: Run the training script as is with `uv run --extra research python editable/train.py > run.log 2>&1`, then read `metrics.json` and store the baseline result in `memory/results.tsv`.
+5. **Run baseline**: Run `uv run --extra research python immutable/run_experiment.py --description "baseline" > run.log 2>&1`. Wait ~3 minutes, then read `memory/results.tsv` for the recorded result.
 
 ## (2) Propose and run a new experiment.
 
-Next, you setup a new experiment by doing the following:
-
-1. **Read the in-scope files**: The repo is small. Read the files in `editable/` for full context: `train.py` for the model architecture, optimizer, training loop; `config.toml` and `config_loader.py` for the configuration; `memory/results.tsv` for the previous experiments and the associated results.
-2. **Propose experiment**: Tune the file(s) in `editable/` with an experimental idea by directly hacking the code. Output the edit as a clean unified diff, then git commit.
-3. **Run the experiment**: simply run `uv run --extra research python editable/train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context).
-4. **Read out the results**: read `metrics.json` only, for example with `python - <<'PY'` and `json.load`. If `metrics.json` is missing or invalid, the run crashed. Do not inspect `run.log` unless you need to diagnose a crash.
-5. **Record the results**: write the results in `memory/results.tsv`.
-6. **If val_bpb improved (lower)**: you "advance" the branch, keeping the git commit.
-7. **If val_bpb is equal or worse**: you git reset back to where you started.
+1. **Read the in-scope files**: The repo is small. Read the files in `editable/` for full context: `train.py` for the model architecture, optimizer, training loop; `config.toml` and `config_loader.py` for the configuration; `memory/results.tsv` for previous experiments and results.
+2. **Propose experiment**: Tune the file(s) in `editable/` with an experimental idea by directly hacking the code. Output the edit as a clean unified diff, then git commit. If you change the model architecture, forward pass, module names, or anything needed to train/evaluate the model, you MUST keep `train_model()` returning the exact trained model, tokenizer, model config, and training metrics that `immutable/run_experiment.py` needs for evaluation.
+3. **Run experiment**: Run `uv run --extra research python immutable/run_experiment.py --description "one-line summary of the change" > run.log 2>&1`.  
+   Then wait ~3 minutes and read `memory/results.tsv` (the GPU broker returns after the remote run or timeout).
+4. **Crashes**: If training crashes or violates the run rules, the runner records `status` as `crash` automatically. If no result appears within the expected window, do not restart the run; wait for `run_experiment` to return, inspect `run.log` once, and if it was just a broker/timeout hang, mark/reset as `crash`.
+5. **Read out the results**: Read only `memory/results.tsv` for the final metrics and status. Do not inspect `run.log` unless you need to diagnose a crash.
+6. **If status is `keep`**: advance the branch, keeping the git commit.
+7. **If status is `discard` or `crash`**: reset back to where you started before this experiment.
 
 # Start the job
 

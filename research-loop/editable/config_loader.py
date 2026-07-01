@@ -49,15 +49,9 @@ class ExperimentConfig:
     adam_beta2: float
     adam_eps: float
     dmodel_lr_reference: int
-    muon_initial_momentum: float
-    muon_ns_steps: int
-    muon_beta2: float
     warmup_ratio: float
     warmdown_ratio: float
     final_lr_frac: float
-    muon_momentum_warmup_steps: int
-    muon_momentum_start: float
-    muon_momentum_end: float
     weight_decay_decay: bool
 
     @property

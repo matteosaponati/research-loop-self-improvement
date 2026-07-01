@@ -29,7 +29,7 @@ import torch
 # ---------------------------------------------------------------------------
 
 MAX_SEQ_LEN = 2048       # context length
-TIME_BUDGET = 300        # training time budget in seconds (5 minutes)
+TIME_BUDGET = 180        # training time budget in seconds (3 minutes)
 
 # ---------------------------------------------------------------------------
 # Configuration
