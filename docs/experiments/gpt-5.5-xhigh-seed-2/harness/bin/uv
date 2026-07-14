@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The agent is instructed to run the normal project command.  This wrapper keeps
+# that interface intact while routing only immutable/run_experiment.py to the
+# host-side broker.  Any other uv command must behave exactly like real uv.
+is_experiment_run=0
+is_prepare_run=0
+for arg in "$@"; do
+  [[ "${arg}" == "immutable/run_experiment.py" || "${arg}" == */immutable/run_experiment.py ]] && is_experiment_run=1
+  [[ "${arg}" == "immutable/prepare.py" || "${arg}" == */immutable/prepare.py ]] && is_prepare_run=1
+done
+
+if [[ "${is_prepare_run}" == "1" ]]; then
+  mkdir -p .local/data .local/tokenizer
+  touch .local/data/.remote-gpu-ready .local/tokenizer/.remote-gpu-ready
+  echo "Remote GPU broker prepares data/tokenizer on the SSH host; local prepare is a no-op."
+  exit 0
+fi
+
+if [[ "${is_experiment_run}" != "1" ]]; then
+  exec "${HARNESS_REAL_UV:-uv}" "$@"
+fi
+
+if [[ -f memory/harness/gpu-broker-url ]]; then
+  GPU_BROKER_URL="$(tr -d '\r\n' < memory/harness/gpu-broker-url)"
+fi
+if [[ -f memory/harness/gpu-broker-token ]]; then
+  GPU_BROKER_TOKEN="$(tr -d '\r\n' < memory/harness/gpu-broker-token)"
+fi
+if [[ -z "${GPU_BROKER_URL:-}" || -z "${GPU_BROKER_TOKEN:-}" ]]; then
+  echo "Missing GPU broker URL/token in memory/harness." >&2
+  exit 1
+fi
+
+# Do not let the agent start a remote GPU job if there is not enough wall-clock
+# time left for the result to sync back and for the archive path to run.
+HARNESS_CODEX_STOP_AT="${HARNESS_CODEX_STOP_AT:-0}"
+HARNESS_MIN_REMAINING_SECONDS="${HARNESS_MIN_REMAINING_SECONDS:-0}"
+HARNESS_DEADLINE_SENTINEL="${HARNESS_DEADLINE_SENTINEL:-memory/harness/soft-deadline-reached}"
+if [[ "${HARNESS_CODEX_STOP_AT}" =~ ^[0-9]+$ && "${HARNESS_CODEX_STOP_AT}" -gt 0 ]]; then
+  now="$(date +%s)"
+  remaining=$((HARNESS_CODEX_STOP_AT - now))
+  if (( remaining < HARNESS_MIN_REMAINING_SECONDS )); then
+    mkdir -p "$(dirname "${HARNESS_DEADLINE_SENTINEL}")"
+    printf 'refused remote experiment at %s: %ss remain, minimum is %ss\n' "$(date -Is)" "${remaining}" "${HARNESS_MIN_REMAINING_SECONDS}" > "${HARNESS_DEADLINE_SENTINEL}"
+    echo "HARNESS_SOFT_DEADLINE_REACHED: ${remaining}s remain; refusing remote GPU experiment" >&2
+    exit 75
+  fi
+fi
+
+python3 - "$@" <<'PY'
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+request = urllib.request.Request(
+    os.environ["GPU_BROKER_URL"].rstrip("/") + "/run",
+    data=json.dumps({"args": sys.argv[1:]}).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {os.environ['GPU_BROKER_TOKEN']}",
+        "Content-Type": "application/json",
+    },
+)
+try:
+    with urllib.request.urlopen(request, timeout=None) as response:
+        data = json.loads(response.read().decode("utf-8"))
+except urllib.error.HTTPError as exc:
+    body = exc.read().decode("utf-8", errors="replace")
+    if exc.code == 401:
+        sys.stderr.write("gpu broker returned 401 unauthorized: token mismatch for /run request\n")
+    sys.stderr.write(body)
+    raise SystemExit(1)
+except Exception as exc:
+    sys.stderr.write(f"gpu broker request failed: {exc}\n")
+    raise SystemExit(1)
+
+sys.stdout.write(data.get("stdout", ""))
+sys.stderr.write(data.get("stderr", ""))
+raise SystemExit(int(data.get("returncode", 1)))
+PY

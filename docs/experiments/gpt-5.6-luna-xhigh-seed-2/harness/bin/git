@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Git remains normal except for commit attempts near the soft deadline.  Blocking
+# late commits avoids half-recorded experiment states right before Docker stops.
+if [[ "${1:-}" == "commit" ]]; then
+  HARNESS_CODEX_STOP_AT="${HARNESS_CODEX_STOP_AT:-0}"
+  HARNESS_MIN_REMAINING_SECONDS="${HARNESS_MIN_REMAINING_SECONDS:-0}"
+  HARNESS_DEADLINE_SENTINEL="${HARNESS_DEADLINE_SENTINEL:-memory/harness/soft-deadline-reached}"
+  if [[ "${HARNESS_CODEX_STOP_AT}" =~ ^[0-9]+$ && "${HARNESS_CODEX_STOP_AT}" -gt 0 ]]; then
+    now="$(date +%s)"
+    remaining=$((HARNESS_CODEX_STOP_AT - now))
+    if (( remaining < HARNESS_MIN_REMAINING_SECONDS )); then
+      mkdir -p "$(dirname "${HARNESS_DEADLINE_SENTINEL}")"
+      printf 'refused git commit at %s: %ss remain, minimum is %ss\n' "$(date -Is)" "${remaining}" "${HARNESS_MIN_REMAINING_SECONDS}" > "${HARNESS_DEADLINE_SENTINEL}"
+      echo "HARNESS_SOFT_DEADLINE_REACHED: ${remaining}s remain; refusing git commit" >&2
+      exit 75
+    fi
+  fi
+fi
+
+exec "${HARNESS_REAL_GIT:-git}" "$@"
