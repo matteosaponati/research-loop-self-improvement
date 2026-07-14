@@ -9,6 +9,7 @@ The free entries are:
 (6) resume source.
 (7) GPU timeout.
 (8) agent auth source.
+(9) harness time limit.
 Everything else is a fixed harness policy.
 
 GPU connection details are read from environment variables because they
@@ -117,6 +118,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Timeout for each remote immutable/run_experiment.py execution.",
     )
     parser.add_argument(
+        "--time-limit-seconds",
+        type=positive_int,
+        default=DEFAULT_TIME_LIMIT_SECONDS,
+        help="Hard wall-clock timeout for the full harness run.",
+    )
+    parser.add_argument(
         "--agent-home-source",
         type=Path,
         help="Agent-agnostic auth/config directory copied into the per-run Docker runtime home.",
@@ -191,7 +198,7 @@ class HarnessConfig:
             agent_env=tuple(args.agent_env),
             smoke=args.smoke,
             agent_image=DEFAULT_AGENT_IMAGE,
-            time_limit_seconds=DEFAULT_TIME_LIMIT_SECONDS,
+            time_limit_seconds=args.time_limit_seconds,
             min_remaining_seconds=DEFAULT_MIN_REMAINING_SECONDS,
             restart_delay_seconds=DEFAULT_RESTART_DELAY_SECONDS,
             prepare_shards=DEFAULT_PREPARE_SHARDS,
