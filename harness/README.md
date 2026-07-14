@@ -22,24 +22,44 @@ GPU_REMOTE_ROOT=/root/research-loop-runs \
 This is one example:
 
 ```bash
-GPU_SSH_HOST=fake-gpu.invalid \
-GPU_SSH_USER=fakeuser \
-GPU_SSH_PORT=2222 \
-GPU_SSH_KEY=/tmp/fake-key \
-GPU_REMOTE_ROOT=/tmp/fake-research-loop-runs \
+GPU_SSH_HOST=80.188.223.202 \
+GPU_SSH_USER=root \
+GPU_SSH_PORT=18999 \
+GPU_SSH_KEY=/Users/matteosaponati/.ssh/vast_gpu_key \
+GPU_REMOTE_ROOT=/root/research-loop-runs \
 ./docker_harness.sh \
   --smoke \
   --agent codex \
   --agent-model gpt-5.4 \
-  --reasoning-effort medium \
+  --reasoning-effort high \
   --loops 1 \
-  --run-id codex-gpt-5.3-spark-medium-test \
-  --job-name my-fantastic-eval \
+  --run-id vast-test-001 \
+  --job-name vast-real-gpu-test \
+  --eval-name val_bpb
+```
+
+```bash
+GPU_SSH_HOST=80.188.223.202 \
+GPU_SSH_USER=root \
+GPU_SSH_PORT=18999 \
+GPU_SSH_KEY=/Users/matteosaponati/.ssh/vast_gpu_key \
+GPU_REMOTE_ROOT=/root/research-loop-runs \
+./docker_harness.sh \
+  --agent codex \
+  --agent-model gpt-5.5 \
+  --reasoning-effort xhigh \
+  --loops 0 \
+  --run-id gpt-5.5-xhigh-seed-1 \
+  --job-name seed-1 \
+  --time-limit-seconds 11700 \
   --eval-name val_bpb
 ```
 
 The SSH key and SSH config stay on the host. Docker receives only the isolated
 workspace, `/agent-home`, and a local broker URL/token.
+
+Use `--broker-port <port>` or `GPU_BROKER_PORT=<port>` to pin the localhost
+broker port when multiple harness jobs are running.
 
 ## Workflow
 

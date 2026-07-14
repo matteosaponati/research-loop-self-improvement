@@ -15,12 +15,24 @@ from harness.config import HarnessConfig
 from harness.util import SOURCE_WORKSPACE, absolute_path, copy_filtered_tree, run
 
 
-FRESH_WORKSPACE_EXCLUDES = ((".git",), (".venv",), (".local",), ("memory",), ("run.log",))
+FRESH_WORKSPACE_EXCLUDES = (
+    (".git",),
+    (".venv",),
+    (".local",),
+    (".uv-cache",),
+    (".uv-tmp",),
+    ("__pycache__",),
+    ("memory",),
+    ("run.log",),
+)
 """Source-tree paths that must not be copied into a fresh isolated workspace."""
 
 RESUME_WORKSPACE_EXCLUDES = (
     (".venv",),
     (".local",),
+    (".uv-cache",),
+    (".uv-tmp",),
+    ("__pycache__",),
     ("memory", "codex"),
     ("memory", "codex_text"),
     ("memory", "claude"),
