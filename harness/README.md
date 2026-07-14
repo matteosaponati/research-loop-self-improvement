@@ -38,6 +38,23 @@ GPU_REMOTE_ROOT=/root/research-loop-runs \
   --eval-name val_bpb
 ```
 
+```bash
+GPU_SSH_HOST=80.188.223.202 \
+GPU_SSH_USER=root \
+GPU_SSH_PORT=18999 \
+GPU_SSH_KEY=/Users/matteosaponati/.ssh/vast_gpu_key \
+GPU_REMOTE_ROOT=/root/research-loop-runs \
+./docker_harness.sh \
+  --agent codex \
+  --agent-model gpt-5.5 \
+  --reasoning-effort xhigh \
+  --loops 0 \
+  --run-id gpt-5.5-xhigh-seed-1 \
+  --job-name seed-1 \
+  --time-limit-seconds 11700 \
+  --eval-name val_bpb
+```
+
 The SSH key and SSH config stay on the host. Docker receives only the isolated
 workspace, `/agent-home`, and a local broker URL/token.
 
