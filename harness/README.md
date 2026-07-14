@@ -58,6 +58,9 @@ GPU_REMOTE_ROOT=/root/research-loop-runs \
 The SSH key and SSH config stay on the host. Docker receives only the isolated
 workspace, `/agent-home`, and a local broker URL/token.
 
+Use `--broker-port <port>` or `GPU_BROKER_PORT=<port>` to pin the localhost
+broker port when multiple harness jobs are running.
+
 ## Workflow
 
 - `docker_harness.sh`: thin shell entrypoint into `python -m harness`.
