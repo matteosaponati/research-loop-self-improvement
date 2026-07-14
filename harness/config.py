@@ -124,6 +124,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Hard wall-clock timeout for the full harness run.",
     )
     parser.add_argument(
+        "--broker-port",
+        type=positive_int,
+        help="Localhost port for the GPU broker; defaults to the first free port from 8765.",
+    )
+    parser.add_argument(
         "--agent-home-source",
         type=Path,
         help="Agent-agnostic auth/config directory copied into the per-run Docker runtime home.",
@@ -184,6 +189,16 @@ class HarnessConfig:
 
         agent_home_source = args.agent_home_source or default_agent_home_source(args.agent)
         ssh_key = os.environ.get("GPU_SSH_KEY")
+        broker_port = args.broker_port
+        if broker_port is None:
+            env_broker_port = os.environ.get("GPU_BROKER_PORT")
+            if env_broker_port:
+                try:
+                    broker_port = positive_int(env_broker_port)
+                except (argparse.ArgumentTypeError, ValueError) as exc:
+                    raise SystemExit(f"GPU_BROKER_PORT must be a positive integer: {exc}") from exc
+            else:
+                broker_port = resolve_free_port(DEFAULT_BROKER_PORT)
         return cls(
             run_id=args.run_id,
             job_name=args.job_name,
@@ -202,7 +217,7 @@ class HarnessConfig:
             min_remaining_seconds=DEFAULT_MIN_REMAINING_SECONDS,
             restart_delay_seconds=DEFAULT_RESTART_DELAY_SECONDS,
             prepare_shards=DEFAULT_PREPARE_SHARDS,
-            broker_port=resolve_free_port(DEFAULT_BROKER_PORT),
+            broker_port=broker_port,
             shared_local_cache=DEFAULT_SHARED_CACHE,
             archive_root=DEFAULT_ARCHIVE_ROOT,
             ssh_host=os.environ.get("GPU_SSH_HOST", ""),
@@ -278,6 +293,8 @@ class HarnessConfig:
             raise SystemExit(f"Refusing to overwrite existing archive directory: {self.archive_dir}")
         if self.gpu_job_timeout_seconds < 60:
             raise SystemExit("--gpu-job-timeout-seconds must be at least 60")
+        if not 1 <= self.broker_port <= 65535:
+            raise SystemExit("--broker-port/GPU_BROKER_PORT must be between 1 and 65535")
         if not self.smoke:
             if not self.ssh_host:
                 raise SystemExit("Set GPU_SSH_HOST to the SSH host for the GPU machine")
